@@ -55,6 +55,17 @@ ACTION=${1:-up}
 
 if [ "$ACTION" = "up" ]; then
     echo -e "\n${GREEN}🚀 准备拉取最新多架构镜像并启动完整服务栈...${NC}"
+    
+    if [ ! -f "docker-compose.yml" ]; then
+        echo -e "${YELLOW}📄 未检测到 docker-compose.yml，正在从 Github 仓库拉取...${NC}"
+        curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/docker-compose.yml -o docker-compose.yml
+    fi
+
+    if [ ! -f ".env.example" ]; then
+        echo -e "${YELLOW}📄 未检测到 .env.example，正在从 Github 仓库拉取...${NC}"
+        curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/.env.example -o .env.example
+    fi
+    
     if [ ! -f ".env" ]; then
         echo -e "${YELLOW}🗂 未检测到 .env，正在依据 .env.example 自动生成默认环境模板...${NC}"
         cp .env.example .env
