@@ -55,7 +55,8 @@ echo -e "${GREEN}✅ 部署文件下载完成${NC}"
 # ---------- 4. 配置密码 ----------
 echo ""
 echo -e "${YELLOW}🔐 请设置管理后台密码（直接回车使用默认密码 qq007qq008）：${NC}"
-read -r -p "密码: " USER_PASSWORD
+# 注意：在 curl | bash 管道模式下，必须从 /dev/tty 读取输入，否则 read 会读取脚本后续行导致语法错误
+read -r USER_PASSWORD < /dev/tty
 if [ -n "$USER_PASSWORD" ]; then
     # macOS 和 Linux 的 sed 兼容写法
     if [[ "$OSTYPE" == "darwin"* ]]; then
