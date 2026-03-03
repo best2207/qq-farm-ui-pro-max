@@ -108,7 +108,24 @@ fi
 
 # ---------- 5. 启动服务 ----------
 echo ""
-echo "🚀 启动所有服务..."
+echo "🚀 启动所有服务（正在拉取 Docker 镜像，这可能需要较长时间）..."
+
+# 尝试拉取镜像并捕获常见错误（如镜像源 403 禁用）
+if ! docker compose pull; then
+    echo ""
+    echo -e "${RED}❌ 镜像拉取失败！${NC}"
+    echo "------------------------------------------"
+    echo -e "${YELLOW}诊断提示：${NC}"
+    echo "检测到拉取错误。这通常是因为您的服务器配置了失效的 Docker 镜像源（如 daocloud.io）。"
+    echo ""
+    echo "请尝试执行以下命令重置镜像源（使用 Docker 官方源）："
+    echo -e "${GREEN}sudo rm -f /etc/docker/daemon.json && sudo systemctl restart docker${NC}"
+    echo ""
+    echo "或者使用可靠的国内加速器后再运行此脚本。"
+    echo "------------------------------------------"
+    exit 1
+fi
+
 docker compose up -d
 
 # ---------- 6. 等待启动 ----------
@@ -137,5 +154,6 @@ echo "  常用命令（在 ${DEPLOY_DIR} 目录下执行）："
 echo "    查看日志:  docker compose logs -f"
 echo "    停止服务:  docker compose down"
 echo "    重启服务:  docker compose restart"
-echo "    更新版本:  docker compose pull && docker compose up -d"
+echo "    手动拉取:  docker compose pull"
+echo "    重新部署:  docker compose up -d"
 echo ""
