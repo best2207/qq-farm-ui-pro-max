@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { adminToken } from '@/utils/auth'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAccountStore } from '@/stores/account'
+import { useAvatar } from '@/utils/avatar'
+
+const { getAvatarUrl, markFailed } = useAvatar()
 
 const router = useRouter()
 const accountStore = useAccountStore()
@@ -20,6 +24,13 @@ const accountToDelete = ref<any>(null)
 
 onMounted(() => {
   accountStore.fetchAccounts()
+})
+
+// 监听 Token 变化，当用户重新登录或 Token 被赋值时强制同步一次
+watch(adminToken, (val) => {
+  if (val) {
+    accountStore.fetchAccounts()
+  }
 })
 
 useIntervalFn(() => {
@@ -89,9 +100,17 @@ function handleSaved() {
       </BaseButton>
     </div>
 
-    <div v-if="loading && accounts.length === 0" class="glass-text-muted py-8 text-center">
-      <div i-svg-spinners-90-ring-with-bg class="mb-2 inline-block text-2xl" />
-      <div>加载中...</div>
+    <div v-if="loading && accounts.length === 0" class="glass-panel min-h-[300px] flex flex-col items-center justify-center rounded-lg py-12 text-center shadow">
+      <div class="relative mb-6">
+        <div class="i-svg-spinners-ring-resize text-5xl text-primary-500" />
+        <div class="absolute inset-0 animate-ping rounded-full bg-primary-400/20 blur-xl" />
+      </div>
+      <h3 class="text-lg font-semibold tracking-tight">
+        正在同步云端账号...
+      </h3>
+      <p class="glass-text-muted mt-2 text-sm">
+        正在为您的容器分配安全资源，请稍候
+      </p>
     </div>
 
     <div v-else-if="accounts.length === 0" class="glass-panel rounded-lg py-12 text-center shadow">
@@ -118,7 +137,7 @@ function handleSaved() {
         <div class="mb-4 flex items-start justify-between">
           <div class="flex items-center gap-3">
             <div class="h-12 w-12 flex items-center justify-center overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-              <img v-if="acc.uin" :src="`https://q1.qlogo.cn/g?b=qq&nk=${acc.uin}&s=100`" class="h-full w-full object-cover">
+              <img v-if="getAvatarUrl(acc)" :src="getAvatarUrl(acc)" class="h-full w-full object-cover" @error="(e) => markFailed((e.target as HTMLImageElement).src)">
               <div v-else class="i-carbon-user text-2xl glass-text-muted" />
             </div>
             <div>

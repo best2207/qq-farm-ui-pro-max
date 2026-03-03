@@ -1,7 +1,4 @@
-/* eslint-disable no-alert, unused-imports/no-unused-vars */
-
-<script setup lang="ts">
-import { useStorage } from '@vueuse/core'
+import { adminToken } from '@/utils/auth'
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -9,7 +6,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import { useAppStore } from '@/stores/app'
 import { useSettingStore } from '@/stores/setting'
 
-const token = useStorage('admin_token', '')
+const token = adminToken
 const currentUser = ref<any>(null)
 const appStore = useAppStore()
 const settingStore = useSettingStore()

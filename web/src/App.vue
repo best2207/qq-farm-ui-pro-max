@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { useStorage } from '@vueuse/core'
-import { onMounted, ref, defineAsyncComponent } from 'vue'
+import { onMounted, ref, defineAsyncComponent, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useStatusStore } from '@/stores/status'
+import { adminToken } from '@/utils/auth'
 
 // Async lazy load heavy components
 const NotificationModal = defineAsyncComponent(() => import('@/components/NotificationModal.vue'))
 const ToastContainer = defineAsyncComponent(() => import('@/components/ToastContainer.vue'))
 
 const appStore = useAppStore()
+const statusStore = useStatusStore()
 
 // 全局更新弹窗逻辑
 const currentVersion = __APP_VERSION__
@@ -22,6 +25,14 @@ onMounted(() => {
   if (seenVersion.value !== currentVersion) {
     showUpdateModal.value = true
     seenVersion.value = currentVersion // 设定当前版本为已读
+  }
+})
+
+// === 后续优化：全局 Socket 生命周期管理 ===
+// 当 Token 被移除（用户点击退出或 Token 过期被拦截器清除）时，彻底断开 Socket 连接
+watch(adminToken, (newToken) => {
+  if (!newToken) {
+    statusStore.disconnectRealtime()
   }
 })
 </script>

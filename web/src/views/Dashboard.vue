@@ -8,6 +8,7 @@ import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import UserInfoCard from '@/components/UserInfoCard.vue'
 import { useAccountStore } from '@/stores/account'
 import { useBagStore } from '@/stores/bag'
@@ -414,30 +415,214 @@ const schedulerTasks = computed(() => {
   return tasks.sort((a, b) => (a.nextRunAt || Infinity) - (b.nextRunAt || Infinity))
 })
 
-// 任务名友好映射
-const TASK_NAME_MAP: Record<string, string> = {
-  farm_cycle: '农场巡查',
-  friend_cycle: '好友巡查',
-  daily_share: '分享奖励',
-  vip_daily_gift: '会员礼包',
-  month_card_gift: '月卡礼包',
-  open_server_gift: '开服红包',
-  illustrated_rewards: '图鉴奖励',
-  email_rewards: '邮箱领取',
-  mall_free_gifts: '免费礼包',
-  task_scan: '任务扫描',
+// 任务元数据：中文名 + 操作步骤
+interface TaskMeta {
+  label: string
+  steps: string[]
+}
+
+const TASK_META: Record<string, TaskMeta> = {
+  farm_cycle: {
+    label: '🌾 农场巡查',
+    steps: [
+      '检查所有土地状态',
+      '收获成熟作物',
+      '清理枯死植株',
+      '补种空闲地块',
+      '施加化肥加速生长',
+      '检测并触发土地升级',
+    ],
+  },
+  farm_check_loop: {
+    label: '🌾 农场巡查',
+    steps: [
+      '检查所有土地状态',
+      '收获成熟作物',
+      '清理枯死植株',
+      '补种空闲地块',
+      '施加化肥加速生长',
+      '检测并触发土地升级',
+    ],
+  },
+  farm_push_check: {
+    label: '📢 收获推送',
+    steps: [
+      '检测成熟作物推送通知',
+      '自动触发收获流程',
+    ],
+  },
+  friend_cycle: {
+    label: '👥 好友巡查',
+    steps: [
+      '获取好友列表',
+      '逐个访问好友农场',
+      '采摘好友成熟果实',
+      '帮好友浇水/除草/除虫',
+      '执行捣乱操作（如已开启）',
+    ],
+  },
+  friend_check_loop: {
+    label: '👥 好友巡查',
+    steps: [
+      '获取好友列表',
+      '逐个访问好友农场',
+      '采摘好友成熟果实',
+      '帮好友浇水/除草/除虫',
+      '执行捣乱操作（如已开启）',
+    ],
+  },
+  friend_check_bootstrap_applications: {
+    label: '📨 好友申请处理',
+    steps: [
+      '检查待处理好友申请',
+      '自动接受符合条件的申请',
+    ],
+  },
+  daily_share: {
+    label: '📤 每日分享',
+    steps: [
+      '检查当日分享状态',
+      '执行分享操作',
+      '领取分享奖励',
+    ],
+  },
+  vip_daily_gift: {
+    label: '👑 会员礼包',
+    steps: [
+      '检查会员状态',
+      '判断是否有可领礼包',
+      '领取会员每日礼包',
+    ],
+  },
+  month_card_gift: {
+    label: '💳 月卡礼包',
+    steps: [
+      '检查月卡激活状态',
+      '判断今日是否已领取',
+      '领取月卡每日奖励',
+    ],
+  },
+  open_server_gift: {
+    label: '🧧 开服红包',
+    steps: [
+      '检查红包活动状态',
+      '判断是否有可领红包',
+      '领取开服红包奖励',
+    ],
+  },
+  illustrated_rewards: {
+    label: '📖 图鉴奖励',
+    steps: [
+      '检查图鉴完成进度',
+      '领取已达成的图鉴奖励',
+    ],
+  },
+  email_rewards: {
+    label: '📧 邮件领取',
+    steps: [
+      '检查游戏邮箱',
+      '逐条领取未读邮件奖励',
+    ],
+  },
+  mall_free_gifts: {
+    label: '🎁 免费礼包',
+    steps: [
+      '检查商城免费区',
+      '领取所有可用免费礼包',
+    ],
+  },
+  task_scan: {
+    label: '✅ 每日任务',
+    steps: [
+      '扫描可完成的每日任务',
+      '自动完成任务条件',
+      '领取任务奖励',
+    ],
+  },
+  task_claim_debounce: {
+    label: '✅ 任务领取',
+    steps: [
+      '防抖等待合并请求',
+      '批量领取已完成任务奖励',
+    ],
+  },
+  task_init_bootstrap: {
+    label: '🔄 任务初始化',
+    steps: [
+      '初始化任务系统',
+      '加载每日任务列表',
+    ],
+  },
+  unified_next_tick: {
+    label: '⏱ 统一调度',
+    steps: [
+      '检查农场巡查是否到期',
+      '检查好友巡查是否到期',
+      '按优先级执行到期任务',
+      '计算下次调度时间',
+    ],
+  },
+  daily_routine_interval: {
+    label: '📅 跨日礼包检测',
+    steps: [
+      '检测是否跨日',
+      '触发邮箱奖励领取',
+      '触发分享奖励领取',
+      '触发月卡/会员/开服礼包领取',
+      '触发免费礼包领取',
+    ],
+  },
+  status_sync: {
+    label: '📡 状态同步',
+    steps: [
+      '采集当前账号状态',
+      '同步金币/经验/点券数据',
+      '推送至管理面板',
+    ],
+  },
+  'daily-stats-job': {
+    label: '📊 数据统计归档',
+    steps: [
+      '归档当日收益数据',
+      '清理过期统计记录',
+    ],
+  },
+  'log-cleanup-job': {
+    label: '🧹 日志自动清理',
+    steps: [
+      '扫描过期日志文件',
+      '清理超期日志记录',
+    ],
+  },
+  heartbeat_interval: {
+    label: '💓 心跳保活',
+    steps: [
+      '发送心跳包到服务器',
+      '检测连接存活状态',
+    ],
+  },
 }
 
 function getTaskDisplayName(name: string) {
-  // 先精确匹配
-  if (TASK_NAME_MAP[name])
-    return TASK_NAME_MAP[name]
-  // 模糊匹配（包含关键词）
-  for (const [key, label] of Object.entries(TASK_NAME_MAP)) {
+  // 精确匹配 TASK_META
+  if (TASK_META[name])
+    return TASK_META[name].label
+  // 模糊匹配
+  for (const [key, meta] of Object.entries(TASK_META)) {
     if (name.includes(key))
-      return label
+      return meta.label
   }
   return name
+}
+
+function getTaskSteps(name: string): string[] {
+  if (TASK_META[name])
+    return TASK_META[name].steps
+  for (const [key, meta] of Object.entries(TASK_META)) {
+    if (name.includes(key))
+      return meta.steps
+  }
+  return []
 }
 
 function getTaskKindLabel(kind: string) {
@@ -452,6 +637,50 @@ function getTaskKindClass(kind: string) {
   if (kind === 'interval')
     return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
   return 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
+}
+
+// ========== 任务详情弹窗 ==========
+const showTaskDetailModal = ref(false)
+const selectedTask = ref<any>(null)
+
+function openTaskDetail(task: any) {
+  selectedTask.value = task
+  showTaskDetailModal.value = true
+}
+
+// ========== 任务倒计时实时刷新 ==========
+const taskCountdowns = ref<Record<string, string>>({})
+
+function updateTaskCountdowns() {
+  const tasks = schedulerTasks.value
+  if (!tasks.length) return
+  const now = Date.now()
+  const result: Record<string, string> = {}
+  for (const t of tasks) {
+    const key = `${t.namespace}-${t.name}`
+    if (!t.nextRunAt) {
+      result[key] = '--'
+    } else {
+      const diffSec = Math.max(0, Math.floor((t.nextRunAt - now) / 1000))
+      if (diffSec <= 0) {
+        result[key] = '即将执行'
+      } else {
+        const h = Math.floor(diffSec / 3600)
+        const m = Math.floor((diffSec % 3600) / 60)
+        const s = diffSec % 60
+        if (h > 0)
+          result[key] = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+        else
+          result[key] = `${m}:${String(s).padStart(2, '0')}`
+      }
+    }
+  }
+  taskCountdowns.value = result
+}
+
+function getTaskCountdown(task: any) {
+  const key = `${task.namespace}-${task.name}`
+  return taskCountdowns.value[key] || formatNextRunCountdown(task.nextRunAt)
 }
 
 async function refresh() {
@@ -546,6 +775,8 @@ onMounted(() => {
 useIntervalFn(refresh, 10000)
 // Countdown timer (every 1s)
 useIntervalFn(updateCountdowns, 1000)
+// 任务队列倒计时 (every 1s)
+useIntervalFn(updateTaskCountdowns, 1000)
 
 // ============ 体验卡续费横幅 ============
 const dashboardTrialRenewing = ref(false)
@@ -915,8 +1146,9 @@ async function handleDashboardTrialRenew() {
                   <th class="px-2 py-1.5 text-left font-medium">任务名</th>
                   <th class="px-2 py-1.5 text-center font-medium">类型</th>
                   <th class="px-2 py-1.5 text-center font-medium">状态</th>
-                  <th class="px-2 py-1.5 text-right font-medium">下次执行</th>
+                  <th class="px-2 py-1.5 text-right font-medium">倒计时</th>
                   <th class="px-2 py-1.5 text-right font-medium">已执行</th>
+                  <th class="px-2 py-1.5 text-center font-medium">详情</th>
                 </tr>
               </thead>
               <tbody>
@@ -941,10 +1173,20 @@ async function handleDashboardTrialRenew() {
                     <span v-else class="text-gray-400">等待中</span>
                   </td>
                   <td class="px-2 py-1.5 text-right font-mono">
-                    {{ formatNextRunCountdown(task.nextRunAt) }}
+                    {{ getTaskCountdown(task) }}
                   </td>
                   <td class="px-2 py-1.5 text-right">
                     {{ task.runCount || 0 }} 次
+                  </td>
+                  <td class="px-2 py-1.5 text-center">
+                    <button
+                      v-if="getTaskSteps(task.name).length"
+                      class="rounded px-1.5 py-0.5 text-[10px] text-indigo-600 font-medium transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                      @click="openTaskDetail(task)"
+                    >
+                      查看
+                    </button>
+                    <span v-else class="text-gray-300">-</span>
                   </td>
                 </tr>
               </tbody>
@@ -979,6 +1221,61 @@ async function handleDashboardTrialRenew() {
       </div>
     </div>
   </div>
+
+  <!-- 任务详情弹窗 -->
+  <ConfirmModal
+    :show="showTaskDetailModal"
+    :title="selectedTask ? getTaskDisplayName(selectedTask.name) : '任务详情'"
+    confirm-text="关闭"
+    :show-cancel="false"
+    @update:show="showTaskDetailModal = $event"
+    @confirm="showTaskDetailModal = false"
+  >
+    <div v-if="selectedTask" class="space-y-4">
+      <!-- 任务基本信息 -->
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="rounded px-2 py-0.5 text-xs font-medium" :class="getTaskKindClass(selectedTask.kind)">
+          {{ getTaskKindLabel(selectedTask.kind) }}
+        </span>
+        <span v-if="selectedTask.running" class="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-xs text-green-700 font-medium dark:bg-green-900/30 dark:text-green-300">
+          <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+          执行中
+        </span>
+        <span v-else class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-700/30 dark:text-gray-400">
+          等待中
+        </span>
+        <span class="rounded bg-purple-100 px-2 py-0.5 text-xs text-purple-700 font-medium dark:bg-purple-900/30 dark:text-purple-300">
+          已执行 {{ selectedTask.runCount || 0 }} 次
+        </span>
+      </div>
+
+      <!-- 倒计时 -->
+      <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-700/30">
+        <div class="i-carbon-timer text-indigo-500" />
+        <span class="glass-text-muted text-sm">距下次执行：</span>
+        <span class="text-sm font-bold font-mono">
+          {{ getTaskCountdown(selectedTask) }}
+        </span>
+      </div>
+
+      <!-- 操作步骤流程 -->
+      <div v-if="getTaskSteps(selectedTask.name).length">
+        <h4 class="glass-text-main mb-2 text-sm font-medium">📋 操作步骤</h4>
+        <ol class="ml-1 space-y-1.5">
+          <li
+            v-for="(step, idx) in getTaskSteps(selectedTask.name)"
+            :key="idx"
+            class="flex items-start gap-2 text-sm"
+          >
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] text-indigo-700 font-bold dark:bg-indigo-900/30 dark:text-indigo-300">
+              {{ idx + 1 }}
+            </span>
+            <span class="glass-text-main">{{ step }}</span>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </ConfirmModal>
 </template>
 
 <style scoped>

@@ -30,7 +30,8 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   DOCKERHUB_USERNAME: smdk000
-  DOCKERHUB_IMAGE: smdk000/qq-farm-bot-ui
+  IMAGE_UI: smdk000/qq-farm-bot-ui
+  IMAGE_IPAD: smdk000/ipad860
 
 jobs:
   build-and-push:
@@ -57,7 +58,7 @@ jobs:
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION="${{ github.ref_name }}"
           else
-            VERSION="v3.6.0"
+            VERSION="4.0.0"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
@@ -90,21 +91,31 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=sha-
 
-      - name: Build and push Docker image
+      - name: Build and push UI image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: core/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.IMAGE_UI }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE_UI }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            VCS_REF=${{ github.sha }}
+
+      - name: Build and push Ipad860 image
+        uses: docker/build-push-action@v5
+        with:
+          context: services/ipad860
+          file: services/ipad860/Dockerfile.multi
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_IPAD }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE_IPAD }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Update Docker Hub description
         if: github.event.inputs.push_to_docker_hub != 'false'

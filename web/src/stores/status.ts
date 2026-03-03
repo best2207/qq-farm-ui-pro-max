@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io-client'
-import { useStorage } from '@vueuse/core'
+import { adminToken } from '@/utils/auth'
 import { defineStore } from 'pinia'
 import { io } from 'socket.io-client'
 import { ref } from 'vue'
@@ -33,7 +33,7 @@ export const useStatusStore = defineStore('status', () => {
   const realtimeConnected = ref(false)
   const realtimeLogsEnabled = ref(true)
   const currentRealtimeAccountId = ref('')
-  const tokenRef = useStorage('admin_token', '')
+  const tokenRef = adminToken
 
   let socket: Socket | null = null
   // 幂等订阅守卫：记录最近一次成功订阅的账号 ID，避免重复 subscribe 触发 snapshot 覆盖

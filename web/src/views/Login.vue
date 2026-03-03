@@ -1,8 +1,8 @@
-<script setup lang="ts">
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
+import { adminToken } from '@/utils/auth'
 import NotificationPanel from '@/components/NotificationPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -16,7 +16,6 @@ const password = ref('')
 const cardCode = ref('')
 const error = ref('')
 const loading = ref(false)
-const token = useStorage('admin_token', '')
 
 // 记住用户名
 const rememberUsername = useStorage('remember_username', false)
@@ -136,7 +135,7 @@ async function handleLogin() {
       password: password.value,
     })
     if (res.data.ok) {
-      token.value = res.data.data.token
+      adminToken.value = res.data.data.token
       saveCurrentUser(res.data.data.user)
       if (rememberUsername.value) {
         savedUsername.value = username.value
@@ -201,7 +200,7 @@ async function handleRegister() {
       cardCode: cardCode.value,
     })
     if (res.data.ok) {
-      token.value = res.data.data.token
+      adminToken.value = res.data.data.token
       saveCurrentUser(res.data.data.user)
       router.push('/')
     }
