@@ -1,4 +1,3 @@
-<script setup lang="ts">
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
