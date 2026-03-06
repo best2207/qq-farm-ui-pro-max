@@ -137,12 +137,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
           echo '# ARM 服务器' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
+          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
           echo 'chmod +x deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
           echo './deploy-arm.sh' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '# x86 服务器' >> $GITHUB_STEP_SUMMARY
-          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
+          echo 'curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
           echo 'chmod +x deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
           echo './deploy-x86.sh' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan: 修复与优化好友显示信息 (双端支持)</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --text-color: #cdd6f4;
+            --heading-color: #f38ba8;
+            --code-bg: #181825;
+            --border-color: #313244;
+            --accent-color: #89b4fa;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px 40px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--heading-color);
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        pre,
+        code {
+            background-color: var(--code-bg);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-family: "Fira Code", "JetBrains Mono", Consolas, monospace;
+        }
+
+        pre {
+            padding: 16px;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .mermaid-wrapper {
+            background-color: #313244;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .impact-level {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .impact-low {
+            background-color: #a6e3a1;
+            color: #11111b;
+        }
+
+        .impact-medium {
+            background-color: #f9e2af;
+            color: #11111b;
+        }
+
+        .impact-high {
+            background-color: #f38ba8;
+            color: #11111b;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: var(--code-bg);
+            color: var(--accent-color);
+        }
+    </style>
+    <!-- 引入 Mermaid.js -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.4.0/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark'
+        });
+    </script>
+</head>
+
+<body>
+
+    <h1>功能规划：修复与优化好友列表显示 (QQ & 微信双端深度适配)</h1>
+    <p><strong>日期:</strong> 2026年03月06日</p>
+    <p><strong>目标:</strong> 参照 <code>FarmAuto-master</code> 项目逻辑，修复现存好友界面缺失的关键信息（QQ
+        兜底头像、农场等级）。同时针对<strong>微信平台好友</strong>进行系统性补充优化，提供更极致的双端平滑体验。</p>
+
+    <div class="section">
+        <h2>1. 问题分析与微信端扩展优化建议 (Root Cause & Enhancements)</h2>
+        <p>通过对比分析 `FarmAuto-master` 与当前项目架构：</p>
+        <ol>
+            <li><strong>问题1 - 头像丢失：</strong> <code>Friends.vue</code> 依赖 <code>uin</code> 拼凑 <code>qlogo.cn</code> 获取 QQ
+                头像，但后端 <code>getFriendsList</code> 返回体未将该字段显式映射出去。</li>
+            <li><strong>问题2 - 等级缺失：</strong> 同上，<code>level</code> 字段未被正确向下传递，前端因此无法显示“Lv.XX”徽章。</li>
+        </ol>
+
+        <h3>💡 针对微信环境的极致优化建议：</h3>
+        <ul>
+            <li><strong>微信/QQ 平台标识分离：</strong> 微信账号和 QQ 账号获取好友的接口（GetAll vs SyncAll）响应体可能在头像策略上有差异（微信返回
+                <code>avatar_url</code> 为 <code>thirdwx.qlogo.cn</code>）。在后端为每个好友增加 <code>isWechat</code>
+                标识字段，以便前端渲染专属绿色图标或进行不同业务展示。</li>
+            <li><strong>微信跨域防盗链（Referrer-Policy）：</strong> 微信的头像直接使用 <code>&lt;img src="..."&gt;</code> 时，常常由于浏览器默认的
+                <code>Referer</code> 请求头导致 HTTP 403 抛错阻止访问。我们在前端组件的 <code>img</code> 标签上强制加注
+                <code>referrerpolicy="no-referrer"</code> 标签，完美回避跨域图裂。</li>
+            <li><strong>超长昵称 / Emoji 撑破面板：</strong> 微信昵称较容易产生异常的长长表情符组合。优化前端截断 CSS，避免重名+emoji挤压操作按钮区的 Flex 网格系统。</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>2. 数据流与架构图 (Data Flow)</h2>
+        <div class="mermaid-wrapper">
+            <div class="mermaid">
+                sequenceDiagram
+                participant Web as Frontend (Friends.vue)
+                participant Backend as Backend (friend.js)
+                participant Tencent as Tencent Server (QQ/WeChat)
+
+                Web->>Backend: 请求好友列表
+                Backend->>Tencent: 发送 GetAll 或 SyncAll 协议请求
+                Tencent-->>Backend: 返回 game_friends<br />(含 uin, level, avatar_url 等)
+
+                Note right of Backend: 数据映射与强化 (Data Mapping)<br>1. 注入 uin & farmLevel<br>2. 并基于当前账号 platform / uin<br>
+                推断是否微信好友 (isWechat)
+                Backend-->>Web: 返回强化后的好友对象数组
+
+                Note over Web: 解析头像 (Avatar Parsing)<br />1. 优先 avatarUrl (加上 referrer-policy=no-referrer防止微信图裂)<br />2.
+                若无且 isWechat=false，走 qlogo.cn (QQ)
+                Note over Web: 解析等级 (Badge Render)<br />若 farmLevel > 0 渲染小徽章
+                Web->>Web: 平滑容错渲染，完美展示双端特性
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. 实施步骤 (Implementation Steps)</h2>
+
+        <h3>步骤 1: 完善后端数据映射与平台探针 (核心补全)</h3>
+        <p><strong>目标文件:</strong> <code>core/src/services/friend.js</code></p>
+        <p>更新 <code>getFriendsList</code>：</p>
+        <pre><code class="language-javascript">
+            // 判断当前环境是否微信
+            const isWechatEnv = CONFIG.platform && CONFIG.platform.startsWith('wx');
+            
+            return friends
+            .filter(f => toNum(f.gid) !== state.gid && f.name !== '小小农夫' && f.remark !== '小小农夫')
+            .map(f => ({
+                gid: toNum(f.gid),
+                uin: toNum(f.uin),          // [新增] 用于兜底获取 QQ 头像
+                name: f.remark || f.name || `GID:${toNum(f.gid)}`,
+                avatarUrl: String(f.avatar_url || '').trim(),
+                farmLevel: Math.max(0, toNum(f.level) || 0), // [新增] 用于显示等级
+                isWechat: isWechatEnv,      // [新增] 鉴别微信环境以规避无谓的 uin 拼接重试
+                plant: f.plant ? /* ...略 */
+        </code></pre>
+
+        <h3>步骤 2: 增强前端 UI 容错与徽章展示 (视图优化)</h3>
+        <p><strong>目标文件:</strong> <code>web/src/views/Friends.vue</code></p>
+        <ol>
+            <li><strong>好友昵称旁增加农场等级徽章：</strong> 补充 <code>farmLevel</code> 大于 0 的展示块。</li>
+            <li><strong>头像增强组件：</strong> 配合 <code>referrerpolicy="no-referrer"</code> 防止 <code>thirdwx.qlogo.cn</code>
+                报错，配合 <code>friend.isWechat</code> 关闭对微信好友且没有头像时的无效 QQ ID 穷举。</li>
+        </ol>
+        <pre><code class="language-html">
+        &lt;div class="flex items-center gap-2 truncate font-bold"&gt;
+            &lt;span class="truncate"&gt;{{ friend.name }}&lt;/span&gt;
+            &lt;!-- [新增] 农场等级徽章 --&gt;
+            &lt;span v-if="friend.farmLevel != null && friend.farmLevel > 0" class="glass-text-muted whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"&gt;
+                Lv.{{ friend.farmLevel }}
+            &lt;/span&gt;
+            &lt;!-- (原有屏蔽逻辑保留...) --&gt;
+        &lt;/div&gt;
+        
+        &lt;!-- 头像容错装载防御微信防盗链 --&gt;
+        &lt;img
+            v-if="canShowFriendAvatar(friend)"
+            :src="getFriendAvatar(friend)"
+            class="h-full w-full object-cover"
+            loading="lazy"
+            referrerpolicy="no-referrer"  &lt;!-- [非常关键的微信突破口] --&gt;
+            @error="handleFriendAvatarError(friend)"
+        &gt;
+        </code></pre>
+        <p><em>并且在 TypeScript 头像逻辑侧，若判定为微信且 avatarUrl 为空，不再回退强行拼接 <code>q1.qlogo.cn</code> (QQ头像地址)，直接触发 fallback
+                默认头像。</em></p>
+    </div>
+
+    <div class="section">
+        <h2>4. 影响面与风险评估 (Impact Analysis)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>模块</th>
+                    <th>影响情况</th>
+                    <th>风险等级</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>friend.js</code></td>
+                    <td>追加了 <code>isWechat</code>、<code>uin</code>、<code>farmLevel</code>，逻辑上是极其轻量的只读推断，100%
+                        顺滑兼容原逻辑且没有任何阻塞式调用。</td>
+                    <td><span class="impact-low">极低</span></td>
+                </tr>
+                <tr>
+                    <td><code>Friends.vue</code></td>
+                    <td>加了防盗链属性极大提升微信好友头像显示成功率，追加了层级徽章丰富了界面视觉，有效解决了头像图裂白屏的长期痛点。</td>
+                    <td><span class="impact-low">低</span></td>
+                </tr>
+                <tr>
+                    <td>数据/性能</td>
+                    <td>列表数据在 V8 JavaScript 极速处理之内，性能极优，前后端完全一致化同步。</td>
+                    <td><span class="impact-low">极低</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+
+</html>

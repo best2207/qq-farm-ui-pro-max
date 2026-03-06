@@ -354,22 +354,22 @@ async function startBot(config) {
     if (isRunning) return;
     isRunning = true;
 
-    let resolvedPlatform = platform || 'qq';
+    let resolvedPlatform = config.platform || 'qq';
     // 自动降级与修正: 如果保存为 qq 且 uin 包含字母 (如 wxid_xxx 或 oXXXX)，自动修正为微信
-    const uStr = String(uin || '');
+    const uStr = String(config.uin || '');
     if (resolvedPlatform === 'qq' && /[a-zA-Z]/.test(uStr)) {
         resolvedPlatform = 'wx_car';
     }
     CONFIG.platform = resolvedPlatform;
-    if (farmInterval) {
-        CONFIG.farmCheckInterval = farmInterval;
-        CONFIG.farmCheckIntervalMin = farmInterval;
-        CONFIG.farmCheckIntervalMax = farmInterval;
+    if (config.farmInterval) {
+        CONFIG.farmCheckInterval = config.farmInterval;
+        CONFIG.farmCheckIntervalMin = config.farmInterval;
+        CONFIG.farmCheckIntervalMax = config.farmInterval;
     }
-    if (friendInterval) {
-        CONFIG.friendCheckInterval = friendInterval;
-        CONFIG.friendCheckIntervalMin = friendInterval;
-        CONFIG.friendCheckIntervalMax = friendInterval;
+    if (config.friendInterval) {
+        CONFIG.friendCheckInterval = config.friendInterval;
+        CONFIG.friendCheckIntervalMin = config.friendInterval;
+        CONFIG.friendCheckIntervalMax = config.friendInterval;
     }
 
     await loadProto();
@@ -495,7 +495,7 @@ async function startBot(config) {
         syncStatus();
     };
 
-    connect(code, config.uin, onLoginSuccess);
+    connect(config.code, config.uin, onLoginSuccess);
 
     // 启动定时状态同步
     workerScheduler.setIntervalTask('status_sync', 3000, syncStatus, { preventOverlap: true });

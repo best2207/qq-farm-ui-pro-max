@@ -257,16 +257,16 @@ ADMIN_PASSWORD='你的强密码' pnpm dev:core
 
 **全架构通用一键脚本（x86_64 / ARM64 自动适配，含 MySQL + Redis + 微信扫码）：**
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/scripts/deploy/quick-deploy.sh)
+bash <(curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/quick-deploy.sh)
 ```
 
 **或者手动三步部署：**
 ```bash
 # 1. 下载编排文件和环境配置
 mkdir -p qq-farm && cd qq-farm
-curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/deploy/docker-compose.yml
-curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/deploy/.env
-curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/deploy/init-db/init.sql -o init-db/init.sql --create-dirs
+curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env.example
+curl -sL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/init.sql -o init-db/init.sql --create-dirs
 
 # 2.（可选）编辑 .env 修改密码和端口
 # nano .env
@@ -297,8 +297,8 @@ docker compose up -d
 
 **1. 下载完整编排配置并生成 `.env`**
 ```bash
-curl -O https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/docker-compose.prod.yml
-curl -o .env https://raw.githubusercontent.com/smdk000/qq-farm-bot-ui/main/.env.example
+curl -O https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/docker-compose.prod.yml
+curl -o .env https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/.env.example
 ```
 
 **2. 定制您的服务密码（强烈防黑客推荐）**
@@ -577,7 +577,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 ## 📚 完整文档
 
-- **GitHub 仓库**: https://github.com/smdk000/qq-farm-bot-ui
+- **GitHub 仓库**: https://github.com/smdk000/qq-farm-ui-pro-max
 - **Docker Hub**: https://hub.docker.com/r/smdk000/qq-farm-bot-ui
 - **GitHub Packages**: https://github.com/users/smdk000/packages/container/package/qq-farm-bot-ui
 - **部署指南**: [deploy/README.md](deploy/README.md)
@@ -590,13 +590,13 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 ### 文档资源
 
-- [README.md](https://github.com/smdk000/qq-farm-bot-ui) - 项目说明
+- [README.md](https://github.com/smdk000/qq-farm-ui-pro-max) - 项目说明
 - [DEPLOYMENT_FIX_REPORT.md](DEPLOYMENT_FIX_REPORT.md) - 部署问题修复报告
 - [DOCKER_BUILD_COMPLETE.md](DOCKER_BUILD_COMPLETE.md) - Docker 构建完成总结
 
 ### 技术支持
 
-- **GitHub Issues**: https://github.com/smdk000/qq-farm-bot-ui/issues
+- **GitHub Issues**: https://github.com/smdk000/qq-farm-ui-pro-max/issues
 - **QQ 群**: 227916149
 - **Docker Hub**: https://hub.docker.com/r/smdk000/qq-farm-bot-ui
 
@@ -721,7 +721,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 ### 下载预编译版本
 
 **从 GitHub Releases 下载**:
-访问 https://github.com/smdk000/qq-farm-bot-ui/releases 下载对应平台的可执行文件。
+访问 https://github.com/smdk000/qq-farm-ui-pro-max/releases 下载对应平台的可执行文件。
 
 | 平台 | 文件名 |
 |------|--------|

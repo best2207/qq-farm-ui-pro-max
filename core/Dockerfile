@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN corepack enable
+RUN npm install -g pnpm
 
 # Copy workspace configuration
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
@@ -12,12 +12,11 @@ COPY core/package.json ./core/
 COPY web/package.json ./web/
 
 # Install all deps for build
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 # Copy source code
 COPY core ./core
 COPY web ./web
-COPY logs/development/Update.log ./Update.log
 
 # Build web
 RUN pnpm build:web
@@ -27,7 +26,7 @@ FROM node:20-alpine AS prod-deps
 
 WORKDIR /app
 
-RUN corepack enable
+RUN npm install -g pnpm
 RUN apk add --no-cache python3 make g++
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
@@ -35,7 +34,7 @@ COPY core/package.json ./core/
 COPY web/package.json ./web/
 
 # Install only runtime deps for core
-RUN pnpm -C core install --prod --frozen-lockfile
+RUN pnpm -C core install --prod
 RUN cd /app/core && npm rebuild better-sqlite3
 
 # ==========================================
@@ -57,9 +56,6 @@ COPY --from=builder /app/core ./
 
 # Copy built web assets
 COPY --from=builder /app/web/dist ../web/dist
-
-# Copy Update.log for notifications (from builder stage)
-COPY --from=builder /app/Update.log ../Update.log
 
 # Expose port
 EXPOSE 3000

@@ -3,12 +3,12 @@ import { ref } from 'vue'
 import { developmentProgress, helpArticles, helpCategories } from '@/data/help-articles'
 
 // 从数据文件加载分类
-const categories = ref(helpCategories.map(cat => ({
+const categories = ref(helpCategories.map((cat: any) => ({
   ...cat,
   expanded: cat.name === '新手入门', // 默认展开第一个
   items: helpArticles
-    .filter(article => article.category === cat.name && article.reviewStatus === 'published')
-    .map(article => ({
+    .filter((article: any) => article.category === cat.name && article.reviewStatus === 'published')
+    .map((article: any) => ({
       id: article.id,
       title: article.title,
       icon: article.icon,
@@ -32,12 +32,12 @@ function handleSearch() {
   isSearching.value = true
   const query = searchQuery.value.toLowerCase()
 
-  searchResults.value = helpArticles.filter((article) => {
+  searchResults.value = helpArticles.filter((article: any) => {
     // 搜索标题
     if (article.title.toLowerCase().includes(query))
       return true
     // 搜索标签
-    if (article.tags.some(tag => tag.toLowerCase().includes(query)))
+    if (article.tags.some((tag: string) => tag.toLowerCase().includes(query)))
       return true
     // 搜索分类
     if (article.category.toLowerCase().includes(query))
@@ -55,7 +55,7 @@ function clearSearch() {
 
 // 切换分类展开/收起
 function toggleCategory(index: number) {
-  categories.value.forEach((cat, i) => {
+  categories.value.forEach((cat: any, i: number) => {
     if (i === index) {
       cat.expanded = !cat.expanded
     }
@@ -75,7 +75,7 @@ function selectArticle(articleId: string) {
 
 // 获取当前文章
 function getCurrentArticle() {
-  return helpArticles.find(article => article.id === selectedArticle.value)
+  return helpArticles.find((article: any) => article.id === selectedArticle.value)
 }
 
 // 获取文章标题

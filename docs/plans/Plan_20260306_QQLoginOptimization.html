@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QQ农场智辅 - 第三方扫码接口改造计划</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --container-bg: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-blue: #4dabf7;
+            --accent-green: #69db7c;
+            --accent-red: #ff8787;
+            --border-color: #404040;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: var(--container-bg);
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2b3a4a 0%, #1e293b 100%);
+            padding: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            background-color: rgba(77, 171, 247, 0.2);
+            color: var(--accent-blue);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1.2rem;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card {
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .card h4 {
+            margin-bottom: 0.5rem;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 0.8rem;
+        }
+
+        ul.checklist {
+            list-style: none;
+        }
+
+        ul.checklist li {
+            position: relative;
+            padding-left: 28px;
+            margin-bottom: 8px;
+            color: #d0d0d0;
+        }
+
+        ul.checklist li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        .code-block {
+            background-color: #1a1a1a;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #d1d5db;
+            border: 1px solid #333;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-weight: 500;
+        }
+
+        td.highlight {
+            color: var(--accent-blue);
+        }
+
+        .diagram-container {
+            background-color: #f8f9fa;
+            /* Mermaid needs light bg usually, or specific dark config */
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+        }
+
+        .risk-alert {
+            border-left: 4px solid var(--accent-red);
+            background-color: rgba(255, 135, 135, 0.1);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .risk-alert strong {
+            color: var(--accent-red);
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: 'dark',
+                securityLevel: 'loose'
+            });
+        });
+    </script>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1><span class="badge">架构设计</span> 码雨云 (QQ农场) API 对接计划</h1>
+            <p>日期: 2026-03-06 | 目标: 优化 QQ 扫码通道，对接 aineishe 第三方授权</p>
+        </div>
+
+        <div class="content">
+            <!-- 阶段 1: 需求共识 -->
+            <div class="section">
+                <h2 class="section-title">📂 1. 业务目标与需求共识 (Consensus)</h2>
+                <div class="card">
+                    <h4>目标描述</h4>
+                    <p>将现有 `qrlogin.js` 中的第三方扫码通道 `qqcode.skeo.net` 替换或优化为新的 `api.aineishe.com` 服务源。需保证 API Token
+                        由“硬编码”向“管理面板动态配置”过渡，增强安全性。本期改造**仅针对 QQ 扫码登录**逻辑。</p>
+                    <ul class="checklist">
+                        <li>替换底层底层 `/qqnc/login` 接口调用，放弃旧有的 `skeo.net`。</li>
+                        <li>Token 动态化：管理面板支持填入专属 `aineishe_api_token` (默认值设为传入的临时凭据)。</li>
+                        <li>不改变原本前后端组件通讯的主流程 (比如返回图片URL/base64、轮询机制)。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 阶段 2: 方案设计 -->
+            <div class="section">
+                <h2 class="section-title">🏗️ 2. 架构设计与流向 (Architecture)</h2>
+                <div class="diagram-container">
+                    <div class="mermaid">
+                        sequenceDiagram
+                        participant User as Web 控制台 (Frontend)
+                        participant AdminAPI as 后端设置接口 (/api/settings)
+                        participant Store as 配置系统 (store.js/json)
+                        participant QRLogin as 扫码服务 (qrlogin.js)
+                        participant Aineishe as 码雨云第三方 API
+
+                        User->>AdminAPI: { aineishe_api_token: "0KOp..." }
+                        AdminAPI->>Store: 持久化储存配置
+
+                        Note over User,QRLogin: 用户发起「添加账号」轮询
+                        User->>QRLogin: 请求获取扫码二维码 (Uin 等)
+                        QRLogin->>Store: getConfig().aineishe_api_token
+                        QRLogin->>Aineishe: POST /qqnc/login?uin=xxxx&api_key=xxxx
+                        Aineishe-->>QRLogin: 返回 二维码/状态码/跳出链接
+                        QRLogin-->>User: 渲染最新二维码与状态
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>修改模块依赖分析 (Atomize 拆解)</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>组件/文件</th>
+                                <th>涉及的改造动作</th>
+                                <th>风险等级</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="highlight">core/src/models/store.js</td>
+                                <td>在现有的 `getConfig` 和 `saveSettings` 中增加 `aineishe_api_token` 字段的数据结构（默认赋传给的初值）。</td>
+                                <td>低</td>
+                            </tr>
+                            <tr>
+                                <td class="highlight">core/src/services/qrlogin.js</td>
+                                <td>废弃重构 `MiniProgramLoginSession` 的相关 API 请求；接入
+                                    <code>https://api.aineishe.com/qqnc/login</code>。改造接收/返回字段映射。</td>
+                                <td>高</td>
+                            </tr>
+                            <tr>
+                                <td class="highlight">core/src/controllers/admin.js</td>
+                                <td>允许在保存系统设置时，支持前端送来的新 Token 并落盘。</td>
+                                <td>低</td>
+                            </tr>
+                            <tr>
+                                <td class="highlight">web/src/views/Settings.vue</td>
+                                <td>在 UI 界面「系统层/第三方配置」中增加 `<input>` 以支持用户修改该 API Token；避免硬编码泄露。</td>
+                                <td>中</td>
+                            </tr>
+                            <tr>
+                                <td class="highlight">web/src/components/AccountModal.vue</td>
+                                <td>仅在交互层保证 QQ 添加模式将 `UIN` 抛给 `/api/qr/create`（如该第三方接口强制要求先给 UIN 才给码，须加前置输入框，这点需确认）。
+                                </td>
+                                <td>中</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 阶段 3: 影响面与风险评估 -->
+            <div class="section">
+                <h2 class="section-title">⚠️ 3. 影响面与防御性分析 (Impact Analysis)</h2>
+
+                <div class="risk-alert">
+                    <strong>[前置输入阻断] UIN 获取问题：</strong>
+                    从目前的 API 截图结构看，/qqnc/login 接受的 Query 是 `uin`。通常 QQ 官方扫码在第一步并不需要自己输入账号（扫了才知道是谁）。如果码雨云 API **强制要求输入
+                    uin 才能换取二维码**，那么前端必须修改：<strong>在显示二维码前，增加一个“请输入待登录的QQ号”的填写框</strong>。
+                </div>
+
+                <div class="risk-alert">
+                    <strong>[状态轮询协议破坏]</strong>
+                    原 `qqcode.skeo.net` 支持 `/api/qr/check` 来查询状态。码雨云是不是还是调用 `/qqnc/login` 并依靠返回 JSON 来甄别
+                    "等待扫码/成功/过期"？这需要对齐返回的 JSON 结构。
+                </div>
+
+                <div class="card" style="margin-top: 15px;">
+                    <h4>接口参数映射约定（计划）</h4>
+                    <div class="code-block">
+                        // [向 码雨云 请求结构]
+                        POST https://api.aineishe.com/qqnc/login
+
+                        // Headers:
+                        // Content-Type: application/x-www-form-urlencoded
+
+                        // Query / Body
+                        {
+                        uin: "1234567", // 前端必须给过来
+                        api_key: "0KOp6C8f1QtUDS0P75D5KEKb" // 从 Store 调取
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">🚀 4. 执行决议准备 (Assess -> Next)</h2>
+                <p><strong>行动指引：</strong>由于需要确保不阻断当前架构，我们在用户确认本实施方案后，将按照以下顺序动刀：</p>
+                <ol>
+                    <li>修改 `store.js` 和后端路由注入参数 `aineishe_api_token`。</li>
+                    <li>建立 Vue 前端表单绑定 (`Settings.vue`)。</li>
+                    <li>由于该第三方要 `uin`，会在 `AccountModal.vue` 为新版 QQ 模式先增设 UIN 预输入框。</li>
+                    <li>最后替换 `qrlogin.js` 底层实现。</li>
+                </ol>
+                <br>
+                <em style="color:var(--accent-green)">※ 请查阅计划是否满足需求，如需直接编码请下达指令。</em>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+
+</html>

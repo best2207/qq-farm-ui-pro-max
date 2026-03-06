@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>架构演进与风险治理执行计划 (2026-03-06)</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --card-hover: #334155;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --border: #334155;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #0ea5e9;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #f8fafc;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .mermaid-container {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--card-bg);
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+
+        th {
+            background: var(--bg);
+            color: var(--primary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .bg-p0 {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid var(--danger);
+        }
+
+        .bg-p1 {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fcd34d;
+            border: 1px solid var(--warning);
+        }
+
+        .bg-p2 {
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            border: 1px solid var(--primary);
+        }
+
+        .bg-p3 {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+            border: 1px solid var(--success);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0;
+        }
+
+        ul {
+            padding-left: 1.2rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        code {
+            background: var(--bg);
+            color: #d8b4fe;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .impact-box {
+            background: rgba(14, 165, 233, 0.1);
+            border-left: 4px solid var(--info);
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>系统架构演进与风险治理执行计划</h1>
+            <p><strong>日期:</strong> 2026-03-06 &nbsp;|&nbsp; <strong>目的:</strong> 根除 JSON+SQLite 锁与多线程发包隐患，提升极致挂机稳定性</p>
+        </div>
+
+        <div class="card">
+            <h2>一、全局架构与演进蓝图</h2>
+            <p>基于《近期优化评估及建议报告_2026-03-06.md》，本次重构将聚焦于彻底解决<strong>数据并发读写锁</strong>、<strong>队列堵塞</strong>、以及<strong>客户端（微信）平台适配短板</strong>。实施分为
+                4 个主阶段 (Phases)。</p>
+            <div class="mermaid-container">
+                <div class="mermaid">
+                    graph TD
+                    classDef current fill:#334155,stroke:#94a3b8,color:#fff;
+                    classDef target fill:#1e3a8a,stroke:#3b82f6,color:#fff;
+
+                    subgraph Current Architecture [当前高危架构]
+                    JSON[JSON Config Files] -->|File Lock Conflict| Worker[Multi-thread Workers]
+                    SQLite[SQLite DB] -->|busy_timeout| Worker
+                    Worker -->|Surge Traffic| TB[Token Bucket 3QPS]
+                    TB -.->|Time Delay| API[Tencent API]
+                    end
+
+                    subgraph Target Architecture [演进目标架构]
+                    MySQL[MySQL 强一致性库] -->|Connection Pool| Worker2[Optimized Workers]
+                    Worker2 --> EventBus[EventBus / Redis]
+                    EventBus --> |Smart Prioritization| PriorityQueue[双端优先权队列]
+                    PriorityQueue -->|Dynamic Rate| API2[Tencent API]
+                    end
+
+                    Current Architecture -.->|全维升级改造| Target Architecture
+                </div>
+            </div>
+        </div>
+
+        <h2>二、执行路径拆解 (Atomized Milestones)</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p0">Phase 1 (P0)</span> 终局化数据库迁移架构</h3>
+                <p><strong>目标：</strong> 终结 JSON 及 SQLite 的过渡态，彻底切入 MySQL 主推引擎，解决 <code>account_configs</code> 读写竞争及丢失。
+                </p>
+                <ul>
+                    <li>实施脚本迁移，将 <code>data/account_configs.json</code> 数据清洗并灌入 MySQL 的 <code>account_configs</code> 与
+                        <code>accounts</code> 表结构。</li>
+                    <li>更改 <code>data-provider.js</code> 与 <code>store.js</code>，将提取与保存配置的底层驱动置换为
+                        <code>db.query</code>（连接池模式）。</li>
+                    <li>构建进程容错与断线重连守护，当数据库网络瞬断时，不再强制剔除用户授权。</li>
+                </ul>
+                <div class="impact-box">
+                    <strong>影响面分析 (Impact Analysis):</strong><br>
+                    核心底座变动。重构后，即便短时间内启动百个 Worker，也不会引发 <code>SQLITE_BUSY</code>，配置文件丢失率将降到 0%。初期部署可能涉及老用户的本地 JSON
+                    上云转化，需保证严密的向后兼容。
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p1">Phase 2 (P1)</span> 强化队列观测与双列优先仲裁</h3>
+                <p><strong>目标：</strong> 解决 TokenBucket 统一 3QPS 引起的“抢收”、“防偷”关键指令被堵塞超时失败的问题。</p>
+                <ul>
+                    <li>对底层 <code>UrgentQueue</code> 进行插队逻辑重构（现有的 unshift() 存在倒序和长堵塞风险，需转为正统的双列出栈）。</li>
+                    <li>如果 <code>normalQueue</code> 中的任务排队超过 5
+                        秒，实施<strong>超时舍弃</strong>或<strong>平滑让权</strong>策略，确保农作物成熟前 60s 抢收指令必达。</li>
+                    <li>在前端 Dashboard 侧边栏注入「队列积压槽」，实时监测并展现 <code>Worker / Network</code> 的发包拥堵健康度。</li>
+                </ul>
+                <div class="impact-box">
+                    <strong>影响面分析 (Impact Analysis):</strong><br>
+                    直接决定系统“防偷成功率”。通过将调度“黑盒”透明化，用户可在遇到界面慢指令时立刻直观感受到是“协议在排队”，并能自主决定是否清空队列。
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p1">Phase 3 (P1.5)</span>微信环境柔性降级与隔离</h3>
+                <p><strong>目标：</strong> 缝合强迫微信账号执行不兼容操作导致的循环报错断联。</p>
+                <ul>
+                    <li>引入平台特征策略（Strategy Pattern）。当 <code>config.platform.startsWith('wx')</code> 时，自动摘除高频的全域好友
+                        <code>SyncAll</code> 以及偷菜群发请求。</li>
+                    <li>专设微信长巡周期 (间隔扩大至 15~30 分钟)。</li>
+                    <li>针对微信端的账户卡片添加「受限模式」徽标提醒，引导用户知悉其好友生态功能存在阉割。</li>
+                </ul>
+                <div class="impact-box">
+                    <strong>影响面分析 (Impact Analysis):</strong><br>
+                    减少不必要的错误探针以及封号牵连，保全主菜地收割功能。降低腾讯侧的风控红线警戒值。
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title"><span class="badge bg-p2">Phase 4 (P2/P3)</span> 内存GC介入与多端告警闭环</h3>
+                <p><strong>目标：</strong> 使长线挂机能力突破 72 小时，避免浏览器堆栈溢出，提供第三方预警。</p>
+                <ul>
+                    <li>在前端引入 <code>LRU Cache</code> 思路：设置展示栈只保留最近 300 条 <code>worker.logs</code> 及图鉴数据更新，触发 Vue
+                        组件主动垃圾回收 (GC)。</li>
+                    <li>在基础 `pushplus` 外，架设通用 WebHook 配置槽页。发生 P0 级事件（被风控锁定30分钟、账号被踢）时推送飞书/企业微信机器人卡片。</li>
+                </ul>
+                <div class="impact-box">
+                    <strong>影响面分析 (Impact Analysis):</strong><br>
+                    改善低效能平板（车载浏览器）等终端显示此管理面时的生命周期，实现真正的“7*24h 挂机全自动闭环预警”。
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>三、演进时序图 (Execution Timeline)</h2>
+            <div class="mermaid-container">
+                <div class="mermaid">
+                    gantt
+                    title 架构演进与风险拆解甘特图
+                    dateFormat YYYY-MM-DD
+                    axisFormat %m/%d
+
+                    section Phase 1 (DB)
+                    JSON结构分析与向后兼容 :a1, 2026-03-07, 1d
+                    配置中心切库 MySQL :a2, after a1, 2d
+                    SQL锁压力测试分析 :a3, after a2, 1d
+
+                    section Phase 2 (Queue)
+                    完善多级队列消费策略 :b1, 2026-03-08, 2d
+                    Dashboard加入拥塞表盘 :b2, after b1, 1d
+                    防偷链路穿透保底测试 :b3, after b2, 1d
+
+                    section Phase 3 (WeChat)
+                    微信端操作路由剥离 :c1, 2026-03-09, 1d
+                    受限模式标签植入前端 :c2, after c1, 1d
+
+                    section Phase 4 (Perf & Webhook)
+                    前端主动GC垃圾回收链路 :d1, 2026-03-10, 1d
+                    告警 WebHook 插槽实现 :d2, after d1, 1d
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="border-top: 4px solid var(--primary);">
+            <h2>审批与准入清单 (Acceptance Checklist)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 15%">阶段</th>
+                        <th>验收标准 (AC)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Phase 1</strong></td>
+                        <td>移除 <code>data-provider.js</code> 中的 fs 写入文件模块痕迹；数据库能承载 50 个线程同时修改配置不报冲突。</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 2</strong></td>
+                        <td>前端监控能看到当前队列数（如 <code>Queue Depth: 12</code>）；抢收指令不会晚于触发时的第 2000 毫秒到达腾讯接口。</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 3</strong></td>
+                        <td>微信账号列表不再显示 <code>1000020</code> 日志红字污染；明确标出不执行偷取批处理。</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Phase 4</strong></td>
+                        <td>连续开启前端 15 分钟切页面，无卡顿闪退；自定义 WebHook URL 测试连通并通过 JSON 发送警告字段。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: 'dark',
+                securityLevel: 'loose'
+            });
+        });
+    </script>
+</body>
+
+</html>
