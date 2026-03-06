@@ -400,27 +400,19 @@ async function batchHelpFriends(helpFriends, myGid) {
 // ============ 好友 API ============
 
 async function getAllFriends() {
-    const isQQ = CONFIG.platform && CONFIG.platform.startsWith('qq');
     let reply;
 
-    if (isQQ) {
-        try {
-            // QQ 平台：优先使用 SyncAll（传入空 open_ids 数组获取所有好友）
-            const requestObj = types.SyncAllFriendsRequest.create({ open_ids: [] });
-            const body = types.SyncAllFriendsRequest.encode(requestObj).finish();
-            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body);
-            reply = types.SyncAllFriendsReply.decode(replyBody);
-        } catch (syncErr) {
-            // SyncAll 不可用时降级到 GetAll
-            logWarn('好友', `SyncAll 失败，降级为 GetAll: ${syncErr.message}`, {
-                module: 'friend', event: 'sync_all_fallback', result: 'warn',
-            });
-            const body = types.GetAllFriendsRequest.encode(types.GetAllFriendsRequest.create({})).finish();
-            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body);
-            reply = types.GetAllFriendsReply.decode(replyBody);
-        }
-    } else {
-        // 微信平台：使用 GetAll
+    try {
+        // 统一所有平台：优先使用 SyncAll 获取所有好友
+        const requestObj = types.SyncAllFriendsRequest.create({ open_ids: [] });
+        const body = types.SyncAllFriendsRequest.encode(requestObj).finish();
+        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body);
+        reply = types.SyncAllFriendsReply.decode(replyBody);
+    } catch (syncErr) {
+        // SyncAll 不可用时降级到 GetAll (兼用作失败重试与旧接口兼容)
+        logWarn('好友', `SyncAll 失败，降级为 GetAll: ${syncErr.message}`, {
+            module: 'friend', event: 'sync_all_fallback', result: 'warn',
+        });
         const body = types.GetAllFriendsRequest.encode(types.GetAllFriendsRequest.create({})).finish();
         const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body);
         reply = types.GetAllFriendsReply.decode(replyBody);
