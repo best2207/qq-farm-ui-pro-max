@@ -106,7 +106,21 @@ docker compose -f docker-compose.prod.yml down || true
 # 6. 一键点火拉起引擎！
 print_info "开始并发拉取与交织启动 4 大集群并热同步数据..."
 docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+if ! docker compose -f docker-compose.prod.yml up -d --remove-orphans; then
+    echo ""
+    print_error "宿主机底层网络桥接或容器拉起失败！"
+    print_info "这通常是因为您的系统 (CentOS/Ubuntu) 的防火墙被更新/重启过，导致 Docker 内部桥接规则 (iptables) 丢失。"
+    print_info "这绝不是程序本身问题。尝试自动重启 docker 服务以修复内核路由链..."
+    if command -v systemctl &> /dev/null; then
+        sudo systemctl restart docker
+        print_success "Docker 守护进程重启完毕，开始二次重试点火..."
+        docker compose -f docker-compose.prod.yml up -d --remove-orphans
+    else
+        print_error "无法自动定位 systemctl，请您手动执行指令: sudo systemctl restart docker 并重试本脚本"
+        exit 1
+    fi
+fi
 
 print_info "等待初始化信号... (包含 MySQL 创表等大约20秒，请不要退出)"
 sleep 15
