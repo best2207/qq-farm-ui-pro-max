@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 const menuItems = ref([
   { id: 'calculator.html', title: '经验时间计算', icon: 'i-carbon-calculator', shortTitle: '经验计算' },
@@ -155,29 +155,32 @@ const BASE_STATIC_CSS = `
   
   /* Spinner 加载圈白色可见 */
   .spinner { border-color: rgba(255,255,255,0.3) !important; border-top-color: #fff !important; }
-`;
+`
 
 // 🔧 优化 #2：持有一个 iframeObserver 引用用于在组件销毁时断开
-let iframeObserver: MutationObserver | null = null;
+let iframeObserver: MutationObserver | null = null
 
 // 主题劫持逻辑：在同源策略下，直接注入 CSS 和监控
 function syncThemeToIframe() {
-  if (!iframeRef.value?.contentDocument) return
-  
+  if (!iframeRef.value?.contentDocument)
+    return
+
   try {
     const doc = iframeRef.value.contentDocument
-    if (!doc) return
-    
+    if (!doc)
+      return
+
     // 如果已经注入过了就不再重复注入 `<style id="yunong-theme-override">`
     let styleEl = doc.getElementById('yunong-theme-override')
     if (!styleEl) {
       styleEl = doc.createElement('style')
       styleEl.id = 'yunong-theme-override'
       doc.head.appendChild(styleEl)
-      
+
       // 🔥 MutationObserver：监听 iframe <head> 变化
       // 当 Tailwind CDN 异步插入 <style> 标签时，自动将我们的 override style 移到最后
-      if (iframeObserver) iframeObserver.disconnect()
+      if (iframeObserver)
+        iframeObserver.disconnect()
       iframeObserver = new MutationObserver(() => {
         const lastChild = doc.head.lastElementChild
         if (lastChild && lastChild.id !== 'yunong-theme-override' && styleEl) {
@@ -185,7 +188,8 @@ function syncThemeToIframe() {
         }
       })
       iframeObserver.observe(doc.head, { childList: true })
-    } else {
+    }
+    else {
       // 每次同步时确保 style 标签在 <head> 最后（覆盖后注入的 Tailwind 样式）
       doc.head.appendChild(styleEl)
     }
@@ -193,31 +197,46 @@ function syncThemeToIframe() {
     // 探测当前父窗口的系统背景以及各个参数
     const isDark = document.documentElement.classList.contains('dark')
     const computed = getComputedStyle(document.documentElement)
-    
+
     let cssVars = ''
     const varsToSync = [
-      '--color-primary-50', '--color-primary-100', '--color-primary-200',
-      '--color-primary-300', '--color-primary-400', '--color-primary-500',
-      '--color-primary-600', '--color-primary-700', '--color-primary-800',
-      '--color-primary-900', '--color-primary-950', 
-      '--glass-bg', '--glass-border', '--text-main', '--text-muted'
+      '--color-primary-50',
+      '--color-primary-100',
+      '--color-primary-200',
+      '--color-primary-300',
+      '--color-primary-400',
+      '--color-primary-500',
+      '--color-primary-600',
+      '--color-primary-700',
+      '--color-primary-800',
+      '--color-primary-900',
+      '--color-primary-950',
+      '--glass-bg',
+      '--glass-border',
+      '--text-main',
+      '--text-muted',
     ]
-    
-    varsToSync.forEach(v => {
+
+    varsToSync.forEach((v) => {
       const val = computed.getPropertyValue(v).trim()
       if (val) {
         cssVars += `${v}: ${val};\n`
-      } else {
+      }
+      else {
         // 🔧 容错处理：确保取到的值不是空
         if (v === '--glass-bg') {
           cssVars += `${v}: ${isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.4)'};\n`
-        } else if (v === '--glass-border') {
+        }
+        else if (v === '--glass-border') {
           cssVars += `${v}: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.4)'};\n`
-        } else if (v === '--text-main') {
+        }
+        else if (v === '--text-main') {
           cssVars += `${v}: ${isDark ? '#e2e8f0' : '#334155'};\n`
-        } else if (v === '--text-muted') {
+        }
+        else if (v === '--text-muted') {
           cssVars += `${v}: ${isDark ? '#94a3b8' : '#64748b'};\n`
-        } else if (v.startsWith('--color-primary-')) {
+        }
+        else if (v.startsWith('--color-primary-')) {
           // 兜底一个蓝色的 primary 色系，防止空值
           const fallbackColors = {
             '--color-primary-50': '239 246 255',
@@ -230,8 +249,8 @@ function syncThemeToIframe() {
             '--color-primary-700': '29 78 216',
             '--color-primary-800': '30 64 175',
             '--color-primary-900': '30 58 138',
-            '--color-primary-950': '23 37 84'
-          };
+            '--color-primary-950': '23 37 84',
+          }
           cssVars += `${v}: ${fallbackColors[v as keyof typeof fallbackColors]};\n`
         }
       }
@@ -360,30 +379,40 @@ function syncThemeToIframe() {
     // 强制同步深色类
     if (isDark) {
       doc.documentElement.classList.add('dark')
-    } else {
+    }
+    else {
       doc.documentElement.classList.remove('dark')
     }
 
     // 🔥 终极兜底：JavaScript DOM 遍历，强制覆盖所有浅色渐变元素的内联样式
     const forceOverrideGradients = () => {
       const lightGradientKeywords = [
-        'from-red-50', 'from-orange-50', 'from-stone-100', 'from-stone-50',
-        'from-yellow-50', 'from-gray-50', 'from-slate-100',
-        'from-primary-50', 'to-primary-100', 'to-yellow-50', 'to-orange-50',
-        'to-stone-50', 'to-gray-50'
+        'from-red-50',
+        'from-orange-50',
+        'from-stone-100',
+        'from-stone-50',
+        'from-yellow-50',
+        'from-gray-50',
+        'from-slate-100',
+        'from-primary-50',
+        'to-primary-100',
+        'to-yellow-50',
+        'to-orange-50',
+        'to-stone-50',
+        'to-gray-50',
       ]
       const heroKeywords = ['from-primary-700', 'from-primary-600']
-      
+
       doc.querySelectorAll('.bg-gradient-to-br, [class*="from-"]').forEach((rawEl) => {
         const el = rawEl as HTMLElement
         const cls = el.className || ''
         // 跳过 Hero 区域渐变
-        if (heroKeywords.some(k => cls.includes(k))) return
+        if (heroKeywords.some(k => cls.includes(k)))
+          return
         // 检测是否包含浅色渐变类
         if (lightGradientKeywords.some(k => cls.includes(k))) {
           el.style.setProperty('background-image', 'none', 'important')
-          el.style.setProperty('background-color', 
-            isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', 'important')
+          el.style.setProperty('background-color', isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', 'important')
         }
       })
     }
@@ -391,7 +420,11 @@ function syncThemeToIframe() {
     forceOverrideGradients()
     setTimeout(forceOverrideGradients, 400)
     setTimeout(forceOverrideGradients, 1200)
-  } catch (e) {
+
+    // 🔥 解决白屏闪烁：主题应用完毕后，再解除 iframe 内部的透明遮罩
+    doc.documentElement.style.opacity = '1'
+  }
+  catch (e) {
     console.warn('Iframe 样式劫持失败:', e)
   }
 }
@@ -429,17 +462,16 @@ onUnmounted(() => {
 
 <template>
   <div class="h-full flex flex-col overflow-hidden p-0 lg:p-4 sm:p-2">
-
     <!-- ═══ 移动端/中屏 顶部工具选择栏（< lg 时可见） ═══ -->
-    <div class="farm-tools-tab-bar lg:hidden flex items-center gap-1.5 px-2 py-2 overflow-x-auto flex-shrink-0">
+    <div class="farm-tools-tab-bar flex flex-shrink-0 items-center gap-1.5 overflow-x-auto px-2 py-2 lg:hidden">
       <button
         v-for="item in menuItems"
-        :key="'tab-' + item.id"
-        class="farm-tool-tab flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm whitespace-nowrap transition-all flex-shrink-0"
+        :key="`tab-${item.id}`"
+        class="farm-tool-tab flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm transition-all"
         :class="[
           selectedArticle === item.id
             ? 'farm-tool-tab--active'
-            : 'farm-tool-tab--inactive'
+            : 'farm-tool-tab--inactive',
         ]"
         @click="selectArticle(item.id)"
       >
@@ -448,24 +480,21 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div class="mx-auto h-full max-w-[1600px] w-full flex gap-4 min-h-0">
-
+    <div class="mx-auto h-full max-w-[1600px] min-h-0 w-full flex gap-4">
       <!-- ═══ 左侧分类导航（≥lg 固定显示；<lg 通过折叠按钮浮动显示）═══ -->
 
       <!-- 中小屏遮罩层 -->
       <div
         v-if="sidebarVisible"
-        class="lg:hidden fixed inset-0 z-20 bg-black/40 backdrop-blur-sm"
+        class="fixed inset-0 z-20 bg-black/40 backdrop-blur-sm lg:hidden"
         @click="sidebarVisible = false"
       />
 
       <aside
-        class="glass-panel h-full w-64 shrink-0 flex-col rounded-2xl p-4 shadow-sm transition-all duration-300"
+        class="glass-panel h-full w-64 shrink-0 flex-col rounded-2xl p-4 shadow-sm transition-all duration-300 lg:flex"
         :class="[
           // ≥lg：固定显示
-          'lg:flex',
-          // <lg：通过 sidebarVisible 控制浮动显示
-          sidebarVisible ? 'flex fixed lg:static inset-y-4 left-4 z-30' : 'hidden lg:flex'
+          sidebarVisible ? 'flex fixed lg:static inset-y-4 left-4 z-30' : 'hidden lg:flex',
         ]"
       >
         <h2 class="mb-6 from-blue-600 to-indigo-600 bg-gradient-to-r bg-clip-text px-2 text-xl text-transparent font-bold tracking-wide dark:from-cyan-400 dark:to-blue-500">
@@ -473,7 +502,7 @@ onUnmounted(() => {
         </h2>
 
         <nav class="flex-1 overflow-y-auto pr-1 space-y-2">
-          <div class="space-y-2 pt-2">
+          <div class="pt-2 space-y-2">
             <button
               v-for="item in menuItems"
               :key="item.id"
@@ -489,31 +518,31 @@ onUnmounted(() => {
                 <div class="text-xl" :class="[item.icon, selectedArticle === item.id ? 'text-primary-600 dark:text-primary-400' : '']" />
                 <span class="tracking-wide">{{ item.title }}</span>
               </div>
-              <div v-if="selectedArticle === item.id" class="h-1.5 w-1.5 rounded-full bg-primary-500 shadow-[0_0_8px_rgba(var(--color-primary-500),0.8)]"></div>
+              <div v-if="selectedArticle === item.id" class="h-1.5 w-1.5 rounded-full bg-primary-500 shadow-[0_0_8px_rgba(var(--color-primary-500),0.8)]" />
             </button>
           </div>
         </nav>
       </aside>
 
       <!-- ═══ 右侧自适应无边界容器 ═══ -->
-      <main class="glass-panel h-full min-w-0 flex flex-1 flex-col rounded-2xl overflow-hidden p-0 m-0 relative">
+      <main class="glass-panel relative m-0 h-full min-w-0 flex flex-1 flex-col overflow-hidden rounded-2xl p-0">
         <!-- 中屏折叠按钮（lg 以上固定显示侧栏，不显示此按钮） -->
         <button
-          class="sidebar-toggle-btn flex lg:hidden absolute top-3 left-3 z-10"
-          @click="toggleSidebar"
+          class="sidebar-toggle-btn absolute left-3 top-3 z-10 flex lg:hidden"
           :title="sidebarVisible ? '收起侧栏' : '展开侧栏'"
+          @click="toggleSidebar"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': !sidebarVisible }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="{ 'rotate-180': !sidebarVisible }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
 
-        <iframe 
+        <iframe
           ref="iframeRef"
-          :src="'/nc_local_version/' + selectedArticle" 
-          class="w-full h-full border-none outline-none flex-1 bg-transparent"
+          :src="`/nc_local_version/${selectedArticle}`"
+          class="h-full w-full flex-1 border-none bg-transparent outline-none"
           @load="onIframeLoad"
-        ></iframe>
+        />
       </main>
     </div>
   </div>
@@ -539,11 +568,11 @@ iframe {
 
 /* ═══ 移动端/中屏顶部 Tab 栏 ═══ */
 .farm-tools-tab-bar {
-  scrollbar-width: none;  /* Firefox */
-  -ms-overflow-style: none;  /* IE */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE */
 }
 .farm-tools-tab-bar::-webkit-scrollbar {
-  display: none;  /* Chrome/Safari */
+  display: none; /* Chrome/Safari */
 }
 
 .farm-tool-tab--active {

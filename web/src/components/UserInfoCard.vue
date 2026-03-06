@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { adminToken } from '@/utils/auth'
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { useAppStore } from '@/stores/app'
 import { useSettingStore } from '@/stores/setting'
+import { adminToken } from '@/utils/auth'
 
 const token = adminToken
 const currentUser = ref<any>(null)

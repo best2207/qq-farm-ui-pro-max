@@ -24,6 +24,7 @@ function createWorkerManager(options) {
         onWorkerLog,
     } = options;
     const managerScheduler = createScheduler('worker_manager');
+    const MAX_WORKER_LOG_LIMIT = Number(processRef.env.FARM_MAX_LOG_LIMIT) || 1000;
     const useThreadRuntime = runtimeMode === 'thread' && !processRef.pkg && typeof WorkerThread === 'function';
 
     function createThreadWorker(account) {
@@ -270,9 +271,9 @@ function createWorkerManager(options) {
             };
             logEntry._searchText = `${logEntry.msg || ''} ${logEntry.tag || ''} ${JSON.stringify(logEntry.meta || {})}`.toLowerCase();
             worker.logs.push(logEntry);
-            if (worker.logs.length > 1000) worker.logs.shift();
+            if (worker.logs.length > MAX_WORKER_LOG_LIMIT) worker.logs.shift();
             globalLogs.push(logEntry);
-            if (globalLogs.length > 1000) globalLogs.shift();
+            if (globalLogs.length > MAX_WORKER_LOG_LIMIT) globalLogs.shift();
             if (typeof onWorkerLog === 'function') {
                 onWorkerLog(logEntry, accountId, worker.name);
             }

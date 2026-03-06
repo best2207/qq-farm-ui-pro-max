@@ -36,13 +36,16 @@ const timingSaving = ref(false)
 
 // === 危险频率拦截警告 ===
 const timeWarningVisible = computed(() => {
-  if (!localSettings.value.intervals) return false
+  // eslint-disable-next-line ts/no-use-before-define
+  if (!localSettings.value.intervals)
+    return false
+  // eslint-disable-next-line ts/no-use-before-define
   const { farmMin, farmMax, friendMin, friendMax } = localSettings.value.intervals
   return (
-    (typeof farmMin === 'number' && farmMin < 15) ||
-    (typeof farmMax === 'number' && farmMax < 15) ||
-    (typeof friendMin === 'number' && friendMin < 60) ||
-    (typeof friendMax === 'number' && friendMax < 60)
+    (typeof farmMin === 'number' && farmMin < 15)
+    || (typeof farmMax === 'number' && farmMax < 15)
+    || (typeof friendMin === 'number' && friendMin < 60)
+    || (typeof friendMax === 'number' && friendMax < 60)
   )
 })
 
@@ -173,7 +176,7 @@ const currentAccountName = computed(() => {
 })
 
 const localSettings = ref({
-  accountMode: 'main' as 'main'|'alt'|'safe',
+  accountMode: 'main' as 'main' | 'alt' | 'safe',
   harvestDelay: { min: 180, max: 300 },
   plantingStrategy: 'preferred',
   preferredSeedId: 0,
@@ -415,19 +418,24 @@ function applyPreset(type: 'conservative' | 'balanced' | 'aggressive') {
 
 const safeChecking = ref(false)
 async function handleSafeCheck() {
-  if (!currentAccountId.value) return
-  if (confirm(`是否分析当前账号的历史封禁日志并自动补充黑名单？`)) {
+  if (!currentAccountId.value)
+    return
+  // TODO: remove confirm
+  if (window.window.confirm(`是否分析当前账号的历史封禁日志并自动补充黑名单？`)) {
     try {
       safeChecking.value = true
       const res = await accountStore.applySafeModeBlacklist(currentAccountId.value)
       if (res && res.ok && res.data && res.data.length >= 0) {
         showAlert(`一键分析完成！\n新增了 ${res.data.length} 个风险账号到黑名单。\n${res.data.join(', ')}`)
-      } else {
+      }
+      else {
         showAlert('暂无新增记录。')
       }
-    } catch (e: any) {
+    }
+    catch (e: any) {
       showAlert(`分析失败: ${e.message}`, 'danger')
-    } finally {
+    }
+    finally {
       safeChecking.value = false
     }
   }
@@ -760,7 +768,8 @@ async function handleSaveOffline() {
 }
 
 async function loadTimingConfig() {
-  if (!isAdmin.value) return
+  if (!isAdmin.value)
+    return
   const data = await settingStore.fetchTimingConfig()
   if (data && data.config) {
     localTiming.value = { ...data.config }
@@ -769,15 +778,15 @@ async function loadTimingConfig() {
 
 async function handleSaveTiming() {
   // 数据合法性校验，防止输入空字符串或非法字符导致的保存失败
-  const t = localTiming.value;
-  const isValid = !isNaN(t.heartbeatIntervalMs) && !isNaN(t.rateLimitIntervalMs) && 
-                  !isNaN(t.ghostingProbability) && !isNaN(t.ghostingCooldownMin) &&
-                  !isNaN(t.ghostingMinMin) && !isNaN(t.ghostingMaxMin) &&
-                  !isNaN(t.inviteRequestDelay);
-  
+  const t = localTiming.value
+  const isValid = !Number.isNaN(t.heartbeatIntervalMs) && !Number.isNaN(t.rateLimitIntervalMs)
+    && !Number.isNaN(t.ghostingProbability) && !Number.isNaN(t.ghostingCooldownMin)
+    && !Number.isNaN(t.ghostingMinMin) && !Number.isNaN(t.ghostingMaxMin)
+    && !Number.isNaN(t.inviteRequestDelay)
+
   if (!isValid) {
-    showAlert('保存失败：请确保所有项均为有效数字', 'danger');
-    return;
+    showAlert('保存失败：请确保所有项均为有效数字', 'danger')
+    return
   }
 
   timingSaving.value = true
@@ -785,10 +794,12 @@ async function handleSaveTiming() {
     const res = await settingStore.saveTimingConfig(localTiming.value)
     if (res.ok) {
       showAlert('时间参数配置已保存')
-    } else {
+    }
+    else {
       showAlert(`保存失败: ${res.error || '未知错误'}`, 'danger')
     }
-  } finally {
+  }
+  finally {
     timingSaving.value = false
   }
 }
@@ -860,58 +871,64 @@ async function restoreTimingDefaults() {
         <!-- Strategy Content -->
         <div class="p-4 space-y-3">
           <!-- Account Mode Selection Panel -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div class="grid grid-cols-1 mb-4 gap-3 md:grid-cols-3">
             <!-- 主号模式 -->
-            <div 
-              @click="localSettings.accountMode = 'main'" 
-              class="border rounded-lg p-3 cursor-pointer transition-all duration-200 border-gray-200 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-500 bg-white dark:bg-gray-800"
+            <div
+              class="cursor-pointer border border-gray-200 rounded-lg bg-white p-3 transition-all duration-200 dark:border-gray-700 hover:border-primary-400 dark:bg-gray-800 dark:hover:border-primary-500"
               :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20 border-primary-500 dark:border-primary-500': localSettings.accountMode === 'main' }"
+              @click="localSettings.accountMode = 'main'"
             >
-              <div class="flex items-center justify-between mb-1">
-                <div class="font-bold text-primary-600 dark:text-primary-400 flex items-center gap-1"><div class="i-carbon-user-avatar items-center" /> 主号模式</div>
+              <div class="mb-1 flex items-center justify-between">
+                <div class="flex items-center gap-1 text-primary-600 font-bold dark:text-primary-400">
+                  <div class="i-carbon-user-avatar items-center" /> 主号模式
+                </div>
                 <div v-show="localSettings.accountMode === 'main'" class="i-carbon-checkmark-filled text-primary-500" />
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
+              <div class="text-xs text-gray-500 leading-tight dark:text-gray-400">
                 享有全部操作权限（如成熟秒收），系统确保主号的优先度和唯一性
               </div>
             </div>
             <!-- 小号模式 -->
-            <div 
-              @click="localSettings.accountMode = 'alt'" 
-              class="border rounded-lg p-3 cursor-pointer transition-all duration-200 border-gray-200 dark:border-gray-700 hover:border-amber-400 dark:hover:border-amber-500 bg-white dark:bg-gray-800"
+            <div
+              class="cursor-pointer border border-gray-200 rounded-lg bg-white p-3 transition-all duration-200 dark:border-gray-700 hover:border-amber-400 dark:bg-gray-800 dark:hover:border-amber-500"
               :class="{ 'ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-500 dark:border-amber-500': localSettings.accountMode === 'alt' }"
+              @click="localSettings.accountMode = 'alt'"
             >
-              <div class="flex items-center justify-between mb-1">
-                <div class="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"><div class="i-carbon-user-multiple items-center" /> 小号模式</div>
+              <div class="mb-1 flex items-center justify-between">
+                <div class="flex items-center gap-1 text-amber-600 font-bold dark:text-amber-400">
+                  <div class="i-carbon-user-multiple items-center" /> 小号模式
+                </div>
                 <div v-show="localSettings.accountMode === 'alt'" class="i-carbon-checkmark-filled text-amber-500" />
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
+              <div class="text-xs text-gray-500 leading-tight dark:text-gray-400">
                 限制可能招致仇恨的操作，强制引入延迟收获机制错开高峰
               </div>
             </div>
             <!-- 风险规避模式 -->
-            <div 
-              @click="localSettings.accountMode = 'safe'" 
-              class="border rounded-lg p-3 cursor-pointer transition-all duration-200 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-gray-800"
+            <div
+              class="cursor-pointer border border-gray-200 rounded-lg bg-white p-3 transition-all duration-200 dark:border-gray-700 hover:border-emerald-400 dark:bg-gray-800 dark:hover:border-emerald-500"
               :class="{ 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 dark:border-emerald-500': localSettings.accountMode === 'safe' }"
+              @click="localSettings.accountMode = 'safe'"
             >
-              <div class="flex items-center justify-between mb-1">
-                <div class="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><div class="i-carbon-security items-center" /> 风险规避</div>
+              <div class="mb-1 flex items-center justify-between">
+                <div class="flex items-center gap-1 text-emerald-600 font-bold dark:text-emerald-400">
+                  <div class="i-carbon-security items-center" /> 风险规避
+                </div>
                 <div v-show="localSettings.accountMode === 'safe'" class="i-carbon-checkmark-filled text-emerald-500" />
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
+              <div class="text-xs text-gray-500 leading-tight dark:text-gray-400">
                 严格禁用高风险互动，自动脱离黑灰产关联，专用于敏感期
               </div>
             </div>
           </div>
 
           <!-- 小号模式特供区：假延迟 -->
-          <div v-if="localSettings.accountMode === 'alt'" class="p-3 border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 rounded-md mb-4 flex flex-col gap-2">
-            <h4 class="text-sm font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+          <div v-if="localSettings.accountMode === 'alt'" class="mb-4 flex flex-col gap-2 border border-amber-200 rounded-md bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-900/20">
+            <h4 class="flex items-center gap-1 text-sm text-amber-700 font-semibold dark:text-amber-400">
               <div class="i-carbon-time" /> 小号专属：收获延迟保护
             </h4>
             <span class="text-xs text-amber-600 dark:text-amber-500">当农作物成熟时，主动挂机并在随机延时后才收获，降低被风控或连带标记的概率。</span>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+            <div class="grid grid-cols-2 mt-2 gap-3 md:grid-cols-4">
               <BaseInput
                 v-model.number="localSettings.harvestDelay.min"
                 label="随机延迟下限 (秒)"
@@ -928,15 +945,15 @@ async function restoreTimingDefaults() {
           </div>
 
           <!-- 风险规避特供区：一键分析拦截 -->
-          <div v-if="localSettings.accountMode === 'safe'" class="p-3 border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 rounded-md mb-4 flex flex-col gap-2 items-start">
-            <h4 class="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+          <div v-if="localSettings.accountMode === 'safe'" class="mb-4 flex flex-col items-start gap-2 border border-emerald-200 rounded-md bg-emerald-50 p-3 dark:border-emerald-800/50 dark:bg-emerald-900/20">
+            <h4 class="flex items-center gap-1 text-sm text-emerald-700 font-semibold dark:text-emerald-400">
               <div class="i-carbon-ibm-cloud-security-compliance-center" /> 风险规避专属护盾
             </h4>
             <span class="text-xs text-emerald-600 dark:text-emerald-500">此模式除自动关闭捣乱接口外，可进一步针对历史出现被封警告的号外置强阻断。</span>
             <BaseButton
               variant="outline"
               size="sm"
-              class="mt-1 border-emerald-300 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-800/50"
+              class="mt-1 border-emerald-300 text-emerald-600 dark:border-emerald-700 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-800/50"
               :loading="safeChecking"
               @click="handleSafeCheck"
             >
@@ -945,8 +962,8 @@ async function restoreTimingDefaults() {
           </div>
 
           <!-- 极值警告 -->
-          <div v-if="timeWarningVisible && !isAdmin" class="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-md flex items-start gap-2 mb-3">
-            <div class="i-carbon-warning-alt text-lg shrink-0 mt-0.5" />
+          <div v-if="timeWarningVisible && !isAdmin" class="mb-3 flex items-start gap-2 border border-red-200 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+            <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-lg" />
             <div>
               <strong>危险的轮询设定！</strong><br>
               农田循环下限不能低于 15秒，好友巡查不能低于 60秒，否则极易触发腾讯风控致使账号被封。请上调参数后再保存！
@@ -1081,15 +1098,15 @@ async function restoreTimingDefaults() {
                 <div class="flex flex-col gap-2">
                   <BaseSwitch v-model="localSettings.automation.fertilizer_buy" label="自动购买化肥" hint="化肥库存不足时自动花费金币购买。注意：会持续消耗金币，金币紧张时建议关闭。" recommend="conditional" />
                   <div v-show="localSettings.automation.fertilizer_buy" class="ml-7 flex items-center gap-3">
-                     <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">
-                       - 单日最大购买上限 (包)：
-                     </span>
-                     <BaseInput
-                       v-model.number="localSettings.automation.fertilizer_buy_limit"
-                       type="number"
-                       min="1"
-                       class="w-24 !py-1 text-sm shadow-inner"
-                     />
+                    <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">
+                      - 单日最大购买上限 (包)：
+                    </span>
+                    <BaseInput
+                      v-model.number="localSettings.automation.fertilizer_buy_limit"
+                      type="number"
+                      min="1"
+                      class="w-24 text-sm shadow-inner !py-1"
+                    />
                   </div>
                 </div>
                 <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
@@ -1417,7 +1434,9 @@ async function restoreTimingDefaults() {
                   min="1"
                 />
               </div>
-              <p class="text-[10px] text-orange-500 italic">模拟真人疲劳休眠，随机下线避开长时间挂机检测。</p>
+              <p class="text-[10px] text-orange-500 italic">
+                模拟真人疲劳休眠，随机下线避开长时间挂机检测。
+              </p>
             </div>
 
             <!-- Group 3: Operation Intervals -->
@@ -1519,7 +1538,7 @@ async function restoreTimingDefaults() {
         </div>
 
         <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div class="grid grid-cols-1 gap-3 lg:grid-cols-3 md:grid-cols-2">
             <BaseInput
               v-model="thirdPartyApiConfig.wxApiKey"
               label="微信登录 API Key (wxApiKey)"
@@ -1564,62 +1583,62 @@ async function restoreTimingDefaults() {
       </div>
     </div>
 
-      <!-- Card 4: 系统主题与背景（仅管理员可见） -->
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="border-b border-gray-200/50 bg-transparent px-4 py-3 dark:border-gray-700/50">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-paint-brush" />
-            系统外观与自定义背景
-          </h3>
-        </div>
+    <!-- Card 4: 系统主题与背景（仅管理员可见） -->
+    <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
+      <div class="border-b border-gray-200/50 bg-transparent px-4 py-3 dark:border-gray-700/50">
+        <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+          <div class="i-carbon-paint-brush" />
+          系统外观与自定义背景
+        </h3>
+      </div>
 
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div class="space-y-3">
-              <BaseInput
-                v-model="appStore.loginBackground"
-                label="登录页背景图片 URL"
-                placeholder="请输入图片链接 (如: https://example.com/bg.jpg)"
-              />
-              <p class="glass-text-muted text-xs">
-                提示：留空则使用系统默认渐变背景。建议使用高分辨率壁纸链接。
-              </p>
+      <div class="p-4 space-y-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="space-y-3">
+            <BaseInput
+              v-model="appStore.loginBackground"
+              label="登录页背景图片 URL"
+              placeholder="请输入图片链接 (如: https://example.com/bg.jpg)"
+            />
+            <p class="glass-text-muted text-xs">
+              提示：留空则使用系统默认渐变背景。建议使用高分辨率壁纸链接。
+            </p>
 
-              <div class="mt-4 flex items-center gap-3 border-t pt-4 dark:border-gray-700">
-                <BaseButton
-                  variant="primary"
-                  size="sm"
-                  @click="appStore.setUIConfig({ loginBackground: appStore.loginBackground })"
-                >
-                  应用背景设置
-                </BaseButton>
-                <BaseButton
-                  variant="secondary"
-                  size="sm"
-                  @click="appStore.setUIConfig({ loginBackground: '' })"
-                >
-                  恢复默认
-                </BaseButton>
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <span class="glass-text-muted text-xs font-medium">预览 (效果参考)</span>
-              <div
-                class="relative h-32 w-full overflow-hidden border border-white/20 rounded-xl bg-cover bg-center dark:border-white/10"
-                :style="appStore.loginBackground ? { backgroundImage: `url(${appStore.loginBackground})` } : { background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)' }"
+            <div class="mt-4 flex items-center gap-3 border-t pt-4 dark:border-gray-700">
+              <BaseButton
+                variant="primary"
+                size="sm"
+                @click="appStore.setUIConfig({ loginBackground: appStore.loginBackground })"
               >
-                <div v-if="appStore.loginBackground" class="absolute inset-0 bg-black/20" />
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <div class="glass-text-main border border-white/20 rounded bg-white/60 px-3 py-1 text-[10px] backdrop-blur-md dark:bg-black/40 dark:text-white">
-                    玻璃拟态预览
-                  </div>
+                应用背景设置
+              </BaseButton>
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                @click="appStore.setUIConfig({ loginBackground: '' })"
+              >
+                恢复默认
+              </BaseButton>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <span class="glass-text-muted text-xs font-medium">预览 (效果参考)</span>
+            <div
+              class="relative h-32 w-full overflow-hidden border border-white/20 rounded-xl bg-cover bg-center dark:border-white/10"
+              :style="appStore.loginBackground ? { backgroundImage: `url(${appStore.loginBackground})` } : { background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)' }"
+            >
+              <div v-if="appStore.loginBackground" class="absolute inset-0 bg-black/20" />
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="glass-text-main border border-white/20 rounded bg-white/60 px-3 py-1 text-[10px] backdrop-blur-md dark:bg-black/40 dark:text-white">
+                  玻璃拟态预览
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
 
     <ConfirmModal
       :show="modalVisible"

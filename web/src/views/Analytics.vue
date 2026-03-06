@@ -27,20 +27,24 @@ const strategies = [
 /** 根据等级过滤并获取策略最优作物 */
 function getStrategyBestPlant(strategyKey: string) {
   const strategy = strategies.find(s => s.key === strategyKey)
-  if (!strategy || list.value.length === 0) return null
+  if (!strategy || list.value.length === 0)
+    return null
   const filtered = levelFilter.value > 0
     ? list.value.filter((item: any) => {
         const lv = Number(item.level)
         return Number.isFinite(lv) && lv <= levelFilter.value
       })
     : list.value
-  if (filtered.length === 0) return null
+  if (filtered.length === 0)
+    return null
   // 排序后取 Top 1
   const sorted = [...filtered].sort((a, b) => {
     const av = Number(a[strategy.metric])
     const bv = Number(b[strategy.metric])
-    if (!Number.isFinite(av)) return 1
-    if (!Number.isFinite(bv)) return -1
+    if (!Number.isFinite(av))
+      return 1
+    if (!Number.isFinite(bv))
+      return -1
     return bv - av
   })
   const best = sorted[0]
@@ -179,7 +183,7 @@ function formatGrowTime(seconds: any) {
               type="number"
               min="0"
               placeholder="全部"
-              class="glass-panel w-14 border border-white/20 rounded px-2 py-1 text-center text-sm outline-none focus:border-primary-400 dark:border-white/10"
+              class="glass-panel w-14 border border-white/20 rounded px-2 py-1 text-center text-sm outline-none dark:border-white/10 focus:border-primary-400"
             >
           </div>
           <div
@@ -194,7 +198,7 @@ function formatGrowTime(seconds: any) {
           <div
             v-for="strategy in strategies"
             :key="strategy.key"
-            class="glass-panel overflow-hidden rounded-lg border border-white/10 p-3 transition-shadow hover:shadow-md"
+            class="glass-panel overflow-hidden border border-white/10 rounded-lg p-3 transition-shadow hover:shadow-md"
           >
             <!-- 策略标题 -->
             <div class="mb-2 flex items-center gap-2">
@@ -216,8 +220,12 @@ function formatGrowTime(seconds: any) {
                   <div v-else class="i-carbon-sprout text-lg text-primary-500/50" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div class="glass-text-main truncate text-sm font-bold">{{ getStrategyBestPlant(strategy.key)?.name }}</div>
-                  <div class="glass-text-muted text-[10px]">Lv{{ formatLv(getStrategyBestPlant(strategy.key)?.level) }}</div>
+                  <div class="glass-text-main truncate text-sm font-bold">
+                    {{ getStrategyBestPlant(strategy.key)?.name }}
+                  </div>
+                  <div class="glass-text-muted text-[10px]">
+                    Lv{{ formatLv(getStrategyBestPlant(strategy.key)?.level) }}
+                  </div>
                 </div>
               </div>
               <!-- 效率值 -->
@@ -243,33 +251,32 @@ function formatGrowTime(seconds: any) {
     </div>
 
     <div v-else>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="(item, idx) in list"
           :key="idx"
-          class="glass-panel group overflow-hidden rounded-xl shadow transition-all hover:-translate-y-1 hover:shadow-lg dark:hover:bg-white/5 flex flex-col"
+          class="glass-panel group flex flex-col overflow-hidden rounded-xl shadow transition-all hover:shadow-lg hover:-translate-y-1 dark:hover:bg-white/5"
         >
           <!-- 卡片内容主体: 允许点击放大或高亮交互 -->
-          <div class="p-4 cursor-pointer flex flex-col flex-1 gap-4 transition bg-transparent">
-            
+          <div class="flex flex-1 flex-col cursor-pointer gap-4 bg-transparent p-4 transition">
             <!-- 头部：图鉴图标 + 名称 + 核心状态 -->
             <div class="flex flex-row items-center gap-3">
               <!-- 作物图片 -->
-              <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-primary-500/10 dark:border-white/10 dark:bg-black/20 group-hover:bg-primary-500/20 transition-colors">
+              <div class="relative h-12 w-12 flex shrink-0 items-center justify-center overflow-hidden border border-white/20 rounded-lg bg-primary-500/10 transition-colors dark:border-white/10 dark:bg-black/20 group-hover:bg-primary-500/20">
                 <img
                   v-if="item.image && !imageErrors[item.seedId]"
                   :src="item.image"
-                  class="h-10 w-10 object-contain drop-shadow-sm group-hover:scale-110 transition-transform"
+                  class="h-10 w-10 object-contain drop-shadow-sm transition-transform group-hover:scale-110"
                   loading="lazy"
                   @error="imageErrors[item.seedId] = true"
                 >
                 <div v-else class="i-carbon-sprout text-2xl text-primary-500/50" />
               </div>
-              
+
               <!-- 文本信息 -->
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between">
-                  <div class="glass-text-main truncate font-bold text-base group-hover:text-primary-500 transition-colors">
+                  <div class="glass-text-main truncate text-base font-bold transition-colors group-hover:text-primary-500">
                     {{ item.name }}
                   </div>
                   <div class="glass-text-muted text-[10px] font-mono">
@@ -277,9 +284,9 @@ function formatGrowTime(seconds: any) {
                   </div>
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2">
-                  <span class="border border-primary-500/20 rounded bg-primary-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary-600 dark:text-primary-400">Lv {{ formatLv(item.level) }}</span>
-                  <span class="border border-yellow-500/20 rounded bg-yellow-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-600 dark:text-yellow-400">{{ item.seasons }}季</span>
-                  <span class="glass-text-muted text-[10px] flex items-center gap-0.5 ml-auto">
+                  <span class="border border-primary-500/20 rounded bg-primary-500/10 px-1.5 py-0.5 text-[10px] text-primary-600 font-semibold dark:text-primary-400">Lv {{ formatLv(item.level) }}</span>
+                  <span class="border border-yellow-500/20 rounded bg-yellow-500/10 px-1.5 py-0.5 text-[10px] text-yellow-600 font-semibold dark:text-yellow-400">{{ item.seasons }}季</span>
+                  <span class="glass-text-muted ml-auto flex items-center gap-0.5 text-[10px]">
                     <div class="i-carbon-time" />
                     {{ formatGrowTime(item.growTime) }}
                   </span>
@@ -288,25 +295,24 @@ function formatGrowTime(seconds: any) {
             </div>
 
             <!-- 数据列 (2x2 网格) -->
-            <div class="grid grid-cols-2 gap-3 text-sm mt-auto pt-2 border-t border-gray-200/50 dark:border-white/10">
+            <div class="grid grid-cols-2 mt-auto gap-3 border-t border-gray-200/50 pt-2 text-sm dark:border-white/10">
               <div class="flex flex-col">
                 <span class="glass-text-muted mb-0.5 text-[10px] uppercase opacity-80">经验/小时</span>
-                <span class="text-purple-600 font-bold dark:text-purple-400 leading-none">{{ item.expPerHour }}</span>
+                <span class="text-purple-600 font-bold leading-none dark:text-purple-400">{{ item.expPerHour }}</span>
               </div>
               <div class="flex flex-col text-right">
                 <span class="glass-text-muted mb-0.5 text-[10px] uppercase opacity-80">净利润/小时</span>
-                <span class="text-amber-500 font-bold dark:text-amber-400 leading-none">{{ item.profitPerHour ?? '-' }}</span>
+                <span class="text-amber-500 font-bold leading-none dark:text-amber-400">{{ item.profitPerHour ?? '-' }}</span>
               </div>
               <div class="flex flex-col">
                 <span class="glass-text-muted mb-0.5 text-[10px] uppercase opacity-80">普肥经验/小时</span>
-                <span class="text-blue-600 font-bold dark:text-blue-400 leading-none">{{ item.normalFertilizerExpPerHour ?? '-' }}</span>
+                <span class="text-blue-600 font-bold leading-none dark:text-blue-400">{{ item.normalFertilizerExpPerHour ?? '-' }}</span>
               </div>
               <div class="flex flex-col text-right">
                 <span class="glass-text-muted mb-0.5 text-[10px] uppercase opacity-80">普肥净利润/小时</span>
-                <span class="text-primary-600 font-bold dark:text-primary-400 leading-none">{{ item.normalFertilizerProfitPerHour ?? '-' }}</span>
+                <span class="text-primary-600 font-bold leading-none dark:text-primary-400">{{ item.normalFertilizerProfitPerHour ?? '-' }}</span>
               </div>
             </div>
-            
           </div>
         </div>
       </div>

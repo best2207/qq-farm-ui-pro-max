@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { computed, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { useAccountStore } from '@/stores/account'
 import { useToastStore } from '@/stores/toast'
 
@@ -102,7 +102,8 @@ const editingNodeId = ref<string | null>(null)
 const editingScope = ref<'farm' | 'friend' | null>(null)
 
 const activeNode = computed(() => {
-  if (!editingScope.value || !editingNodeId.value) return null
+  if (!editingScope.value || !editingNodeId.value)
+    return null
   return config.value[editingScope.value].nodes.find(n => n.id === editingNodeId.value) || null
 })
 
@@ -163,29 +164,31 @@ function animateLoop(time: number) {
   let needsContinue = false
 
   if (isDragging.value && ghostEl.value) {
-    if (springTick(ghostSpring.value, dt)) needsContinue = true
-    
+    if (springTick(ghostSpring.value, dt))
+      needsContinue = true
+
     // 如果拖出轨道，样式变红提示删除
     const trackRef = dragScope.value === 'farm' ? farmTrackRef.value : friendTrackRef.value
     let isOutside = true
     if (trackRef) {
       const tr = trackRef.getBoundingClientRect()
-      if (ghostSpring.value.targetX + ghostEl.value.offsetWidth / 2 >= tr.left &&
-          ghostSpring.value.targetX - ghostEl.value.offsetWidth / 2 <= tr.right &&
-          ghostSpring.value.targetY + ghostEl.value.offsetHeight / 2 >= tr.top &&
-          ghostSpring.value.targetY - ghostEl.value.offsetHeight / 2 <= tr.bottom) {
+      if (ghostSpring.value.targetX + ghostEl.value.offsetWidth / 2 >= tr.left
+        && ghostSpring.value.targetX - ghostEl.value.offsetWidth / 2 <= tr.right
+        && ghostSpring.value.targetY + ghostEl.value.offsetHeight / 2 >= tr.top
+        && ghostSpring.value.targetY - ghostEl.value.offsetHeight / 2 <= tr.bottom) {
         isOutside = false
       }
     }
 
     if (dragSource.value === 'queue' && isOutside) {
-        ghostEl.value.style.borderColor = '#ef4444' // red-500
-        ghostEl.value.style.background = 'rgba(239, 68, 68, 0.1)'
-        ghostEl.value.style.opacity = '0.8'
-    } else {
-        ghostEl.value.style.borderColor = ''
-        ghostEl.value.style.background = ''
-        ghostEl.value.style.opacity = '1'
+      ghostEl.value.style.borderColor = '#ef4444' // red-500
+      ghostEl.value.style.background = 'rgba(239, 68, 68, 0.1)'
+      ghostEl.value.style.opacity = '0.8'
+    }
+    else {
+      ghostEl.value.style.borderColor = ''
+      ghostEl.value.style.background = ''
+      ghostEl.value.style.opacity = '1'
     }
 
     ghostEl.value.style.transform = `translate3d(${ghostSpring.value.x}px, ${ghostSpring.value.y}px, 0) scale(1.05) rotate(${ghostSpring.value.vx * 0.005}deg)`
@@ -196,14 +199,15 @@ function animateLoop(time: number) {
   }
 }
 
-function initDrag(e: PointerEvent, template: NodeTemplate, _scope: 'farm'|'friend') {
-  if (ghostEl.value) ghostEl.value.remove()
+function initDrag(e: PointerEvent, template: NodeTemplate, _scope: 'farm' | 'friend') {
+  if (ghostEl.value)
+    ghostEl.value.remove()
 
   const el = document.createElement('div')
   el.className = `fixed z-[9999] pointer-events-none px-5 py-2.5 border-2 rounded-full font-bold shadow-xl flex items-center gap-2.5 whitespace-nowrap bg-gray-900/90 text-white backdrop-blur-md text-base`
   el.style.borderColor = template.color
   el.innerHTML = `<span>${template.icon}</span><span>${template.label}</span>`
-  
+
   document.body.appendChild(el)
   ghostEl.value = el
 
@@ -215,25 +219,28 @@ function initDrag(e: PointerEvent, template: NodeTemplate, _scope: 'farm'|'frien
 
   lastTime = performance.now()
   animFrameId = requestAnimationFrame(animateLoop)
-  
+
   // Add auto-scroll
   document.addEventListener('pointermove', handleAutoScroll)
 }
 
 // 自动滚动支持 (当拖到边缘时)
 function handleAutoScroll(e: PointerEvent) {
-  if (!isDragging.value || !dragScope.value) return
+  if (!isDragging.value || !dragScope.value)
+    return
   const track = dragScope.value === 'farm' ? farmTrackRef.value : friendTrackRef.value
-  if (!track) return
+  if (!track)
+    return
 
   const rect = track.getBoundingClientRect()
   const scrollZone = 50
-  
+
   // 仅在 Y 轴大致对齐时才自动横向滚动轨道
   if (e.clientY > rect.top - 50 && e.clientY < rect.bottom + 50) {
     if (e.clientX < rect.left + scrollZone) {
       track.scrollLeft -= 10
-    } else if (e.clientX > rect.right - scrollZone) {
+    }
+    else if (e.clientX > rect.right - scrollZone) {
       track.scrollLeft += 10
     }
   }
@@ -241,9 +248,9 @@ function handleAutoScroll(e: PointerEvent) {
 
 function handlePointerDownPool(e: PointerEvent, scope: 'farm' | 'friend', template: NodeTemplate) {
   e.preventDefault()
-  
+
   pointerDownStart = { x: e.clientX, y: e.clientY }
-  
+
   const activateDrag = () => {
     dragScope.value = scope
     dragSource.value = 'pool'
@@ -259,7 +266,8 @@ function handlePointerDownPool(e: PointerEvent, scope: 'farm' | 'friend', templa
   // Click vs Drag logic
   const moveToleration = (ev: PointerEvent) => {
     if (Math.hypot(ev.clientX - pointerDownStart.x, ev.clientY - pointerDownStart.y) > DRAG_THRESHOLD_PX) {
-      if (dragHoldTimer) clearTimeout(dragHoldTimer)
+      if (dragHoldTimer)
+        clearTimeout(dragHoldTimer)
       document.removeEventListener('pointermove', moveToleration)
       document.removeEventListener('pointerup', cancelEarly)
       activateDrag()
@@ -267,8 +275,10 @@ function handlePointerDownPool(e: PointerEvent, scope: 'farm' | 'friend', templa
     }
   }
 
-  const cancelEarly = () => {
-    if (dragHoldTimer) clearTimeout(dragHoldTimer)
+  function cancelEarly() {
+    if (dragHoldTimer) {
+      clearTimeout(dragHoldTimer)
+    }
     document.removeEventListener('pointermove', moveToleration)
     document.removeEventListener('pointerup', cancelEarly)
     // It was a click!
@@ -277,7 +287,7 @@ function handlePointerDownPool(e: PointerEvent, scope: 'farm' | 'friend', templa
 
   document.addEventListener('pointermove', moveToleration)
   document.addEventListener('pointerup', cancelEarly)
-  
+
   // Mobile long press -> drag
   dragHoldTimer = setTimeout(() => {
     document.removeEventListener('pointermove', moveToleration)
@@ -289,13 +299,16 @@ function handlePointerDownPool(e: PointerEvent, scope: 'farm' | 'friend', templa
 function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index: number) {
   // If clicking on actions or anything, ignore
   const target = e.target as HTMLElement
-  if (target.closest('button') || target.tagName === 'INPUT') return
+  if (target.closest('button') || target.tagName === 'INPUT')
+    return
 
   e.preventDefault()
   const node = config.value[scope].nodes[index]
-  if (!node) return
+  if (!node)
+    return
   const template = getTemplate(node.type)
-  if (!template) return
+  if (!template)
+    return
 
   pointerDownStart = { x: e.clientX, y: e.clientY }
 
@@ -306,7 +319,7 @@ function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index
     isDragging.value = true
     dragIndex.value = index
     dropPlaceholderIndex.value = index
-    
+
     editingNodeId.value = null // hide editor while dragging
 
     initDrag(e, template, scope)
@@ -316,7 +329,8 @@ function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index
 
   const moveToleration = (ev: PointerEvent) => {
     if (Math.hypot(ev.clientX - pointerDownStart.x, ev.clientY - pointerDownStart.y) > DRAG_THRESHOLD_PX) {
-      if (dragHoldTimer) clearTimeout(dragHoldTimer)
+      if (dragHoldTimer)
+        clearTimeout(dragHoldTimer)
       document.removeEventListener('pointermove', moveToleration)
       document.removeEventListener('pointerup', cancelEarly)
       activateDrag()
@@ -324,15 +338,18 @@ function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index
     }
   }
 
-  const cancelEarly = () => {
-    if (dragHoldTimer) clearTimeout(dragHoldTimer)
+  function cancelEarly() {
+    if (dragHoldTimer) {
+      clearTimeout(dragHoldTimer)
+    }
     document.removeEventListener('pointermove', moveToleration)
     document.removeEventListener('pointerup', cancelEarly)
     // Click logic: open editor
-    if (template.hasParams) {
+    if (template?.hasParams && node) {
       if (editingNodeId.value === node.id) {
         editingNodeId.value = null
-      } else {
+      }
+      else {
         editingNodeId.value = node.id
         editingScope.value = scope
       }
@@ -341,7 +358,7 @@ function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index
 
   document.addEventListener('pointermove', moveToleration)
   document.addEventListener('pointerup', cancelEarly)
-  
+
   dragHoldTimer = setTimeout(() => {
     document.removeEventListener('pointermove', moveToleration)
     document.removeEventListener('pointerup', cancelEarly)
@@ -349,37 +366,39 @@ function handlePointerDownQueue(e: PointerEvent, scope: 'farm' | 'friend', index
   }, 200)
 }
 
-
 function onPointerMove(e: PointerEvent) {
-  if (!isDragging.value || !ghostEl.value) return
+  if (!isDragging.value || !ghostEl.value)
+    return
 
   const rect = ghostEl.value.getBoundingClientRect()
   ghostSpring.value.targetX = e.clientX - rect.width / 2
   ghostSpring.value.targetY = e.clientY - rect.height / 2
 
   const trackRef = dragScope.value === 'farm' ? farmTrackRef.value : friendTrackRef.value
-  if (!trackRef) return
+  if (!trackRef)
+    return
 
   const tRect = trackRef.getBoundingClientRect()
   const items = Array.from(trackRef.querySelectorAll('.wf-node-track-item'))
   let newPlaceholder = config.value[dragScope.value!].nodes.length
 
   // Only calc if inside track bounds (allow a little slack vertically)
-  if (e.clientX >= tRect.left - 50 && e.clientX <= tRect.right + 50 && 
-      e.clientY >= tRect.top - 50 && e.clientY <= tRect.bottom + 50) {
-      
+  if (e.clientX >= tRect.left - 50 && e.clientX <= tRect.right + 50
+    && e.clientY >= tRect.top - 50 && e.clientY <= tRect.bottom + 50) {
     // Find index based on X coordinate
     // The items are horizontal
     for (let i = 0; i < items.length; i++) {
       const iRect = items[i]?.getBoundingClientRect()
-      if (!iRect) continue
+      if (!iRect)
+        continue
       const midX = iRect.left + iRect.width / 2
       if (e.clientX < midX) {
         newPlaceholder = i
         break
       }
     }
-  } else {
+  }
+  else {
     // Left the track
     newPlaceholder = -1
   }
@@ -390,7 +409,7 @@ function onPointerMove(e: PointerEvent) {
 function cleanupDrag() {
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointermove', handleAutoScroll)
-  
+
   isDragging.value = false
   dragIndex.value = -1
   dropPlaceholderIndex.value = -1
@@ -401,7 +420,7 @@ function cleanupDrag() {
     ghostEl.value.remove()
     ghostEl.value = null
   }
-  
+
   if (animFrameId) {
     cancelAnimationFrame(animFrameId)
     animFrameId = 0
@@ -410,9 +429,12 @@ function cleanupDrag() {
 
 function onPointerUpPool(_e: PointerEvent) {
   document.removeEventListener('pointerup', onPointerUpPool)
-  
+
   const scope = dragScope.value
-  if (!scope) { cleanupDrag(); return }
+  if (!scope) {
+    cleanupDrag()
+    return
+  }
 
   const nodes = config.value[scope].nodes
   const phIdx = dropPlaceholderIndex.value
@@ -424,7 +446,7 @@ function onPointerUpPool(_e: PointerEvent) {
       nodes.splice(phIdx, 0, {
         id: generateId(),
         type: template.type,
-        ...(template.hasParams ? { params: JSON.parse(JSON.stringify(template.defaultParams || {})) } : {})
+        ...(template.hasParams ? { params: JSON.parse(JSON.stringify(template.defaultParams || {})) } : {}),
       })
     }
   }
@@ -435,7 +457,10 @@ function onPointerUpPool(_e: PointerEvent) {
 function onPointerUpQueue(_e: PointerEvent) {
   document.removeEventListener('pointerup', onPointerUpQueue)
   const scope = dragScope.value
-  if (!scope) { cleanupDrag(); return }
+  if (!scope) {
+    cleanupDrag()
+    return
+  }
 
   const nodes = config.value[scope].nodes
   const phIdx = dropPlaceholderIndex.value
@@ -443,7 +468,8 @@ function onPointerUpQueue(_e: PointerEvent) {
   if (phIdx < 0) {
     // Delete
     nodes.splice(dragIndex.value, 1)
-  } else {
+  }
+  else {
     // Reorder
     if (phIdx !== dragIndex.value && phIdx !== dragIndex.value + 1) {
       const moved = nodes.splice(dragIndex.value, 1)[0]
@@ -464,7 +490,7 @@ function addNode(scope: 'farm' | 'friend', template: NodeTemplate) {
   config.value[scope].nodes.push({
     id: generateId(),
     type: template.type,
-    ...(template.hasParams ? { params: JSON.parse(JSON.stringify(template.defaultParams || {})) } : {})
+    ...(template.hasParams ? { params: JSON.parse(JSON.stringify(template.defaultParams || {})) } : {}),
   })
 }
 
@@ -473,12 +499,11 @@ function removeNode(scope: 'farm' | 'friend', index: number) {
   editingNodeId.value = null
 }
 
-
-
 // ======== 数据交互 ========
 
 async function loadData() {
-  if (!currentAccountId.value) return
+  if (!currentAccountId.value)
+    return
   loading.value = true
   try {
     const { data } = await api.get('/api/settings', {
@@ -502,28 +527,32 @@ async function loadData() {
       }
       lastSavedConfig.value = JSON.stringify(config.value)
     }
-  } catch (e) {
+  }
+  catch (e) {
     console.error('Failed to load workflow config', e)
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
 
 async function saveConfigData(scope: 'farm' | 'friend') {
-  if (!currentAccountId.value) return
-  
+  if (!currentAccountId.value)
+    return
+
   // 静态编译期拦截：农场一旦启用编排，必须明确知道自己没有配置施肥可能会导致停滞
   if (scope === 'farm' && config.value.farm.enabled) {
-    const hasFertilizeNode = config.value.farm.nodes.some(n => n.type === 'stage_fertilize' || n.type === 'fertilize');
+    const hasFertilizeNode = config.value.farm.nodes.some(n => n.type === 'stage_fertilize' || n.type === 'fertilize')
     if (!hasFertilizeNode) {
-      if (!window.confirm('【警告】您的农场流程中没有包含“阶段施肥”或“普通施肥”节点。\n在流程编排模式下，系统将完全依靠编排节点执行。缺少施肥节点可能导致植物长期处于某阶段不成长。\n\n是否确认无化肥直接保存？')) {
-        return;
+      // confirm
+      if (!window.window.confirm('【警告】您的农场流程中没有包含“阶段施肥”或“普通施肥”节点。\n在流程编排模式下，系统将完全依靠编排节点执行。缺少施肥节点可能导致植物长期处于某阶段不成长。\n\n是否确认无化肥直接保存？')) {
+        return
       }
     }
   }
 
   saving.value = true
-  
+
   // To avoid overwriting the other scope if it was changed by another client, we should merge.
   // But for simplicity of this component, we save the whole config state.
   try {
@@ -534,17 +563,20 @@ async function saveConfigData(scope: 'farm' | 'friend') {
       toast.success(`${scope === 'farm' ? '农场' : '好友'}流程保存成功`)
       lastSavedConfig.value = JSON.stringify(config.value)
       editingNodeId.value = null
-    } else {
-      toast.error('保存失败: ' + res.data?.error)
     }
-  } catch(e) {
+    else {
+      toast.error(`保存失败: ${res.data?.error}`)
+    }
+  }
+  catch {
     toast.error('保存请求异常')
-  } finally {
+  }
+  finally {
     saving.value = false
   }
 }
 
-function resetDefault(scope: 'farm'|'friend') {
+function resetDefault(scope: 'farm' | 'friend') {
   if (scope === 'farm') {
     config.value.farm.nodes = [
       { id: generateId(), type: 'stage_fertilize', params: { mode: 'normal', phases: ['seed', 'sprout', 'leaf', 'flower'] } },
@@ -558,16 +590,17 @@ function resetDefault(scope: 'farm'|'friend') {
       { id: generateId(), type: 'delay', params: { sec: 2 } },
       { id: generateId(), type: 'select_seed', params: { strategy: 'preferred' } },
       { id: generateId(), type: 'plant' },
-      { id: generateId(), type: 'fertilize', params: { mode: 'normal' } }
+      { id: generateId(), type: 'fertilize', params: { mode: 'normal' } },
     ]
-  } else {
+  }
+  else {
     config.value.friend.nodes = [
       { id: generateId(), type: 'weed' },
       { id: generateId(), type: 'bug' },
       { id: generateId(), type: 'water' },
       { id: generateId(), type: 'steal' },
       { id: generateId(), type: 'put_bug' },
-      { id: generateId(), type: 'put_weed' }
+      { id: generateId(), type: 'put_weed' },
     ]
   }
 }
@@ -583,7 +616,7 @@ watch(() => currentAccountId.value, () => {
 </script>
 
 <template>
-  <div class="min-h-screen p-4 md:p-6 pb-28 space-y-6">
+  <div class="min-h-screen p-4 pb-28 space-y-6 md:p-6">
     <!-- Header -->
     <div class="flex flex-col justify-between gap-4 border-b border-gray-100/50 pb-4 md:flex-row md:items-center dark:border-gray-700/50">
       <div>
@@ -595,7 +628,9 @@ watch(() => currentAccountId.value, () => {
         </p>
       </div>
       <div>
-        <BaseButton variant="outline" size="sm" @click="loadData" :loading="loading">刷新配置</BaseButton>
+        <BaseButton variant="outline" size="sm" :loading="loading" @click="loadData">
+          刷新配置
+        </BaseButton>
       </div>
     </div>
 
@@ -606,15 +641,17 @@ watch(() => currentAccountId.value, () => {
 
     <template v-else>
       <!-- ================= 农场流程 ================= -->
-      <div class="glass-panel border rounded-xl overflow-hidden shadow-sm border-white/20 dark:border-white/10 dark:bg-black/20">
+      <div class="glass-panel overflow-hidden border border-white/20 rounded-xl shadow-sm dark:border-white/10 dark:bg-black/20">
         <!-- Title Bar -->
-        <div class="flex flex-wrap items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50 bg-black/5 dark:bg-white/5">
+        <div class="flex flex-wrap items-center justify-between border-b border-gray-200/50 bg-black/5 p-4 dark:border-gray-700/50 dark:bg-white/5">
           <div class="flex items-center gap-3">
-            <h2 class="text-base font-bold glass-text-main flex items-center gap-2">
+            <h2 class="glass-text-main flex items-center gap-2 text-base font-bold">
               <span>🚜</span> 农场流程编排
             </h2>
-            <span class="rounded px-2 py-0.5 text-xs font-bold transition-colors"
-                  :class="config.farm.enabled ? 'bg-primary-500/20 text-primary-600 dark:text-primary-400' : 'bg-gray-200/50 text-gray-500 dark:bg-gray-700/50'">
+            <span
+              class="rounded px-2 py-0.5 text-xs font-bold transition-colors"
+              :class="config.farm.enabled ? 'bg-primary-500/20 text-primary-600 dark:text-primary-400' : 'bg-gray-200/50 text-gray-500 dark:bg-gray-700/50'"
+            >
               {{ config.farm.enabled ? '已启用' : '未启用' }}
             </span>
           </div>
@@ -628,74 +665,93 @@ watch(() => currentAccountId.value, () => {
             推荐顺序: 阶段施肥 -> 等待成熟 -> 收获/铲除/种植
           </div>
 
-          <div class="grid grid-cols-2 gap-4 rounded-lg bg-black/5 p-3 dark:bg-white/5 md:w-1/2">
+          <div class="grid grid-cols-2 gap-4 rounded-lg bg-black/5 p-3 md:w-1/2 dark:bg-white/5">
             <div class="space-y-1">
               <label class="text-xs text-gray-500 font-bold">最小间隔 (秒)</label>
-              <input v-model.number="config.farm.minInterval" type="number" min="1"
-                     class="w-full glass-panel border border-white/20 rounded py-1.5 px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-transparent">
+              <input
+                v-model.number="config.farm.minInterval" type="number" min="1"
+                class="glass-panel w-full border border-white/20 rounded bg-transparent px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
             </div>
             <div class="space-y-1">
               <label class="text-xs text-gray-500 font-bold">最大间隔 (秒)</label>
-              <input v-model.number="config.farm.maxInterval" type="number" min="1"
-                     class="w-full glass-panel border border-white/20 rounded py-1.5 px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-transparent">
+              <input
+                v-model.number="config.farm.maxInterval" type="number" min="1"
+                class="glass-panel w-full border border-white/20 rounded bg-transparent px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
             </div>
           </div>
 
           <!-- Status Bar -->
-          <div class="flex items-center justify-between rounded bg-black/5 dark:bg-white/5 px-3 py-2 text-xs border border-transparent transition-colors"
-               :class="{ 'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400': hasFarmChanges, 'border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400': !hasFarmChanges }">
-            <div class="font-bold font-mono">{{ hasFarmChanges ? '农场流程有未保存改动' : '农场流程已就绪 (未保存改动)' }}</div>
-            <div class="opacity-70">{{ hasFarmChanges ? '等待保存' : '最后保存: 未知' }}</div>
+          <div
+            class="flex items-center justify-between border border-transparent rounded bg-black/5 px-3 py-2 text-xs transition-colors dark:bg-white/5"
+            :class="{ 'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400': hasFarmChanges, 'border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400': !hasFarmChanges }"
+          >
+            <div class="font-bold font-mono">
+              {{ hasFarmChanges ? '农场流程有未保存改动' : '农场流程已就绪 (未保存改动)' }}
+            </div>
+            <div class="opacity-70">
+              {{ hasFarmChanges ? '等待保存' : '最后保存: 未知' }}
+            </div>
           </div>
 
           <!-- THE TRACK -->
-          <div ref="farmTrackRef" 
-               class="relative flex items-center p-3 sm:py-6 overflow-x-auto overflow-y-hidden select-none border-y border-dashed border-gray-200 dark:border-gray-800 transition-colors custom-scrollbar"
-               :class="{'bg-primary-500/5 border-primary-500/30': isDragging && dragScope === 'farm'}">
-            
-            <div v-if="config.farm.nodes.length === 0" class="text-sm text-gray-400 italic py-4 pl-2 pointer-events-none">
+          <div
+            ref="farmTrackRef"
+            class="custom-scrollbar relative flex select-none items-center overflow-x-auto overflow-y-hidden border-y border-gray-200 border-dashed p-3 transition-colors dark:border-gray-800 sm:py-6"
+            :class="{ 'bg-primary-500/5 border-primary-500/30': isDragging && dragScope === 'farm' }"
+          >
+            <div v-if="config.farm.nodes.length === 0" class="pointer-events-none py-4 pl-2 text-sm text-gray-400 italic">
               拖拽底部节点到这里，或者直接点击下方节点...
             </div>
-            
+
             <TransitionGroup name="wf-horizontal" class="flex items-center">
               <template v-for="(node, idx) in config.farm.nodes" :key="node.id">
-                
-                <div v-if="isDragging && dragScope === 'farm' && dropPlaceholderIndex === idx" 
-                     class="wf-ph w-[80px] h-[36px] border-2 border-dashed border-primary-500/50 rounded-full bg-primary-500/10 shrink-0 mx-2 transition-all"></div>
+                <div
+                  v-if="isDragging && dragScope === 'farm' && dropPlaceholderIndex === idx"
+                  class="wf-ph mx-2 h-[36px] w-[80px] shrink-0 border-2 border-primary-500/50 rounded-full border-dashed bg-primary-500/10 transition-all"
+                />
 
                 <template v-if="!(isDragging && dragSource === 'queue' && dragScope === 'farm' && dragIndex === idx)">
                   <!-- Arrow between nodes -->
-                  <div v-if="idx > 0 || (isDragging && dragScope === 'farm' && dropPlaceholderIndex === 0)" class="i-carbon-arrow-right mx-1 text-gray-300 dark:text-gray-600 shrink-0 wf-arrow"></div>
+                  <div v-if="idx > 0 || (isDragging && dragScope === 'farm' && dropPlaceholderIndex === 0)" class="i-carbon-arrow-right wf-arrow mx-1 shrink-0 text-gray-300 dark:text-gray-600" />
 
                   <!-- Node Chip -->
-                  <div class="relative group cursor-grab active:cursor-grabbing shrink-0 transition-transform hover:scale-105 hover:-translate-y-1 wf-node-track-item"
-                       @pointerdown="(e) => handlePointerDownQueue(e, 'farm', idx)">
-                       
-                    <div class="flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm transition-colors text-base font-bold"
-                         :class="[
-                           getTemplate(node.type)?.bgLight, getTemplate(node.type)?.bgDark,
-                           getTemplate(node.type)?.borderLight, getTemplate(node.type)?.borderDark,
-                           getTemplate(node.type)?.textLight, getTemplate(node.type)?.textDark,
-                           editingNodeId === node.id ? 'ring-2 ring-primary-500 shadow-md' : 'hover:shadow' 
-                         ]">
+                  <div
+                    class="group wf-node-track-item relative shrink-0 cursor-grab transition-transform hover:scale-105 active:cursor-grabbing hover:-translate-y-1"
+                    @pointerdown="(e) => handlePointerDownQueue(e, 'farm', idx)"
+                  >
+                    <div
+                      class="flex items-center gap-2 border rounded-full px-4 py-2 text-base font-bold shadow-sm transition-colors"
+                      :class="[
+                        getTemplate(node.type)?.bgLight, getTemplate(node.type)?.bgDark,
+                        getTemplate(node.type)?.borderLight, getTemplate(node.type)?.borderDark,
+                        getTemplate(node.type)?.textLight, getTemplate(node.type)?.textDark,
+                        editingNodeId === node.id ? 'ring-2 ring-primary-500 shadow-md' : 'hover:shadow',
+                      ]"
+                    >
                       <span>{{ getTemplate(node.type)?.icon }}</span>
                       <span>{{ getTemplate(node.type)?.label }}</span>
                       <!-- Preview parameters if any -->
-                      <span v-if="node.type === 'wait_mature' && node.params?.stopIfNotMature" class="text-xs opacity-75 border-l border-current pl-1.5 ml-1.5 font-normal">(未成熟停止)</span>
-                      <span v-if="node.type === 'stage_fertilize' && node.params" class="text-xs opacity-75 border-l border-current pl-1.5 ml-1.5 font-normal">({{ node.params.phases?.length || 0 }}阶段)</span>
+                      <span v-if="node.type === 'wait_mature' && node.params?.stopIfNotMature" class="ml-1.5 border-l border-current pl-1.5 text-xs font-normal opacity-75">(未成熟停止)</span>
+                      <span v-if="node.type === 'stage_fertilize' && node.params" class="ml-1.5 border-l border-current pl-1.5 text-xs font-normal opacity-75">({{ node.params.phases?.length || 0 }}阶段)</span>
                     </div>
 
                     <!-- Delete button overlay map (visible on hover) -->
-                    <button class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-sm z-10"
-                            @pointerdown.stop
-                            @click="removeNode('farm', idx)">
+                    <button
+                      class="absolute z-10 h-5 w-5 flex items-center justify-center rounded-full bg-red-500 text-white opacity-0 shadow-sm transition-opacity -right-2 -top-2 hover:bg-red-600 group-hover:opacity-100"
+                      @pointerdown.stop
+                      @click="removeNode('farm', idx)"
+                    >
                       <div class="i-carbon-close text-xs" />
                     </button>
                     <!-- Settings button if params -->
-                    <button v-if="getTemplate(node.type)?.hasParams"
-                            class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-600 shadow-sm z-10"
-                            @pointerdown.stop
-                            @click="editingNodeId = editingNodeId === node.id ? null : node.id; editingScope = 'farm'">
+                    <button
+                      v-if="getTemplate(node.type)?.hasParams"
+                      class="absolute z-10 h-5 w-5 flex items-center justify-center rounded-full bg-blue-500 text-white opacity-0 shadow-sm transition-opacity -bottom-2 -right-2 hover:bg-blue-600 group-hover:opacity-100"
+                      @pointerdown.stop
+                      @click="editingNodeId = editingNodeId === node.id ? null : node.id; editingScope = 'farm'"
+                    >
                       <div class="i-carbon-settings text-[10px]" />
                     </button>
                   </div>
@@ -703,92 +759,116 @@ watch(() => currentAccountId.value, () => {
               </template>
 
               <!-- End placeholder -->
-               <div v-if="isDragging && dragScope === 'farm' && dropPlaceholderIndex === config.farm.nodes.length" :key="'ph-end'"
-                    class="wf-ph w-[80px] h-[36px] border-2 border-dashed border-primary-500/50 rounded-full bg-primary-500/10 shrink-0 mx-2 transition-all"></div>
+              <div
+                v-if="isDragging && dragScope === 'farm' && dropPlaceholderIndex === config.farm.nodes.length" key="ph-end"
+                class="wf-ph mx-2 h-[36px] w-[80px] shrink-0 border-2 border-primary-500/50 rounded-full border-dashed bg-primary-500/10 transition-all"
+              />
             </TransitionGroup>
           </div>
 
           <!-- Inline Editor -->
-          <div v-if="editingScope === 'farm' && editingNodeId && activeNode" class="animate-in fade-in slide-in-from-top-2 p-4 rounded-lg bg-black/5 dark:bg-white/5 border border-primary-500/20 relative">
-            <button class="absolute top-3 right-3 text-gray-400 hover:text-gray-600" @click="editingNodeId = null"><div class="i-carbon-close text-lg" /></button>
-            <h3 class="text-sm font-bold text-primary-600 dark:text-primary-400 mb-3 flex items-center gap-2">
+          <div v-if="editingScope === 'farm' && editingNodeId && activeNode" class="animate-in fade-in slide-in-from-top-2 relative border border-primary-500/20 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <button class="absolute right-3 top-3 text-gray-400 hover:text-gray-600" @click="editingNodeId = null">
+              <div class="i-carbon-close text-lg" />
+            </button>
+            <h3 class="mb-3 flex items-center gap-2 text-sm text-primary-600 font-bold dark:text-primary-400">
               <div class="i-carbon-edit" />
               编辑节点: {{ getTemplate(activeNode.type)?.label }}
             </h3>
-            
-            <div class="space-y-4" v-if="activeNode.params">
+
+            <div v-if="activeNode.params" class="space-y-4">
               <template v-if="activeNode.type === 'wait_mature'">
                 <BaseSwitch v-model="activeNode.params.stopIfNotMature" label="若所有作物未成熟，中止后续流程" />
               </template>
-              
+
               <template v-if="activeNode.type === 'stage_fertilize'">
                 <div>
-                  <label class="block text-xs font-bold text-gray-500 mb-1">阶段施肥模式</label>
-                  <select v-model="activeNode.params.mode" class="glass-panel w-full max-w-[240px] border border-white/20 rounded py-1.5 px-3 text-sm text-gray-700 dark:text-gray-200 outline-none focus:ring-2 focus:ring-primary-500/50">
-                    <option value="normal" class="bg-white dark:bg-gray-800">仅普通化肥</option>
-                    <option value="organic" class="bg-white dark:bg-gray-800">仅有机化肥</option>
-                    <option value="both" class="bg-white dark:bg-gray-800">双效(普通+有机)</option>
+                  <label class="mb-1 block text-xs text-gray-500 font-bold">阶段施肥模式</label>
+                  <select v-model="activeNode.params.mode" class="glass-panel max-w-[240px] w-full border border-white/20 rounded px-3 py-1.5 text-sm text-gray-700 outline-none dark:text-gray-200 focus:ring-2 focus:ring-primary-500/50">
+                    <option value="normal" class="bg-white dark:bg-gray-800">
+                      仅普通化肥
+                    </option>
+                    <option value="organic" class="bg-white dark:bg-gray-800">
+                      仅有机化肥
+                    </option>
+                    <option value="both" class="bg-white dark:bg-gray-800">
+                      双效(普通+有机)
+                    </option>
                   </select>
                 </div>
                 <div>
-                   <label class="block text-xs font-bold text-gray-500 mb-2">选择执行施肥的作物阶段</label>
-                   <div class="flex flex-wrap gap-3">
-                     <label v-for="ph in [{v:'seed', l:'种子期'}, {v:'sprout', l:'发芽期'}, {v:'leaf', l:'小叶期'}, {v:'big_leaf', l:'大叶期'}, {v:'flower', l:'开花期'}]" :key="ph.v" class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
-                       <input type="checkbox" :value="ph.v" v-model="activeNode.params.phases" class="accent-primary-500 w-4 h-4 rounded">
-                       {{ ph.l }}
-                     </label>
-                   </div>
+                  <label class="mb-2 block text-xs text-gray-500 font-bold">选择执行施肥的作物阶段</label>
+                  <div class="flex flex-wrap gap-3">
+                    <label v-for="ph in [{ v: 'seed', l: '种子期' }, { v: 'sprout', l: '发芽期' }, { v: 'leaf', l: '小叶期' }, { v: 'big_leaf', l: '大叶期' }, { v: 'flower', l: '开花期' }]" :key="ph.v" class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
+                      <input v-model="activeNode.params.phases" type="checkbox" :value="ph.v" class="h-4 w-4 rounded accent-primary-500">
+                      {{ ph.l }}
+                    </label>
+                  </div>
                 </div>
               </template>
 
               <template v-if="activeNode.type === 'delay'">
-                <div class="w-full max-w-[240px]">
+                <div class="max-w-[240px] w-full">
                   <BaseInput v-model.number="activeNode.params.sec" type="number" min="1" label="延时时间(秒)" />
                 </div>
               </template>
 
               <template v-if="activeNode.type === 'select_seed'">
-                 <div class="w-full max-w-[240px]">
-                  <label class="block text-xs font-bold text-gray-500 mb-1">选种策略</label>
-                  <select v-model="activeNode.params.strategy" class="glass-panel w-full border border-white/20 rounded py-1.5 px-3 text-sm text-gray-700 dark:text-gray-200 outline-none focus:ring-2 focus:ring-primary-500/50">
-                    <option value="preferred" class="bg-white dark:bg-gray-800">设置项中优先选择</option>
-                    <option value="max_profit" class="bg-white dark:bg-gray-800">理论时润最高</option>
-                    <option value="max_exp" class="bg-white dark:bg-gray-800">理论时经最高</option>
+                <div class="max-w-[240px] w-full">
+                  <label class="mb-1 block text-xs text-gray-500 font-bold">选种策略</label>
+                  <select v-model="activeNode.params.strategy" class="glass-panel w-full border border-white/20 rounded px-3 py-1.5 text-sm text-gray-700 outline-none dark:text-gray-200 focus:ring-2 focus:ring-primary-500/50">
+                    <option value="preferred" class="bg-white dark:bg-gray-800">
+                      设置项中优先选择
+                    </option>
+                    <option value="max_profit" class="bg-white dark:bg-gray-800">
+                      理论时润最高
+                    </option>
+                    <option value="max_exp" class="bg-white dark:bg-gray-800">
+                      理论时经最高
+                    </option>
                   </select>
-                 </div>
+                </div>
               </template>
             </div>
           </div>
 
           <!-- Bottom Toolbar -->
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2">
-            <div class="flex items-center flex-wrap gap-2.5 flex-1">
-              <span class="text-base font-bold text-gray-400 whitespace-nowrap">添加节点:</span>
-              <button v-for="tpl in farmTemplates" :key="tpl.type"
-                      class="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-black/30 hover:bg-white dark:hover:bg-black hover:border-primary-500 text-sm font-bold text-gray-600 dark:text-gray-300 transition-colors shadow-sm cursor-grab active:cursor-grabbing"
-                      @pointerdown="(e) => handlePointerDownPool(e, 'farm', tpl)">
+          <div class="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div class="flex flex-1 flex-wrap items-center gap-2.5">
+              <span class="whitespace-nowrap text-base text-gray-400 font-bold">添加节点:</span>
+              <button
+                v-for="tpl in farmTemplates" :key="tpl.type"
+                class="flex cursor-grab items-center gap-2 border border-gray-300 rounded-lg bg-white/50 px-4 py-1.5 text-sm text-gray-600 font-bold shadow-sm transition-colors active:cursor-grabbing dark:border-gray-600 hover:border-primary-500 dark:bg-black/30 hover:bg-white dark:text-gray-300 dark:hover:bg-black"
+                @pointerdown="(e) => handlePointerDownPool(e, 'farm', tpl)"
+              >
                 <span class="text-base">{{ tpl.icon }}</span>
                 <span>{{ tpl.label }}</span>
               </button>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-               <BaseButton variant="outline" size="sm" @click="resetDefault('farm')">重置默认流程</BaseButton>
-               <BaseButton variant="primary" size="sm" :loading="saving" @click="saveConfigData('farm')">保存农场流程</BaseButton>
+            <div class="flex shrink-0 items-center gap-2">
+              <BaseButton variant="outline" size="sm" @click="resetDefault('farm')">
+                重置默认流程
+              </BaseButton>
+              <BaseButton variant="primary" size="sm" :loading="saving" @click="saveConfigData('farm')">
+                保存农场流程
+              </BaseButton>
             </div>
           </div>
         </div>
       </div>
 
       <!-- ================= 好友流程 ================= -->
-      <div class="glass-panel border rounded-xl overflow-hidden shadow-sm border-white/20 dark:border-white/10 dark:bg-black/20">
+      <div class="glass-panel overflow-hidden border border-white/20 rounded-xl shadow-sm dark:border-white/10 dark:bg-black/20">
         <!-- Title Bar -->
-        <div class="flex flex-wrap items-center justify-between p-4 border-b border-gray-200/50 dark:border-gray-700/50 bg-black/5 dark:bg-white/5">
+        <div class="flex flex-wrap items-center justify-between border-b border-gray-200/50 bg-black/5 p-4 dark:border-gray-700/50 dark:bg-white/5">
           <div class="flex items-center gap-3">
-            <h2 class="text-base font-bold glass-text-main flex items-center gap-2">
+            <h2 class="glass-text-main flex items-center gap-2 text-base font-bold">
               <span>🤝</span> 好友巡查流程编排
             </h2>
-            <span class="rounded px-2 py-0.5 text-xs font-bold transition-colors"
-                  :class="config.friend.enabled ? 'bg-primary-500/20 text-primary-600 dark:text-primary-400' : 'bg-gray-200/50 text-gray-500 dark:bg-gray-700/50'">
+            <span
+              class="rounded px-2 py-0.5 text-xs font-bold transition-colors"
+              :class="config.friend.enabled ? 'bg-primary-500/20 text-primary-600 dark:text-primary-400' : 'bg-gray-200/50 text-gray-500 dark:bg-gray-700/50'"
+            >
               {{ config.friend.enabled ? '已启用' : '未启用' }}
             </span>
           </div>
@@ -800,88 +880,112 @@ watch(() => currentAccountId.value, () => {
             启用后，拜访每位好友时按以下流程依次执行操作。未启用时使用默认顺序（除草->浇水->除虫->偷菜->放虫->放草）。
           </div>
 
-          <div class="grid grid-cols-2 gap-4 rounded-lg bg-black/5 p-3 dark:bg-white/5 md:w-1/2">
+          <div class="grid grid-cols-2 gap-4 rounded-lg bg-black/5 p-3 md:w-1/2 dark:bg-white/5">
             <div class="space-y-1">
               <label class="text-xs text-gray-500 font-bold">最小间隔 (秒)</label>
-              <input v-model.number="config.friend.minInterval" type="number" min="1"
-                     class="w-full glass-panel border border-white/20 rounded py-1.5 px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-transparent">
+              <input
+                v-model.number="config.friend.minInterval" type="number" min="1"
+                class="glass-panel w-full border border-white/20 rounded bg-transparent px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
             </div>
             <div class="space-y-1">
               <label class="text-xs text-gray-500 font-bold">最大间隔 (秒)</label>
-              <input v-model.number="config.friend.maxInterval" type="number" min="1"
-                     class="w-full glass-panel border border-white/20 rounded py-1.5 px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-transparent">
+              <input
+                v-model.number="config.friend.maxInterval" type="number" min="1"
+                class="glass-panel w-full border border-white/20 rounded bg-transparent px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
             </div>
           </div>
 
           <!-- Status Bar -->
-          <div class="flex items-center justify-between rounded bg-black/5 dark:bg-white/5 px-3 py-2 text-xs border border-transparent transition-colors"
-               :class="{ 'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400': hasFriendChanges, 'border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400': !hasFriendChanges }">
-            <div class="font-bold font-mono">{{ hasFriendChanges ? '好友流程有未保存改动' : '好友流程已就绪 (未手保存改动)' }}</div>
-            <div class="opacity-70">{{ hasFriendChanges ? '等待保存' : '最后保存: 未知' }}</div>
+          <div
+            class="flex items-center justify-between border border-transparent rounded bg-black/5 px-3 py-2 text-xs transition-colors dark:bg-white/5"
+            :class="{ 'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400': hasFriendChanges, 'border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400': !hasFriendChanges }"
+          >
+            <div class="font-bold font-mono">
+              {{ hasFriendChanges ? '好友流程有未保存改动' : '好友流程已就绪 (未手保存改动)' }}
+            </div>
+            <div class="opacity-70">
+              {{ hasFriendChanges ? '等待保存' : '最后保存: 未知' }}
+            </div>
           </div>
 
           <!-- THE TRACK -->
-          <div ref="friendTrackRef" 
-               class="relative flex items-center p-3 sm:py-6 overflow-x-auto overflow-y-hidden select-none border-y border-dashed border-gray-200 dark:border-gray-800 transition-colors custom-scrollbar"
-               :class="{'bg-primary-500/5 border-primary-500/30': isDragging && dragScope === 'friend'}">
-            
-            <div v-if="config.friend.nodes.length === 0" class="text-sm text-gray-400 italic py-4 pl-2 pointer-events-none">
+          <div
+            ref="friendTrackRef"
+            class="custom-scrollbar relative flex select-none items-center overflow-x-auto overflow-y-hidden border-y border-gray-200 border-dashed p-3 transition-colors dark:border-gray-800 sm:py-6"
+            :class="{ 'bg-primary-500/5 border-primary-500/30': isDragging && dragScope === 'friend' }"
+          >
+            <div v-if="config.friend.nodes.length === 0" class="pointer-events-none py-4 pl-2 text-sm text-gray-400 italic">
               拖拽底部节点到这里，或者直接点击下方节点...
             </div>
-            
+
             <TransitionGroup name="wf-horizontal" class="flex items-center">
               <template v-for="(node, idx) in config.friend.nodes" :key="node.id">
-                <div v-if="isDragging && dragScope === 'friend' && dropPlaceholderIndex === idx" 
-                     class="wf-ph w-[80px] h-[36px] border-2 border-dashed border-primary-500/50 rounded-full bg-primary-500/10 shrink-0 mx-2 transition-all"></div>
+                <div
+                  v-if="isDragging && dragScope === 'friend' && dropPlaceholderIndex === idx"
+                  class="wf-ph mx-2 h-[36px] w-[80px] shrink-0 border-2 border-primary-500/50 rounded-full border-dashed bg-primary-500/10 transition-all"
+                />
 
                 <template v-if="!(isDragging && dragSource === 'queue' && dragScope === 'friend' && dragIndex === idx)">
-                  <div v-if="idx > 0 || (isDragging && dragScope === 'friend' && dropPlaceholderIndex === 0)" class="i-carbon-arrow-right mx-1 text-gray-300 dark:text-gray-600 shrink-0 wf-arrow"></div>
+                  <div v-if="idx > 0 || (isDragging && dragScope === 'friend' && dropPlaceholderIndex === 0)" class="i-carbon-arrow-right wf-arrow mx-1 shrink-0 text-gray-300 dark:text-gray-600" />
 
-                  <div class="relative group cursor-grab active:cursor-grabbing shrink-0 transition-transform hover:scale-105 hover:-translate-y-1 wf-node-track-item"
-                       @pointerdown="(e) => handlePointerDownQueue(e, 'friend', idx)">
-                       
-                    <div class="flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm transition-colors text-base font-bold"
-                         :class="[
-                           getTemplate(node.type)?.bgLight, getTemplate(node.type)?.bgDark,
-                           getTemplate(node.type)?.borderLight, getTemplate(node.type)?.borderDark,
-                           getTemplate(node.type)?.textLight, getTemplate(node.type)?.textDark,
-                           editingNodeId === node.id ? 'ring-2 ring-primary-500 shadow-md' : 'hover:shadow' 
-                         ]">
+                  <div
+                    class="group wf-node-track-item relative shrink-0 cursor-grab transition-transform hover:scale-105 active:cursor-grabbing hover:-translate-y-1"
+                    @pointerdown="(e) => handlePointerDownQueue(e, 'friend', idx)"
+                  >
+                    <div
+                      class="flex items-center gap-2 border rounded-full px-4 py-2 text-base font-bold shadow-sm transition-colors"
+                      :class="[
+                        getTemplate(node.type)?.bgLight, getTemplate(node.type)?.bgDark,
+                        getTemplate(node.type)?.borderLight, getTemplate(node.type)?.borderDark,
+                        getTemplate(node.type)?.textLight, getTemplate(node.type)?.textDark,
+                        editingNodeId === node.id ? 'ring-2 ring-primary-500 shadow-md' : 'hover:shadow',
+                      ]"
+                    >
                       <span>{{ getTemplate(node.type)?.icon }}</span>
                       <span>{{ getTemplate(node.type)?.label }}</span>
                     </div>
 
-                    <button class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-sm z-10"
-                            @pointerdown.stop
-                            @click="removeNode('friend', idx)">
+                    <button
+                      class="absolute z-10 h-5 w-5 flex items-center justify-center rounded-full bg-red-500 text-white opacity-0 shadow-sm transition-opacity -right-2 -top-2 hover:bg-red-600 group-hover:opacity-100"
+                      @pointerdown.stop
+                      @click="removeNode('friend', idx)"
+                    >
                       <div class="i-carbon-close text-xs" />
                     </button>
-                    <button v-if="getTemplate(node.type)?.hasParams"
-                            class="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-600 shadow-sm z-10"
-                            @pointerdown.stop
-                            @click="editingNodeId = editingNodeId === node.id ? null : node.id; editingScope = 'friend'">
+                    <button
+                      v-if="getTemplate(node.type)?.hasParams"
+                      class="absolute z-10 h-5 w-5 flex items-center justify-center rounded-full bg-blue-500 text-white opacity-0 shadow-sm transition-opacity -bottom-2 -right-2 hover:bg-blue-600 group-hover:opacity-100"
+                      @pointerdown.stop
+                      @click="editingNodeId = editingNodeId === node.id ? null : node.id; editingScope = 'friend'"
+                    >
                       <div class="i-carbon-settings text-[10px]" />
                     </button>
                   </div>
                 </template>
               </template>
 
-               <div v-if="isDragging && dragScope === 'friend' && dropPlaceholderIndex === config.friend.nodes.length" :key="'ph-end'"
-                    class="wf-ph w-[80px] h-[36px] border-2 border-dashed border-primary-500/50 rounded-full bg-primary-500/10 shrink-0 mx-2 transition-all"></div>
+              <div
+                v-if="isDragging && dragScope === 'friend' && dropPlaceholderIndex === config.friend.nodes.length" key="ph-end"
+                class="wf-ph mx-2 h-[36px] w-[80px] shrink-0 border-2 border-primary-500/50 rounded-full border-dashed bg-primary-500/10 transition-all"
+              />
             </TransitionGroup>
           </div>
 
           <!-- Inline Editor -->
-          <div v-if="editingScope === 'friend' && editingNodeId && activeNode" class="animate-in fade-in slide-in-from-top-2 p-4 rounded-lg bg-black/5 dark:bg-white/5 border border-primary-500/20 relative">
-            <button class="absolute top-3 right-3 text-gray-400 hover:text-gray-600" @click="editingNodeId = null"><div class="i-carbon-close text-lg" /></button>
-            <h3 class="text-sm font-bold text-primary-600 dark:text-primary-400 mb-3 flex items-center gap-2">
+          <div v-if="editingScope === 'friend' && editingNodeId && activeNode" class="animate-in fade-in slide-in-from-top-2 relative border border-primary-500/20 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+            <button class="absolute right-3 top-3 text-gray-400 hover:text-gray-600" @click="editingNodeId = null">
+              <div class="i-carbon-close text-lg" />
+            </button>
+            <h3 class="mb-3 flex items-center gap-2 text-sm text-primary-600 font-bold dark:text-primary-400">
               <div class="i-carbon-edit" />
               编辑节点: {{ getTemplate(activeNode.type)?.label }}
             </h3>
-            
-            <div class="space-y-4" v-if="activeNode.params">
-               <template v-if="activeNode.type === 'delay'">
-                <div class="w-full max-w-[240px]">
+
+            <div v-if="activeNode.params" class="space-y-4">
+              <template v-if="activeNode.type === 'delay'">
+                <div class="max-w-[240px] w-full">
                   <BaseInput v-model.number="activeNode.params.sec" type="number" min="1" label="延时时间(秒)" />
                 </div>
               </template>
@@ -889,19 +993,25 @@ watch(() => currentAccountId.value, () => {
           </div>
 
           <!-- Bottom Toolbar -->
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2">
-            <div class="flex items-center flex-wrap gap-2.5 flex-1">
-              <span class="text-base font-bold text-gray-400 whitespace-nowrap">添加节点:</span>
-              <button v-for="tpl in friendTemplates" :key="tpl.type"
-                      class="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-black/30 hover:bg-white dark:hover:bg-black hover:border-primary-500 text-sm font-bold text-gray-600 dark:text-gray-300 transition-colors shadow-sm cursor-grab active:cursor-grabbing"
-                      @pointerdown="(e) => handlePointerDownPool(e, 'friend', tpl)">
+          <div class="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div class="flex flex-1 flex-wrap items-center gap-2.5">
+              <span class="whitespace-nowrap text-base text-gray-400 font-bold">添加节点:</span>
+              <button
+                v-for="tpl in friendTemplates" :key="tpl.type"
+                class="flex cursor-grab items-center gap-2 border border-gray-300 rounded-lg bg-white/50 px-4 py-1.5 text-sm text-gray-600 font-bold shadow-sm transition-colors active:cursor-grabbing dark:border-gray-600 hover:border-primary-500 dark:bg-black/30 hover:bg-white dark:text-gray-300 dark:hover:bg-black"
+                @pointerdown="(e) => handlePointerDownPool(e, 'friend', tpl)"
+              >
                 <span class="text-base">{{ tpl.icon }}</span>
                 <span>{{ tpl.label }}</span>
               </button>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-               <BaseButton variant="outline" size="sm" @click="resetDefault('friend')">重置默认流程</BaseButton>
-               <BaseButton variant="primary" size="sm" :loading="saving" @click="saveConfigData('friend')">保存好友流程</BaseButton>
+            <div class="flex shrink-0 items-center gap-2">
+              <BaseButton variant="outline" size="sm" @click="resetDefault('friend')">
+                重置默认流程
+              </BaseButton>
+              <BaseButton variant="primary" size="sm" :loading="saving" @click="saveConfigData('friend')">
+                保存好友流程
+              </BaseButton>
             </div>
           </div>
         </div>
@@ -915,18 +1025,18 @@ watch(() => currentAccountId.value, () => {
   height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.02);
+  background: rgba(0, 0, 0, 0.02);
   border-radius: 4px;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.02);
+  background: rgba(255, 255, 255, 0.02);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.15);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 4px;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .wf-horizontal-move {

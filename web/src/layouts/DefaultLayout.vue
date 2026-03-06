@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { ref } from 'vue'
+import LeaderboardModal from '@/components/LeaderboardModal.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ThemeSettingDrawer from '@/components/ThemeSettingDrawer.vue'
-import LeaderboardModal from '@/components/LeaderboardModal.vue'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -34,7 +34,7 @@ const showLeaderboard = ref(false)
         >
           <div class="i-carbon-menu text-xl" />
         </button>
-        <div class="text-sm font-semibold truncate">
+        <div class="truncate text-sm font-semibold">
           QQ 农场智能助手
         </div>
         <!-- 右侧占位，保持标题居中 -->
@@ -46,7 +46,7 @@ const showLeaderboard = ref(false)
         <!-- 浮动操作区域 (配置与通知) -->
         <div class="absolute right-4 top-4 z-40 flex items-center gap-3">
           <button
-            class="glass-panel h-10 w-10 flex items-center justify-center border rounded-full shadow-md transition-all duration-300 hover:rotate-12 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-900 bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200/50 dark:from-amber-900/40 dark:to-orange-900/40 dark:border-amber-700/50"
+            class="glass-panel h-10 w-10 flex items-center justify-center border border-amber-200/50 rounded-full from-amber-50 to-orange-100 bg-gradient-to-br shadow-md transition-all duration-300 hover:rotate-12 hover:scale-110 dark:border-amber-700/50 dark:from-amber-900/40 dark:to-orange-900/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-900"
             title="平台排行榜"
             @click="showLeaderboard = true"
           >
@@ -65,7 +65,7 @@ const showLeaderboard = ref(false)
         <div class="custom-scrollbar mt-12 flex flex-1 flex-col overflow-y-auto p-2 md:mt-0 md:p-6 sm:p-4">
           <RouterView v-slot="{ Component, route }">
             <Transition name="slide-fade" mode="out-in">
-              <component v-if="Component" :is="Component" :key="route.fullPath" />
+              <component :is="Component" v-if="Component" :key="route.fullPath" />
               <div v-else :key="`loading-${route.fullPath}`" class="flex flex-1 items-center justify-center py-20 text-gray-400">
                 <div class="i-svg-spinners-ring-resize text-3xl" />
               </div>

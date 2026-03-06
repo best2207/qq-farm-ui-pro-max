@@ -1,8 +1,8 @@
 import axios from 'axios'
 import NProgress from 'nprogress'
 import { createRouter, createWebHistory } from 'vue-router'
-import { menuRoutes } from './menu'
 import { adminToken } from '@/utils/auth'
+import { menuRoutes } from './menu'
 import 'nprogress/nprogress.css'
 
 NProgress.configure({ showSpinner: false })
@@ -57,7 +57,7 @@ const router = createRouter({
           path: 'farm-tools',
           name: 'farm-tools',
           component: () => import('@/views/FarmTools.vue'),
-        }
+        },
       ],
     },
     {

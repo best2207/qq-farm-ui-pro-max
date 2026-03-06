@@ -226,17 +226,17 @@ function handleFriendAvatarError(friend: any) {
     </div>
 
     <div v-else>
-      <div v-if="filteredFriends.length === 0" class="glass-panel glass-text-muted rounded-lg p-8 text-center shadow mb-4">
+      <div v-if="filteredFriends.length === 0" class="glass-panel glass-text-muted mb-4 rounded-lg p-8 text-center shadow">
         没有匹配的好友
       </div>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3 sm:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="friend in filteredFriends"
           :key="friend.gid"
-          class="glass-panel overflow-hidden rounded-lg shadow flex flex-col"
+          class="glass-panel flex flex-col overflow-hidden rounded-lg shadow"
         >
           <div
-            class="flex flex-col cursor-pointer gap-4 p-4 transition hover:bg-black/5 dark:hover:bg-white/5 flex-1"
+            class="flex flex-1 flex-col cursor-pointer gap-4 p-4 transition hover:bg-black/5 dark:hover:bg-white/5"
             :class="blacklist.includes(Number(friend.gid)) ? 'opacity-50' : ''"
             @click="toggleFriend(friend.gid)"
           >
@@ -250,21 +250,21 @@ function handleFriendAvatarError(friend: any) {
                   loading="lazy"
                   @error="handleFriendAvatarError(friend)"
                 >
-                <div v-else class="i-carbon-user text-gray-400 text-xl" />
+                <div v-else class="i-carbon-user text-xl text-gray-400" />
               </div>
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 font-bold truncate">
+                <div class="flex items-center gap-2 truncate font-bold">
                   <span class="truncate">{{ friend.name }}</span>
-                  <span v-if="blacklist.includes(Number(friend.gid))" class="glass-text-muted rounded bg-gray-200 px-1.5 py-0.5 text-[10px] whitespace-nowrap dark:bg-gray-700 dark:text-gray-400">已屏蔽</span>
+                  <span v-if="blacklist.includes(Number(friend.gid))" class="glass-text-muted whitespace-nowrap rounded bg-gray-200 px-1.5 py-0.5 text-[10px] dark:bg-gray-700 dark:text-gray-400">已屏蔽</span>
                 </div>
-                <div class="text-sm truncate mt-0.5" :class="getFriendStatusText(friend) !== '无操作' ? 'text-green-500 font-medium' : 'text-gray-400'">
+                <div class="mt-0.5 truncate text-sm" :class="getFriendStatusText(friend) !== '无操作' ? 'text-green-500 font-medium' : 'text-gray-400'">
                   {{ getFriendStatusText(friend) }}
                 </div>
               </div>
             </div>
 
             <!-- 操作按钮：网格3列，强制不换行 -->
-            <div class="friends-op-area grid grid-cols-3 gap-1.5 mt-auto pt-2">
+            <div class="friends-op-area grid grid-cols-3 mt-auto gap-1.5 pt-2">
               <button
                 class="op-btn op-blue w-full whitespace-nowrap"
                 @click="handleOp(friend.gid, 'steal', $event)"
@@ -313,7 +313,7 @@ function handleFriendAvatarError(friend: any) {
             <div v-else-if="!friendLands[friend.gid] || friendLands[friend.gid]?.length === 0" class="glass-text-muted py-4 text-center text-sm">
               无土地数据
             </div>
-            <div v-else class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4">
+            <div v-else class="grid grid-cols-3 gap-2 md:grid-cols-3 sm:grid-cols-4 xl:grid-cols-4">
               <LandCard
                 v-for="land in friendLands[friend.gid]"
                 :key="land.id"
@@ -362,22 +362,67 @@ function handleFriendAvatarError(friend: any) {
 }
 
 /* 颜色方案变体 - 浅色模式 */
-.op-blue { background-color: #eff6ff; color: #1d4ed8; }
-.op-cyan { background-color: #ecfeff; color: #0e7490; }
-.op-green { background-color: #f0fdf4; color: #15803d; }
-.op-orange { background-color: #fff7ed; color: #c2410c; }
-.op-red { background-color: #fef2f2; color: #b91c1c; }
-.op-gray { background-color: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.op-blue {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+.op-cyan {
+  background-color: #ecfeff;
+  color: #0e7490;
+}
+.op-green {
+  background-color: #f0fdf4;
+  color: #15803d;
+}
+.op-orange {
+  background-color: #fff7ed;
+  color: #c2410c;
+}
+.op-red {
+  background-color: #fef2f2;
+  color: #b91c1c;
+}
+.op-gray {
+  background-color: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
 </style>
 
 <!-- 非 scoped：深色模式需匹配 <html class="dark"> 祖先，用 .friends-op-area 前缀防泄漏 -->
 <style>
-.dark .friends-op-area .op-blue { background-color: rgba(30, 64, 175, 0.15); color: #60a5fa; border-color: rgba(59, 130, 246, 0.2); }
-.dark .friends-op-area .op-cyan { background-color: rgba(21, 94, 117, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.2); }
-.dark .friends-op-area .op-green { background-color: rgba(22, 101, 52, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.2); }
-.dark .friends-op-area .op-orange { background-color: rgba(154, 52, 18, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.2); }
-.dark .friends-op-area .op-red { background-color: rgba(153, 27, 27, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.2); }
-.dark .friends-op-area .op-gray { background-color: rgba(30, 41, 59, 0.4); color: #94a3b8; border-color: rgba(71, 85, 105, 0.3); }
-.dark .friends-op-area .op-btn:hover { box-shadow: 0 0 12px rgba(0, 0, 0, 0.2); border-color: currentColor; }
+.dark .friends-op-area .op-blue {
+  background-color: rgba(30, 64, 175, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.dark .friends-op-area .op-cyan {
+  background-color: rgba(21, 94, 117, 0.15);
+  color: #22d3ee;
+  border-color: rgba(6, 182, 212, 0.2);
+}
+.dark .friends-op-area .op-green {
+  background-color: rgba(22, 101, 52, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.2);
+}
+.dark .friends-op-area .op-orange {
+  background-color: rgba(154, 52, 18, 0.15);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.2);
+}
+.dark .friends-op-area .op-red {
+  background-color: rgba(153, 27, 27, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.dark .friends-op-area .op-gray {
+  background-color: rgba(30, 41, 59, 0.4);
+  color: #94a3b8;
+  border-color: rgba(71, 85, 105, 0.3);
+}
+.dark .friends-op-area .op-btn:hover {
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+  border-color: currentColor;
+}
 </style>
-

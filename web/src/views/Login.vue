@@ -3,12 +3,12 @@ import { useStorage } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
-import { adminToken } from '@/utils/auth'
-import NotificationPanel from '@/components/NotificationPanel.vue'
 import DisclaimerModal from '@/components/DisclaimerModal.vue'
+import NotificationPanel from '@/components/NotificationPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { useAppStore } from '@/stores/app'
+import { adminToken } from '@/utils/auth'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -272,9 +272,9 @@ const backgroundStyle = computed(() => {
     <div v-if="appStore.loginBackground" class="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
 
     <div class="relative z-10 mx-4 my-4 max-w-5xl w-full lg:mx-auto lg:my-0">
-      <div class="glass-panel flex flex-col rounded-2xl shadow-2xl shadow-black/20 ring-1 ring-white/20 lg:rounded-3xl lg:flex-row">
+      <div class="glass-panel flex flex-col rounded-2xl shadow-2xl shadow-black/20 ring-1 ring-white/20 lg:flex-row lg:rounded-3xl">
         <!-- 左侧：品牌展示区 -->
-        <div class="login-brand-panel relative flex flex-col items-center justify-center px-6 py-4 text-center text-white lg:p-10 lg:w-5/12">
+        <div class="login-brand-panel relative flex flex-col items-center justify-center px-6 py-4 text-center text-white lg:w-5/12 lg:p-10">
           <!-- 装饰背景 -->
           <div class="pointer-events-none absolute inset-0 opacity-10">
             <svg class="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -283,8 +283,8 @@ const backgroundStyle = computed(() => {
           </div>
 
           <div class="group relative mb-2 lg:mb-8">
-            <div class="absolute animate-pulse rounded-full bg-white/20 blur-2xl transition-all duration-500 -inset-4 group-hover:bg-white/30 hidden lg:block" />
-            <div class="relative h-12 w-12 flex rotate-3 items-center justify-center rounded-xl bg-white shadow-xl transition-transform duration-300 hover:rotate-0 lg:h-24 lg:w-24 lg:rounded-3xl">
+            <div class="absolute hidden animate-pulse rounded-full bg-white/20 blur-2xl transition-all duration-500 -inset-4 lg:block group-hover:bg-white/30" />
+            <div class="relative h-12 w-12 flex rotate-3 items-center justify-center rounded-xl bg-white shadow-xl transition-transform duration-300 lg:h-24 lg:w-24 hover:rotate-0 lg:rounded-3xl">
               <!-- 星星小树苗 Logo -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="h-8 w-8 lg:h-16 lg:w-16">
                 <defs>
@@ -302,40 +302,40 @@ const backgroundStyle = computed(() => {
           </div>
 
           <h1 class="mb-1 text-lg font-extrabold tracking-tight drop-shadow-lg lg:mb-3 lg:text-3xl">
-            <span class="bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-transparent decoration-clone">
+            <span class="decoration-clone from-white via-white/90 to-white/70 bg-gradient-to-r bg-clip-text text-transparent">
               御农·QQ 农场智能助手
             </span>
           </h1>
-          <p class="mb-2 text-xs text-white/90 font-medium drop-shadow-md tracking-wide lg:mb-8 lg:text-base">
+          <p class="mb-2 text-xs text-white/90 font-medium tracking-wide drop-shadow-md lg:mb-8 lg:text-base">
             精简化、自动化的多账号管理助手
           </p>
 
           <div class="hidden w-full px-4 lg:grid lg:grid-cols-2 lg:gap-3">
-            <div class="group flex flex-col items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1.5 hover:scale-105 hover:bg-white/20 hover:shadow-xl hover:shadow-white/10 cursor-default">
+            <div class="group flex flex-col cursor-default items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/20 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1.5">
               <div class="i-carbon-flash text-2xl text-white/85 drop-shadow-md transition-all group-hover:text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">极速自动化</span>
             </div>
-            <div class="group flex flex-col items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1.5 hover:scale-105 hover:bg-white/20 hover:shadow-xl hover:shadow-white/10 cursor-default">
+            <div class="group flex flex-col cursor-default items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/20 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1.5">
               <div class="i-carbon-security text-2xl text-white/85 drop-shadow-md transition-all group-hover:text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">租户级防封隔离</span>
             </div>
-            <div class="group flex flex-col items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1.5 hover:scale-105 hover:bg-white/20 hover:shadow-xl hover:shadow-white/10 cursor-default">
+            <div class="group flex flex-col cursor-default items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/20 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1.5">
               <div class="i-carbon-bot text-2xl text-white/85 drop-shadow-md transition-all group-hover:text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">无感智能验证</span>
             </div>
-            <div class="group flex flex-col items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1.5 hover:scale-105 hover:bg-white/20 hover:shadow-xl hover:shadow-white/10 cursor-default">
+            <div class="group flex flex-col cursor-default items-center justify-center gap-2 border border-white/10 rounded-2xl bg-white/10 p-4 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/20 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1.5">
               <div class="i-carbon-rocket text-2xl text-white/85 drop-shadow-md transition-all group-hover:text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">多核并发引擎</span>
             </div>
           </div>
 
           <!-- 社区互动卡片 -->
-          <div class="hidden w-full mt-5 px-4 lg:grid lg:grid-cols-2 lg:gap-3">
+          <div class="mt-5 hidden w-full px-4 lg:grid lg:grid-cols-2 lg:gap-3">
             <a
               href="https://qm.qq.com/cgi-bin/qm/qr?k=&group_code=227916149"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex items-center justify-center gap-2 border border-white/15 rounded-2xl bg-white/10 px-3 py-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 hover:scale-105 hover:bg-white/25 hover:shadow-xl hover:shadow-white/10 no-underline text-white shadow-inner"
+              class="group flex items-center justify-center gap-2 border border-white/15 rounded-2xl bg-white/10 px-3 py-3 text-white no-underline shadow-inner transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/25 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1"
             >
               <div class="i-carbon-chat text-lg text-white/90 drop-shadow-sm transition-all group-hover:text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">加入技术QQ群</span>
@@ -344,7 +344,7 @@ const backgroundStyle = computed(() => {
               href="https://github.com/smdk000/qq-farm-bot-ui"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex items-center justify-center gap-2 border border-white/15 rounded-2xl bg-white/10 px-3 py-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 hover:scale-105 hover:bg-white/25 hover:shadow-xl hover:shadow-white/10 no-underline text-white shadow-inner"
+              class="group flex items-center justify-center gap-2 border border-white/15 rounded-2xl bg-white/10 px-3 py-3 text-white no-underline shadow-inner transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 hover:bg-white/25 hover:shadow-white/10 hover:shadow-xl hover:-translate-y-1"
             >
               <div class="i-carbon-star text-lg text-yellow-300 drop-shadow-md transition-all group-hover:text-yellow-200 group-hover:drop-shadow-[0_0_8px_rgba(253,224,71,0.8)]" />
               <span class="text-xs font-semibold tracking-wide drop-shadow-sm">给作者点赞 ⭐</span>
@@ -355,7 +355,7 @@ const backgroundStyle = computed(() => {
         <!-- 右侧：表单区 -->
         <div class="relative flex flex-col lg:w-7/12">
           <!-- Tab 切换 -->
-          <div class="m-4 flex border border-white/20 rounded-xl bg-gray-100/20 p-1.5 dark:bg-gray-900/20 lg:m-6 lg:p-2">
+          <div class="m-4 flex border border-white/20 rounded-xl bg-gray-100/20 p-1.5 lg:m-6 dark:bg-gray-900/20 lg:p-2">
             <button
               class="flex-1 rounded-lg py-2.5 text-sm font-bold transition-all duration-300" :class="[
                 activeTab === 'login'
@@ -378,7 +378,7 @@ const backgroundStyle = computed(() => {
             </button>
           </div>
 
-          <div class="flex-1 px-6 pb-6 lg:px-10 lg:pb-10 overflow-y-auto">
+          <div class="flex-1 overflow-y-auto px-6 pb-6 lg:px-10 lg:pb-10">
             <!-- 登录表单 -->
             <form v-if="activeTab === 'login'" class="space-y-6" @submit.prevent="handleLogin">
               <BaseInput v-model="username" label="用户名" placeholder="请输入用户名" required>
@@ -396,7 +396,7 @@ const backgroundStyle = computed(() => {
               <div class="flex items-center justify-between">
                 <label class="group flex cursor-pointer items-center gap-2">
                   <input v-model="rememberUsername" type="checkbox" class="h-4 w-4 cursor-pointer border-black/10 rounded bg-black/5 text-primary-600 transition-all dark:border-white/20 dark:bg-black/40 focus:ring-primary-500">
-                  <span class="glass-text-muted text-sm group-hover:glass-text-main">记住用户名</span>
+                  <span class="glass-text-muted group-hover:glass-text-main text-sm">记住用户名</span>
                 </label>
               </div>
 
@@ -405,7 +405,7 @@ const backgroundStyle = computed(() => {
                 {{ error }}
               </div>
 
-              <BaseButton type="submit" variant="primary" block size="lg" :loading="loading" :disabled="!isFormValid" class="h-12 rounded-xl shadow-primary-500/25 shadow-lg">
+              <BaseButton type="submit" variant="primary" block size="lg" :loading="loading" :disabled="!isFormValid" class="h-12 rounded-xl shadow-lg shadow-primary-500/25">
                 {{ loading ? '登录中...' : '开始探索' }}
               </BaseButton>
             </form>
@@ -475,17 +475,17 @@ const backgroundStyle = computed(() => {
         </div>
       </div>
 
-      <div class="mb-4 mt-4 px-4 text-center z-20 relative lg:mt-6" :class="{ 'hidden lg:block': activeTab === 'register' }">
-        <div class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/30 dark:border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] transition-all hover:bg-white/60 dark:hover:bg-black/60">
-          <p class="glass-text-main text-xs font-bold tracking-wide drop-shadow-sm flex items-center gap-1">
+      <div class="relative z-20 mb-4 mt-4 px-4 text-center lg:mt-6" :class="{ 'hidden lg:block': activeTab === 'register' }">
+        <div class="inline-flex items-center justify-center gap-1.5 border border-white/30 rounded-full bg-white/40 px-5 py-2.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] backdrop-blur-md transition-all dark:border-white/10 dark:bg-black/40 hover:bg-white/60 dark:hover:bg-black/60">
+          <p class="glass-text-main flex items-center gap-1 text-xs font-bold tracking-wide drop-shadow-sm">
             © 2026 🌌 御农 System <span class="mx-1.5 opacity-30">|</span> 架构与开发:
-            <span class="group relative cursor-pointer text-primary-600 dark:text-primary-400 font-black ml-1">
+            <span class="group relative ml-1 cursor-pointer text-primary-600 font-black dark:text-primary-400">
               smdk000
               <span class="absolute left-0 h-0.5 w-0 bg-primary-500 transition-all -bottom-1 group-hover:w-full" />
             </span>
             <span class="mx-1.5 opacity-30">|</span>
             合作QQ群:
-            <a href="tencent://message/?uin=227916149&Site=&Menu=yes" class="text-primary-600 transition-colors dark:text-primary-400 hover:text-primary-700 hover:underline dark:hover:text-primary-300 font-black ml-1">
+            <a href="tencent://message/?uin=227916149&Site=&Menu=yes" class="ml-1 text-primary-600 font-black transition-colors dark:text-primary-400 hover:text-primary-700 hover:underline dark:hover:text-primary-300">
               227916149
             </a>
           </p>
@@ -494,7 +494,7 @@ const backgroundStyle = computed(() => {
     </div>
 
     <!-- 免责声明拦截弹窗 -->
-    <DisclaimerModal 
+    <DisclaimerModal
       :show="showDisclaimer"
       @agree="onDisclaimerAgree"
       @decline="onDisclaimerDecline"

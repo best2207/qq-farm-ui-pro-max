@@ -46,18 +46,21 @@ function startQRCheck() {
 }
 
 function scheduleNextPoll() {
-  if (pollStopped) return
+  if (pollStopped)
+    return
   pollTimer = setTimeout(() => doQRCheck(), 1500)
 }
 
 async function doQRCheck() {
   // 如果已停止或没有数据，不发请求
-  if (pollStopped || !qrData.value) return
+  if (pollStopped || !qrData.value)
+    return
 
   try {
     const res = await api.post('/api/qr/check', { code: qrData.value.code, platform: qrPlatform.value })
     // 再次检查：如果在等待期间已被停止，直接退出
-    if (pollStopped) return
+    if (pollStopped)
+      return
 
     if (res.data.ok) {
       const status = res.data.data.status
@@ -308,9 +311,9 @@ watch(() => props.show, (newVal) => {
         <!-- QR Tab -->
         <div v-if="activeTab === 'qr'" class="flex flex-col items-center justify-center py-4 space-y-4">
           <div class="w-full flex justify-center pb-2">
-            <div class="flex flex-wrap gap-1 p-1 bg-gray-100/50 dark:bg-white/5 rounded-lg backdrop-blur-sm self-center">
+            <div class="flex flex-wrap self-center gap-1 rounded-lg bg-gray-100/50 p-1 backdrop-blur-sm dark:bg-white/5">
               <button
-                class="flex-1 whitespace-nowrap min-w-[64px] px-2 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+                class="min-w-[64px] flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-200"
                 :class="qrPlatform === 'qq' ? 'bg-white dark:bg-white/10 shadow-sm text-[#0099FF]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                 @click="qrPlatform = 'qq'; loadQRCode()"
               >
@@ -325,14 +328,14 @@ watch(() => props.show, (newVal) => {
                 微信
               </button> -->
               <button
-                class="flex-1 whitespace-nowrap min-w-[64px] px-2 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+                class="min-w-[64px] flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-200"
                 :class="qrPlatform === 'wx_ipad' ? 'bg-white dark:bg-white/10 shadow-sm text-[#07C160]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                 @click="qrPlatform = 'wx_ipad'; loadQRCode()"
               >
                 iPad微信
               </button>
               <button
-                class="flex-1 whitespace-nowrap min-w-[64px] px-2 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+                class="min-w-[64px] flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-200"
                 :class="qrPlatform === 'wx_car' ? 'bg-white dark:bg-white/10 shadow-sm text-[#07C160]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                 @click="qrPlatform = 'wx_car'; loadQRCode()"
               >
@@ -346,7 +349,7 @@ watch(() => props.show, (newVal) => {
             </p>
           </div>
 
-          <div v-if="qrData && (qrData.image || qrData.qrcode)" class="border border-gray-200 dark:border-white/20 rounded-lg bg-white p-2 flex items-center justify-center">
+          <div v-if="qrData && (qrData.image || qrData.qrcode)" class="flex items-center justify-center border border-gray-200 rounded-lg bg-white p-2 dark:border-white/20">
             <img :src="qrData.image || qrData.qrcode" class="h-48 w-48 object-contain">
           </div>
           <div v-else class="h-48 w-48 flex items-center justify-center rounded bg-gray-100/50 text-gray-500 backdrop-blur-sm dark:bg-black/20 dark:text-gray-400">

@@ -64,6 +64,10 @@ function createDataProvider(options) {
             }
             if (!accountId) return [];
             const accId = String(accountId || '');
+            const w = workers[accId];
+            if (w && Array.isArray(w.logs) && w.logs.length > 0) {
+                return filterLogs(w.logs, opts).slice(-max);
+            }
             return filterLogs(globalLogs.filter(l => String(l.accountId || '') === accId), opts).slice(-max);
         },
 

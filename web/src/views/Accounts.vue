@@ -3,11 +3,11 @@ import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { adminToken } from '@/utils/auth'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAccountStore } from '@/stores/account'
+import { adminToken } from '@/utils/auth'
 import { useAvatar } from '@/utils/avatar'
 
 const { getAvatarUrl, markFailed } = useAvatar()
@@ -33,7 +33,8 @@ function toggleSelection(id: string) {
   const index = selectedAccountIds.value.indexOf(id)
   if (index > -1) {
     selectedAccountIds.value.splice(index, 1)
-  } else {
+  }
+  else {
     selectedAccountIds.value.push(id)
   }
 }
@@ -53,15 +54,18 @@ function clearSelection() {
 
 const batchLoading = ref(false)
 async function bulkSetMode(mode: string) {
-  if (selectedAccountIds.value.length === 0) return
+  if (selectedAccountIds.value.length === 0)
+    return
   try {
     batchLoading.value = true
     for (const id of selectedAccountIds.value) {
       await accountStore.updateAccountMode(id, mode)
     }
-  } catch (e: any) {
-    alert('批量设置失败: ' + e.message)
-  } finally {
+  }
+  catch (e: any) {
+    console.error(`批量设置失败: ${e.message}`)
+  }
+  finally {
     batchLoading.value = false
     clearSelection()
   }
@@ -132,25 +136,30 @@ function handleSaved() {
 async function handleModeChange(acc: any, mode: string) {
   try {
     await accountStore.updateAccountMode(acc.id, mode)
-  } catch (e: any) {
-    alert('切换模式失败: ' + e.message)
+  }
+  catch (e: any) {
+    console.error(`切换模式失败: ${e.message}`)
   }
 }
 
 const safeCheckingId = ref('')
 async function handleSafeCheck(acc: any) {
+  // eslint-disable-next-line no-alert
   if (confirm(`是否分析 ${acc.name || acc.id} 的历史封禁日志并自动补充黑名单？`)) {
     try {
       safeCheckingId.value = acc.id
       const res = await accountStore.applySafeModeBlacklist(acc.id)
       if (res && res.ok && res.data && res.data.length >= 0) {
-        alert(`一键生成成功！\n共新增 ${res.data.length} 个黑名单好友。\n${res.data.join(', ')}`)
-      } else {
-        alert('可能无新增黑名单。')
+        // success
       }
-    } catch (e: any) {
-      alert('生成失败: ' + e.message)
-    } finally {
+      else {
+        // null
+      }
+    }
+    catch (e: any) {
+      console.error(`生成失败: ${e.message}`)
+    }
+    finally {
       safeCheckingId.value = ''
     }
   }
@@ -173,7 +182,7 @@ async function handleSafeCheck(acc: any) {
     </div>
 
     <!-- 批量操作面板 -->
-    <div v-if="accounts.length > 0" class="mb-4 flex items-center justify-between glass-panel rounded-lg p-3 shadow-sm">
+    <div v-if="accounts.length > 0" class="glass-panel mb-4 flex items-center justify-between rounded-lg p-3 shadow-sm">
       <div class="flex items-center gap-2">
         <BaseButton
           size="sm"
@@ -184,7 +193,7 @@ async function handleSafeCheck(acc: any) {
         </BaseButton>
         <BaseButton
           size="sm"
-          class="border border-gray-300/50 bg-black/5 dark:bg-white/5 text-xs font-bold transition-all hover:bg-black/10 dark:hover:bg-white/10 !px-4 !py-1.5"
+          class="border border-gray-300/50 bg-black/5 text-xs font-bold transition-all dark:bg-white/5 hover:bg-black/10 !px-4 !py-1.5 dark:hover:bg-white/10"
           @click="invertSelection"
         >
           反选
@@ -196,12 +205,12 @@ async function handleSafeCheck(acc: any) {
         >
           <div class="i-carbon-close-outline mr-1.5 text-sm" /> 清空
         </BaseButton>
-        
-        <span class="ml-2 text-xs font-medium glass-text-muted">
+
+        <span class="glass-text-muted ml-2 text-xs font-medium">
           已选 {{ selectedAccountIds.length }} 项
         </span>
       </div>
-      
+
       <div class="flex items-center gap-2">
         <BaseButton
           variant="secondary"
@@ -219,7 +228,7 @@ async function handleSafeCheck(acc: any) {
           variant="secondary"
           size="sm"
           :disabled="selectedAccountIds.length === 0 || batchLoading"
-          class="text-xs transition-opacity !text-emerald-600 dark:!text-emerald-400 !border-emerald-500/20 !bg-emerald-500/10 hover:!bg-emerald-500/20"
+          class="text-xs transition-opacity !border-emerald-500/20 !bg-emerald-500/10 !text-emerald-600 hover:!bg-emerald-500/20 dark:!text-emerald-400"
           :class="selectedAccountIds.length === 0 ? 'opacity-50' : 'opacity-100'"
           @click="bulkSetMode('safe')"
         >
@@ -244,7 +253,7 @@ async function handleSafeCheck(acc: any) {
     </div>
 
     <div v-else-if="accounts.length === 0" class="glass-panel rounded-lg py-12 text-center shadow">
-      <div i-carbon-user-avatar class="mb-4 inline-block text-4xl glass-text-muted" />
+      <div i-carbon-user-avatar class="glass-text-muted mb-4 inline-block text-4xl" />
       <p class="glass-text-muted mb-4">
         暂无账号
       </p>
@@ -260,14 +269,14 @@ async function handleSafeCheck(acc: any) {
       <div
         v-for="acc in accounts"
         :key="acc.id"
-        class="glass-panel cursor-pointer rounded-lg p-4 shadow transition-all duration-300 border border-transparent hover:border-primary-500/50 hover:shadow-[0_0_15px_rgba(var(--color-primary-500),0.1)]"
+        class="glass-panel cursor-pointer border border-transparent rounded-lg p-4 shadow transition-all duration-300 hover:border-primary-500/50 hover:shadow-[0_0_15px_rgba(var(--color-primary-500),0.1)]"
         :class="acc.id === accountStore.currentAccountId ? 'border-primary-500/50 bg-primary-500/[0.03] shadow-[0_0_20px_rgba(var(--color-primary-500),0.15)] dark:border-primary-400/50' : ''"
         @click="accountStore.selectAccount(acc.id)"
       >
-        <div class="mb-4 flex items-start justify-between relative pl-8">
+        <div class="relative mb-4 flex items-start justify-between pl-8">
           <!-- Selection Checkbox -->
-          <div 
-            class="absolute left-2 top-2 h-5 w-5 flex items-center justify-center rounded border transition-colors cursor-pointer"
+          <div
+            class="absolute left-2 top-2 h-5 w-5 flex cursor-pointer items-center justify-center border rounded transition-colors"
             :class="isSelected(acc.id) ? 'bg-primary-500 border-primary-500' : 'border-gray-300/50 bg-black/5 dark:border-gray-600 dark:bg-white/5'"
             @click.stop="toggleSelection(acc.id)"
           >
@@ -277,13 +286,13 @@ async function handleSafeCheck(acc: any) {
           <div class="flex items-center gap-3">
             <div class="h-12 w-12 flex items-center justify-center overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
               <img v-if="getAvatarUrl(acc)" :src="getAvatarUrl(acc)" class="h-full w-full object-cover" @error="(e) => markFailed((e.target as HTMLImageElement).src)">
-              <div v-else class="i-carbon-user text-2xl glass-text-muted" />
+              <div v-else class="i-carbon-user glass-text-muted text-2xl" />
             </div>
             <div>
               <h3 class="text-lg font-bold">
                 {{ acc.name || acc.nick || acc.id }}
               </h3>
-              <div class="glass-text-muted text-xs flex items-center gap-2 mt-1">
+              <div class="glass-text-muted mt-1 flex items-center gap-2 text-xs">
                 <span>QQ: {{ acc.uin || '未绑定' }}</span>
               </div>
             </div>
@@ -313,7 +322,7 @@ async function handleSafeCheck(acc: any) {
                 v-if="(acc.accountMode || (acc as any).account_mode) === 'safe'"
                 variant="ghost"
                 size="sm"
-                class="!p-1 !text-xs !ml-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded"
+                class="rounded bg-emerald-500/10 text-emerald-600 !ml-2 hover:bg-emerald-500/20 !p-1 !text-xs dark:text-emerald-400"
                 title="一键分析封禁日志并加入黑名单"
                 :loading="safeCheckingId === acc.id"
                 @click.stop="handleSafeCheck(acc)"
@@ -324,30 +333,30 @@ async function handleSafeCheck(acc: any) {
             </transition>
           </div>
 
-          <div class="flex gap-1 items-center">
+          <div class="flex items-center gap-1">
             <!-- 一键快速模式切换 -->
-            <div class="flex items-center gap-0.5 border border-gray-200/50 dark:border-gray-700/50 rounded bg-black/[0.02] dark:bg-white/[0.02] p-0.5 mr-1" @click.stop>
-              <button 
-                class="px-2 py-1 text-xs rounded transition-all font-medium cursor-pointer"
+            <div class="mr-1 flex items-center gap-0.5 border border-gray-200/50 rounded bg-black/[0.02] p-0.5 dark:border-gray-700/50 dark:bg-white/[0.02]" @click.stop>
+              <button
+                class="cursor-pointer rounded px-2 py-1 text-xs font-medium transition-all"
                 :class="(acc.accountMode || (acc as any).account_mode || 'main') === 'main' ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:text-gray-700 hover:bg-black/5 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-white/5'"
-                @click="handleModeChange(acc, 'main')"
                 title="设为主号"
+                @click="handleModeChange(acc, 'main')"
               >
                 主号
               </button>
-              <button 
-                class="px-2 py-1 text-xs rounded transition-all font-medium cursor-pointer"
+              <button
+                class="cursor-pointer rounded px-2 py-1 text-xs font-medium transition-all"
                 :class="(acc.accountMode || (acc as any).account_mode) === 'alt' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'text-gray-500 hover:text-gray-700 hover:bg-black/5 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-white/5'"
-                @click="handleModeChange(acc, 'alt')"
                 title="设为小号"
+                @click="handleModeChange(acc, 'alt')"
               >
                 小号
               </button>
-              <button 
-                class="px-2 py-1 text-xs rounded transition-all font-medium cursor-pointer"
+              <button
+                class="cursor-pointer rounded px-2 py-1 text-xs font-medium transition-all"
                 :class="(acc.accountMode || (acc as any).account_mode) === 'safe' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-gray-500 hover:text-gray-700 hover:bg-black/5 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-white/5'"
-                @click="handleModeChange(acc, 'safe')"
                 title="设为风险规避"
+                @click="handleModeChange(acc, 'safe')"
               >
                 避险
               </button>

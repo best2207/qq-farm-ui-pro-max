@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useMediaQuery, useDateFormat, useIntervalFn, useNow } from '@vueuse/core'
+import { useDateFormat, useIntervalFn, useMediaQuery, useNow } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -12,7 +12,9 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { menuRoutes } from '@/router/menu'
 import { useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
+import { useFarmToolsStore } from '@/stores/farmTools'
 import { useStatusStore } from '@/stores/status'
+
 import { useAvatar } from '@/utils/avatar'
 
 const { getAvatarUrl, markFailed } = useAvatar()
@@ -24,8 +26,6 @@ const route = useRoute()
 const { accounts, currentAccount } = storeToRefs(accountStore)
 const { status, realtimeConnected } = storeToRefs(statusStore)
 const { sidebarOpen } = storeToRefs(appStore)
-
-import { useFarmToolsStore } from '@/stores/farmTools'
 const farmToolsStore = useFarmToolsStore()
 const { isAvailable: isFarmToolsAvailable } = storeToRefs(farmToolsStore)
 
@@ -35,7 +35,8 @@ const isDesktop = useMediaQuery('(min-width: 1280px)')
 // 计算侧边栏的 transform 样式
 // 宽屏下始终不设位移，窄屏下由 sidebarOpen 控制滑入/滑出
 const sidebarTransform = computed(() => {
-  if (isDesktop.value) return 'none'
+  if (isDesktop.value)
+    return 'none'
   return sidebarOpen.value ? 'translateX(0)' : 'translateX(-100%)'
 })
 
@@ -106,20 +107,32 @@ async function handleAccountSaved() {
   lastAccountSavedAt = Date.now()
   // 扫码成功后设置全局冷却，15 秒内完全忽略 wsError（覆盖 restartWorker 的完整异步过程 + WS 400 重试窗口）
   qrLoginInProgress = true
-  if (qrLoginTimer) clearTimeout(qrLoginTimer)
-  qrLoginTimer = setTimeout(() => { qrLoginInProgress = false }, 15000)
+  if (qrLoginTimer) {
+    clearTimeout(qrLoginTimer)
+  }
+  qrLoginTimer = setTimeout(() => {
+    qrLoginInProgress = false
+  }, 15000)
   // 设置防抖，8 秒内忽略 wsError 弹窗（覆盖 restartWorker 的 stop+start+connect+login 异步过程）
   justClosedModal = true
-  if (justClosedTimer) clearTimeout(justClosedTimer)
-  justClosedTimer = setTimeout(() => { justClosedModal = false }, 8000)
+  if (justClosedTimer) {
+    clearTimeout(justClosedTimer)
+  }
+  justClosedTimer = setTimeout(() => {
+    justClosedModal = false
+  }, 8000)
 }
 
 function closeAccountModal() {
   showAccountModal.value = false
   accountToEdit.value = null
   justClosedModal = true
-  if (justClosedTimer) clearTimeout(justClosedTimer)
-  justClosedTimer = setTimeout(() => { justClosedModal = false }, 8000)
+  if (justClosedTimer) {
+    clearTimeout(justClosedTimer)
+  }
+  justClosedTimer = setTimeout(() => {
+    justClosedModal = false
+  }, 8000)
 }
 
 function openRemarkModal(acc: any) {
@@ -162,13 +175,17 @@ watch(() => status.value?.wsError, (wsError: any) => {
     return
 
   // 防抖：弹窗刚关闭后的 8 秒内不自动弹出，避免扫码成功后重复弹窗
-  if (justClosedModal) return
+  if (justClosedModal)
+    return
   // QR 登录冷却期内忽略所有 wsError（15 秒全局冷却，覆盖 restartWorker + WS 重连窗口）
-  if (qrLoginInProgress) return
+  if (qrLoginInProgress)
+    return
   // 结构化防抖：距离上次保存账号 < 10 秒，忽略 wsError（覆盖 restartWorker 的完整异步过程）
-  if (lastAccountSavedAt > 0 && (Date.now() - lastAccountSavedAt) < 10000) return
+  if (lastAccountSavedAt > 0 && (Date.now() - lastAccountSavedAt) < 10000)
+    return
   // 如果弹窗已经打开，不重复触发
-  if (showAccountModal.value) return
+  if (showAccountModal.value)
+    return
 
   const errAt = Number(wsError.at) || 0
   const accId = String(currentAccount.value.id || currentAccount.value.uin || '')
@@ -373,7 +390,7 @@ function onNavClick() {
         </span>
       </div>
       <!-- 右侧占位，保持整体平衡 -->
-      <div class="w-8 xl:hidden"></div>
+      <div class="w-8 xl:hidden" />
     </div>
     <!-- Account Selector -->
     <div class="border-b border-gray-100 p-4 dark:border-gray-700/50">
@@ -511,7 +528,7 @@ function onNavClick() {
       <router-link
         to="/farm-tools"
         class="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-gray-600 transition-all duration-200 hover:bg-emerald-50 dark:text-gray-400 hover:text-emerald-600 dark:hover:bg-emerald-900/10 dark:hover:text-emerald-400"
-        :active-class="'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 font-medium shadow-sm ring-1 ring-emerald-500/10'"
+        active-class="bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 font-medium shadow-sm ring-1 ring-emerald-500/10"
         @click="onNavClick"
       >
         <div class="i-carbon-tool-box text-xl" />

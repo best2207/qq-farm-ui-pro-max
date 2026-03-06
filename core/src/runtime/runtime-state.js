@@ -28,6 +28,8 @@ function createRuntimeState(options) {
     const runtimeEvents = new EventEmitter();
     let configRevision = Date.now();
     const runtimeLogger = createModuleLogger('runtime');
+    const MAX_GL_LIMIT = Number(process.env.FARM_MAX_LOG_LIMIT) || 1000;
+    const MAX_AL_LIMIT = Math.min(300, MAX_GL_LIMIT);
 
     function nextConfigRevision() {
         configRevision += 1;
@@ -61,7 +63,7 @@ function createRuntimeState(options) {
         };
         entry._searchText = `${entry.msg || ''} ${entry.tag || ''} ${JSON.stringify(entry.meta || {})}`.toLowerCase();
         globalLogs.push(entry);
-        if (globalLogs.length > 1000) globalLogs.shift();
+        if (globalLogs.length > MAX_GL_LIMIT) globalLogs.shift();
         runtimeEvents.emit('log', entry);
     }
 
@@ -75,7 +77,7 @@ function createRuntimeState(options) {
             ...extra,
         };
         accountLogs.push(entry);
-        if (accountLogs.length > 300) accountLogs.shift();
+        if (accountLogs.length > MAX_AL_LIMIT) accountLogs.shift();
         runtimeEvents.emit('account_log', entry);
     }
 

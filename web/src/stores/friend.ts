@@ -26,13 +26,21 @@ export const useFriendStore = defineStore('friend', () => {
     let insectNum = insectNumFromSummary
 
     if (stealNum === null || dryNum === null || weedNum === null || insectNum === null) {
-      stealNum = 0; dryNum = 0; weedNum = 0; insectNum = 0
+      stealNum = 0
+      dryNum = 0
+      weedNum = 0
+      insectNum = 0
       for (const land of (Array.isArray(lands) ? lands : [])) {
-        if (!land || !land.unlocked) continue
-        if (land.status === 'stealable') stealNum++
-        if (land.needWater) dryNum++
-        if (land.needWeed) weedNum++
-        if (land.needBug) insectNum++
+        if (!land || !land.unlocked)
+          continue
+        if (land.status === 'stealable')
+          stealNum++
+        if (land.needWater)
+          dryNum++
+        if (land.needWeed)
+          weedNum++
+        if (land.needBug)
+          insectNum++
       }
     }
 
@@ -51,7 +59,8 @@ export const useFriendStore = defineStore('friend', () => {
   function syncFriendPlantSummary(friendId: string, lands: any[], summary: any) {
     const key = String(friendId)
     const idx = friends.value.findIndex(f => String(f?.gid || '') === key)
-    if (idx < 0) return
+    if (idx < 0)
+      return
     const nextPlant = buildPlantSummaryFromDetail(lands, summary)
     friends.value[idx] = { ...friends.value[idx], plant: nextPlant }
   }

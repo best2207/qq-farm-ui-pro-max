@@ -1,9 +1,9 @@
 import type { Socket } from 'socket.io-client'
-import { adminToken } from '@/utils/auth'
 import { defineStore } from 'pinia'
 import { io } from 'socket.io-client'
 import { ref } from 'vue'
 import api from '@/api'
+import { adminToken } from '@/utils/auth'
 
 // Define interfaces for better type checking
 interface DailyGift {
@@ -57,11 +57,13 @@ export const useStatusStore = defineStore('status', () => {
   let logFlushTimer: ReturnType<typeof setTimeout> | null = null
 
   function flushRealtimeLogs() {
-    if (logBuffer.length === 0) return
+    if (logBuffer.length === 0)
+      return
     const merged = [...logs.value, ...logBuffer]
     if (merged.length > 1000) {
       logs.value = merged.slice(-1000)
-    } else {
+    }
+    else {
       logs.value = merged
     }
     logBuffer = []
@@ -318,6 +320,10 @@ export const useStatusStore = defineStore('status', () => {
     realtimeLogsEnabled.value = !!enabled
   }
 
+  function clearLogs() {
+    logs.value = []
+  }
+
   return {
     status,
     logs,
@@ -332,6 +338,7 @@ export const useStatusStore = defineStore('status', () => {
     fetchAccountLogs,
     fetchDailyGifts,
     setRealtimeLogsEnabled,
+    clearLogs,
     connectRealtime,
     disconnectRealtime,
   }

@@ -237,7 +237,7 @@ const progress = developmentProgress
                 <button
                   v-for="result in searchResults"
                   :key="result.id"
-                  class="group w-full flex items-start gap-4 glass-panel rounded-xl p-4 text-left shadow-sm transition-all hover:shadow-md"
+                  class="group glass-panel w-full flex items-start gap-4 rounded-xl p-4 text-left shadow-sm transition-all hover:shadow-md"
                   @click="selectArticle(result.id)"
                 >
                   <div class="h-10 w-10 flex shrink-0 items-center justify-center border border-gray-200/50 rounded-lg bg-black/5 text-primary-600 shadow-sm dark:border-white/5 dark:bg-black/30 dark:text-primary-400 group-hover:shadow-md">
@@ -309,7 +309,6 @@ const progress = developmentProgress
 </template>
 
 <style scoped>
-
 /* 深邃层次感玻璃底板 - 仅增强 box-shadow，backdrop-filter 由全局 style.css 统一管控 */
 .glass-panel {
   box-shadow:

@@ -26,9 +26,10 @@ function loadFailedCache() {
     const raw = sessionStorage.getItem(AVATAR_CACHE_KEY)
     if (raw) {
       const arr = JSON.parse(raw) as string[]
-      arr.forEach((u) => failedUrls.add(u))
+      arr.forEach(u => failedUrls.add(u))
     }
-  } catch {
+  }
+  catch {
     // ignore
   }
 }
@@ -37,7 +38,8 @@ function saveFailedCache() {
   try {
     const arr = Array.from(failedUrls).slice(-CACHE_MAX)
     sessionStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(arr))
-  } catch {
+  }
+  catch {
     // ignore
   }
 }
@@ -45,8 +47,10 @@ function saveFailedCache() {
 /** 判断是否为 QQ 平台（qq 或 uin 为纯数字） */
 function isQQPlatform(acc: AccountLike): boolean {
   const p = (acc.platform || '').toLowerCase()
-  if (p === 'qq') return true
-  if (acc.uin && /^\d+$/.test(String(acc.uin))) return true
+  if (p === 'qq')
+    return true
+  if (acc.uin && /^\d+$/.test(String(acc.uin)))
+    return true
   return false
 }
 
@@ -65,19 +69,25 @@ export function getPlatformDefaultAvatarUrl(acc: AccountLike, size = 100): strin
 }
 
 function isUrlFailed(url: string, failedRef?: Ref<string[]>) {
-  if (!url) return true
-  if (failedUrls.has(url)) return true
-  if (failedRef?.value?.includes(url)) return true
+  if (!url)
+    return true
+  if (failedUrls.has(url))
+    return true
+  if (failedRef?.value?.includes(url))
+    return true
   return false
 }
 
 /**
  * 获取用于展示的头像 URL
  * 优先级：acc.avatar（未失效）→ 平台默认 URL → undefined（显示图标）
+ * @param acc 用户账户对象，包含 avatar 或 platform/uin 信息
+ * @param size 头像请求尺寸（部分平台支持）
  * @param failedRef 可选，组件内响应式失效列表，用于触发重新渲染
  */
 export function getAvatarUrl(acc: AccountLike, size = 100, failedRef?: Ref<string[]>): string | undefined {
-  if (!acc) return undefined
+  if (!acc)
+    return undefined
 
   const customUrl = acc.avatar?.trim()
   const platformUrl = getPlatformDefaultAvatarUrl(acc, size)
@@ -93,7 +103,8 @@ export function getAvatarUrl(acc: AccountLike, size = 100, failedRef?: Ref<strin
 
 /** 标记 URL 已失效 */
 export function markAvatarUrlFailed(url: string) {
-  if (!url?.trim()) return
+  if (!url?.trim())
+    return
   failedUrls.add(url)
   saveFailedCache()
 }
@@ -105,7 +116,8 @@ export function useAvatar() {
   const failedUrlsRef = ref<string[]>([])
 
   const markFailed = (url: string) => {
-    if (!url?.trim() || failedUrlsRef.value.includes(url)) return
+    if (!url?.trim() || failedUrlsRef.value.includes(url))
+      return
     failedUrlsRef.value = [...failedUrlsRef.value, url]
     markAvatarUrlFailed(url)
   }

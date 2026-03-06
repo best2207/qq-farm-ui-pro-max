@@ -6,7 +6,7 @@ const { ensureDataDir } = require('../config/runtime-paths');
 let winston = null;
 try {
     // 可选依赖：未安装时回退到 console，避免运行中断
-     
+
     winston = require('winston');
 } catch {
     winston = null;
@@ -134,11 +134,17 @@ function getRootLogger() {
             new winston.transports.File({
                 filename: path.join(logDir, 'combined.log'),
                 format: combine(timestamp(), errors({ stack: true }), json()),
+                maxsize: 50 * 1024 * 1024, // 单文件最大 50MB
+                maxFiles: 6,               // 最多保留 6 份归档
+                tailable: true,            // 启用尾部滚动（日志永远写在 combined.log）
             }),
             new winston.transports.File({
                 filename: path.join(logDir, 'error.log'),
                 level: 'error',
                 format: combine(timestamp(), errors({ stack: true }), json()),
+                maxsize: 50 * 1024 * 1024, // 错误日志也限制为 50MB
+                maxFiles: 6,               // 保留 6 份
+                tailable: true,
             }),
         ],
     });

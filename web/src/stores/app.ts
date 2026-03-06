@@ -126,8 +126,6 @@ export const useAppStore = defineStore('app', () => {
   // 端云仲裁时间戳，用来防止多开/网络延迟产生的状态覆写
   const uiTimestamp = useStorage('app_ui_sync_time', 0)
 
-
-
   /**
    * 尝试获取用户地理位置（用于日出日落计算）
    */

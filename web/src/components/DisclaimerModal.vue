@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{
+defineProps<{
   show: boolean
 }>()
 
@@ -32,92 +32,93 @@ const disclaimerHtml = `
 
 <b>我已仔细阅读并完全理解以上内容，自愿承担使用本软件产生的所有风险。</b>
 `
-
 </script>
 
 <template>
   <Transition name="modal">
-    <div v-if="show" class="fixed z-[9999] inset-0 flex items-center justify-center px-4 overflow-hidden">
+    <div v-if="show" class="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden px-4">
       <!-- Apple风格超强高斯模糊背景遮罩 -->
-      <div 
-        class="absolute inset-0 transition-opacity bg-white/20 dark:bg-black/40 backdrop-blur-md" 
+      <div
+        class="absolute inset-0 bg-white/20 backdrop-blur-md transition-opacity dark:bg-black/40"
         @click.stop
       />
-      
+
       <!-- 弹窗本体 (仿苹果空间悬浮感) -->
-      <div 
-        class="relative w-full max-w-2xl bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-black/10 dark:shadow-black/50 border border-white/50 dark:border-white/10 flex flex-col max-h-[90vh] overflow-hidden transform transition-all"
+      <div
+        class="relative max-h-[90vh] max-w-2xl w-full flex flex-col transform overflow-hidden border border-white/50 rounded-3xl bg-white/80 shadow-2xl shadow-black/10 backdrop-blur-2xl transition-all dark:border-white/10 dark:bg-[#1C1C1E]/80 dark:shadow-black/50"
         @click.stop
       >
         <!-- 头部标题 -->
-        <div class="px-6 pt-6 pb-4 text-center border-b border-gray-200/50 dark:border-gray-800/50 shrink-0">
-          <div class="mx-auto w-12 h-12 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-xl shadow-lg flex items-center justify-center mb-3">
+        <div class="shrink-0 border-b border-gray-200/50 px-6 pb-4 pt-6 text-center dark:border-gray-800/50">
+          <div class="mx-auto mb-3 h-12 w-12 flex items-center justify-center rounded-xl from-blue-500 to-indigo-500 bg-gradient-to-tr shadow-lg">
             <div class="i-carbon-warning-alt text-2xl text-white drop-shadow-md" />
           </div>
-          <h3 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">软件使用免责声明与条款</h3>
-          <p class="text-xs mt-1.5 text-gray-500 dark:text-gray-400 font-medium">请仔细阅读并同意以下条款以继续使用</p>
+          <h3 class="text-xl text-gray-900 font-bold tracking-tight dark:text-white">
+            软件使用免责声明与条款
+          </h3>
+          <p class="mt-1.5 text-xs text-gray-500 font-medium dark:text-gray-400">
+            请仔细阅读并同意以下条款以继续使用
+          </p>
         </div>
-        
+
         <!-- 可滚动内容区 -->
-        <div class="px-6 py-4 overflow-y-auto overscroll-contain flex-1 custom-scrollbar">
-          <div class="prose dark:prose-invert prose-sm max-w-none text-gray-700 dark:text-gray-300 leading-relaxed text-[14px] space-y-3">
+        <div class="custom-scrollbar flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+          <div class="prose dark:prose-invert prose-sm max-w-none text-[14px] text-gray-700 leading-relaxed space-y-3 dark:text-gray-300">
             <template v-for="(paragraph, index) in disclaimerHtml.split('\n\n')" :key="index">
-              <p v-if="paragraph.trim()" v-html="paragraph.replace(/\n/g, '<br/>')" class="mb-4 text-justify apple-text"></p>
+              <p v-if="paragraph.trim()" class="apple-text mb-4 text-justify" v-html="paragraph.replace(/\n/g, '<br/>')" />
             </template>
           </div>
         </div>
-        
+
         <!-- 底部作者版权声明 -->
-        <div class="px-6 py-2.5 bg-gray-50/50 dark:bg-black/20 border-t border-gray-200/50 dark:border-gray-800/50 shrink-0 text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400/80 font-medium tracking-wide">
-              © {{ new Date().getFullYear() }} 御农 System | 架构与开发：<span class="text-blue-500 dark:text-blue-400 font-semibold">smdk000</span>
-            </p>
+        <div class="shrink-0 border-t border-gray-200/50 bg-gray-50/50 px-6 py-2.5 text-center dark:border-gray-800/50 dark:bg-black/20">
+          <p class="text-xs text-gray-500 font-medium tracking-wide dark:text-gray-400/80">
+            © {{ new Date().getFullYear() }} 御农 System | 架构与开发：<span class="text-blue-500 font-semibold dark:text-blue-400">smdk000</span>
+          </p>
         </div>
 
         <!-- 底部毛玻璃悬浮操作栏 -->
-        <div class="px-6 py-4 border-t border-gray-200/50 dark:border-gray-800/50 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/50 dark:bg-[#1C1C1E]/50">
-          
+        <div class="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-gray-200/50 bg-white/50 px-6 py-4 sm:flex-row dark:border-gray-800/50 dark:bg-[#1C1C1E]/50">
           <!-- 左侧：社区互动卡片 -->
-          <div class="flex items-center gap-3 w-full sm:w-auto order-last sm:order-first justify-between sm:justify-start">
+          <div class="order-last w-full flex items-center justify-between gap-3 sm:order-first sm:w-auto sm:justify-start">
             <a
               href="https://qm.qq.com/cgi-bin/qm/qr?k=&group_code=227916149"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-all shadow-sm border border-gray-200/50 dark:border-gray-700/50 no-underline"
+              class="group flex flex-1 items-center justify-center gap-1.5 border border-gray-200/50 rounded-xl bg-white/60 px-3 py-2 text-xs text-gray-500 font-semibold no-underline shadow-sm transition-all sm:flex-none dark:border-gray-700/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:text-gray-400 hover:text-gray-900 dark:hover:bg-gray-700 dark:hover:text-gray-100"
             >
-              <div class="i-carbon-chat text-sm text-blue-500 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+              <div class="i-carbon-chat text-sm text-blue-500 transition-transform group-hover:scale-110 dark:text-blue-400" />
               <span>加入技术群</span>
             </a>
             <a
               href="https://github.com/smdk000/qq-farm-bot-ui"
               target="_blank"
               rel="noopener noreferrer"
-              class="group flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 bg-white/60 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-all shadow-sm border border-gray-200/50 dark:border-gray-700/50 no-underline"
+              class="group flex flex-1 items-center justify-center gap-1.5 border border-gray-200/50 rounded-xl bg-white/60 px-3 py-2 text-xs text-gray-500 font-semibold no-underline shadow-sm transition-all sm:flex-none dark:border-gray-700/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:text-gray-400 hover:text-gray-900 dark:hover:bg-gray-700 dark:hover:text-gray-100"
             >
-              <div class="i-carbon-star text-sm text-yellow-500 dark:text-yellow-400 group-hover:scale-110 transition-transform" />
+              <div class="i-carbon-star text-sm text-yellow-500 transition-transform group-hover:scale-110 dark:text-yellow-400" />
               <span>给作者点赞</span>
             </a>
           </div>
 
           <!-- 右侧：主要操作按钮 -->
-          <div class="flex w-full sm:w-auto gap-3 items-center flex-1 sm:flex-none">
-            <button 
+          <div class="w-full flex flex-1 items-center gap-3 sm:w-auto sm:flex-none">
+            <button
               type="button"
-              class="w-full sm:w-auto px-6 py-2.5 sm:py-3 rounded-2xl text-sm sm:text-[15px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200 flex-1 order-2 sm:order-1"
+              class="order-2 w-full flex-1 rounded-2xl bg-gray-100/80 px-6 py-2.5 text-sm text-gray-600 font-semibold transition-colors sm:order-1 sm:w-auto dark:bg-gray-800/80 hover:bg-gray-200 sm:py-3 sm:text-[15px] dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:hover:bg-gray-700"
               @click="emit('decline')"
             >
               拒绝并退出
             </button>
-            <button 
-              type="button" 
-              class="w-full sm:w-auto px-6 py-2.5 sm:py-3 rounded-2xl text-sm sm:text-[15px] font-semibold text-white bg-blue-600 hover:bg-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500 shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 flex-1 order-1 sm:order-2"
+            <button
+              type="button"
+              class="order-1 w-full flex-1 rounded-2xl bg-blue-600 px-6 py-2.5 text-sm text-white font-semibold shadow-blue-500/20 shadow-md transition-all sm:order-2 sm:w-auto active:scale-[0.98] dark:bg-blue-600 hover:bg-blue-500 sm:py-3 sm:text-[15px] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:hover:bg-blue-500 dark:focus:ring-offset-gray-900"
               @click="emit('agree')"
             >
               同意并继续
             </button>
           </div>
         </div>
-        
       </div>
     </div>
   </Transition>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useStorage } from '@vueuse/core'
-import { onMounted, ref, defineAsyncComponent, watch } from 'vue'
+import { defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useStatusStore } from '@/stores/status'
@@ -38,7 +38,7 @@ watch(adminToken, (newToken) => {
 </script>
 
 <template>
-  <div class="relative z-0 h-screen w-screen overflow-hidden text-gray-700 bg-theme-bg transition-colors duration-300 dark:text-gray-200 dark:bg-theme-darkbg">
+  <div class="relative z-0 h-screen w-screen overflow-hidden bg-theme-bg text-gray-700 transition-colors duration-300 dark:bg-theme-darkbg dark:text-gray-200">
     <!-- 动态流动光球背景层 -->
     <div class="mesh-bg">
       <div class="mesh-orb orb-1" />

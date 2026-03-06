@@ -8,7 +8,7 @@
   <title>💰 氪金计算器 · QQ经典农场</title>
   <script src="./static/js/tailwindcss-3.4.17.js"></script>
   <script>
-        tailwind.config = {
+    tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
@@ -38,6 +38,7 @@
       }
     }
   </script>
+  <script>if (window.self !== window.top) { document.documentElement.style.opacity = '0'; document.documentElement.style.transition = 'opacity 0.4s ease'; }</script>
   <style>
     /* 滚动条美化 */
     ::-webkit-scrollbar {
@@ -1636,7 +1637,8 @@
   <!-- ════ 移动端顶部导航栏 ════ -->
   <header
     class="lg:hidden sticky top-0 z-50 bg-slate-900 text-white flex items-center justify-between px-4 h-14 flex-shrink-0 shadow-lg">
-    <button id="menu-btn" onclick="openSidebar()" class="p-2 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition" aria-label="菜单">
+    <button id="menu-btn" onclick="openSidebar()"
+      class="p-2 rounded-lg hover:bg-white/10 dark:hover:bg-slate-800/10 transition" aria-label="菜单">
       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
         stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
