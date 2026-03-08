@@ -29,6 +29,7 @@
 - ✅ **部署脚本语法检查通过**: `scripts/deploy/fresh-install.sh` 与 `scripts/deploy/update-app.sh` 的 Bash 语法校验通过。
 - ✅ **压缩插件日志降噪**: 关闭 `vite-plugin-compression` 的冗长 verbose 输出，避免构建日志中出现误导性的绝对路径展示。
 - ✅ **全局配置落库防脏数据**: 保存 `account_configs` 前会剔除已删除账号的孤儿配置，避免远端出现外键错误刷屏。
+- ✅ **离线更新脚本自举修复**: `update-app.sh` 在本地 bundle 模式下，遇到 `update-app.sh -> update-app.sh` 同路径复制时会自动跳过，避免离线更新因 `cp same file` 直接退出。
 
 #### 🔎 本轮回归结论
 - ✅ **普通用户权限回归通过**: 新注册体验卡用户访问 `/api/users`、`/api/cards` 时均返回 `403 Forbidden`。
@@ -48,6 +49,7 @@
 | `web/src/components/AccountModal.vue` | QQ 扫码成功后提交 `ticket` 保存 |
 | `core/src/services/farm.js` | 访客匿名来源日志文案优化 |
 | `web/vite.config.ts` | 构建日志降噪 |
+| `scripts/deploy/update-app.sh` | 部署目录本地自举时跳过同路径自复制 |
 
 ---
 

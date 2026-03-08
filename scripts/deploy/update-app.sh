@@ -76,6 +76,17 @@ download_file() {
     curl -fsSL "${RAW_BASE_URL}/${remote_path}" -o "${target_path}"
 }
 
+copy_file_if_needed() {
+    local source_path="$1"
+    local target_path="$2"
+
+    if [ "${source_path}" = "${target_path}" ]; then
+        return 0
+    fi
+
+    cp "${source_path}" "${target_path}"
+}
+
 load_deploy_env() {
     local file="$1"
     if [ -f "${file}" ]; then
@@ -239,13 +250,13 @@ sync_bundle() {
     if [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fresh-install.sh" ] \
         && [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/docker-compose.yml" ] \
         && [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/.env.example" ]; then
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/.env.example" "${target_dir}/.env.example"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/README.md" "${target_dir}/README.md"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/init-db/01-init.sql" "${init_dir}/01-init.sql"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update-app.sh" "${target_dir}/update-app.sh"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fresh-install.sh" "${target_dir}/fresh-install.sh"
-        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/.env.example" "${target_dir}/.env.example"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/README.md" "${target_dir}/README.md"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/init-db/01-init.sql" "${init_dir}/01-init.sql"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update-app.sh" "${target_dir}/update-app.sh"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fresh-install.sh" "${target_dir}/fresh-install.sh"
+        copy_file_if_needed "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
     else
         download_file "deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
         download_file "deploy/.env.example" "${target_dir}/.env.example"
