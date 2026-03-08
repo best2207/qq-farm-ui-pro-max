@@ -74,6 +74,10 @@ const DEFAULT_ACCOUNT_CONFIG = {
     stakeoutSteal: { enabled: false, delaySec: 3 },
     skipStealRadish: { enabled: false },
     forceGetAll: { enabled: false },
+    workflowConfig: {
+        farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] },
+        friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] },
+    },
 };
 const ALLOWED_AUTOMATION_KEYS = new Set(Object.keys(DEFAULT_ACCOUNT_CONFIG.automation));
 
@@ -146,6 +150,30 @@ function normalizeOfflineReminder(input) {
     };
 }
 
+function normalizeWorkflowLane(rawLane, fallbackLane) {
+    const raw = (rawLane && typeof rawLane === 'object') ? rawLane : {};
+    const fallback = (fallbackLane && typeof fallbackLane === 'object') ? fallbackLane : { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] };
+    const minInterval = Math.max(1, Number.parseInt(raw.minInterval, 10) || Number.parseInt(fallback.minInterval, 10) || 1);
+    const maxInterval = Math.max(minInterval, Number.parseInt(raw.maxInterval, 10) || Number.parseInt(fallback.maxInterval, 10) || minInterval);
+    return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : !!fallback.enabled,
+        minInterval,
+        maxInterval,
+        nodes: Array.isArray(raw.nodes)
+            ? raw.nodes.map(node => ({ ...(node || {}) }))
+            : (Array.isArray(fallback.nodes) ? fallback.nodes.map(node => ({ ...(node || {}) })) : []),
+    };
+}
+
+function normalizeWorkflowConfig(rawWorkflow, fallbackWorkflow = DEFAULT_ACCOUNT_CONFIG.workflowConfig) {
+    const raw = (rawWorkflow && typeof rawWorkflow === 'object') ? rawWorkflow : {};
+    const fallback = (fallbackWorkflow && typeof fallbackWorkflow === 'object') ? fallbackWorkflow : DEFAULT_ACCOUNT_CONFIG.workflowConfig;
+    return {
+        farm: normalizeWorkflowLane(raw.farm, fallback.farm || DEFAULT_ACCOUNT_CONFIG.workflowConfig.farm),
+        friend: normalizeWorkflowLane(raw.friend, fallback.friend || DEFAULT_ACCOUNT_CONFIG.workflowConfig.friend),
+    };
+}
+
 function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const srcAutomation = (base && base.automation && typeof base.automation === 'object')
         ? base.automation
@@ -186,6 +214,7 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         stakeoutSteal,
         skipStealRadish,
         forceGetAll,
+        workflowConfig: normalizeWorkflowConfig(base.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
     };
 }
 
@@ -268,6 +297,11 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
     }
     if (src.forceGetAll && typeof src.forceGetAll === 'object') {
         cfg.forceGetAll = { enabled: !!src.forceGetAll.enabled };
+    }
+    if (src.workflowConfig && typeof src.workflowConfig === 'object') {
+        cfg.workflowConfig = normalizeWorkflowConfig(src.workflowConfig, cfg.workflowConfig || DEFAULT_ACCOUNT_CONFIG.workflowConfig);
+    } else {
+        cfg.workflowConfig = normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig);
     }
 
     return cfg;
@@ -353,6 +387,7 @@ async function loadGlobalConfigFromDB() {
                 stakeoutSteal: adv.stakeoutSteal,
                 skipStealRadish: adv.skipStealRadish,
                 forceGetAll: adv.forceGetAll,
+                workflowConfig: adv.workflowConfig,
             }, accountFallbackConfig);
 
             if (adv.ui) {
@@ -406,6 +441,7 @@ function saveGlobalConfigImmediate() {
                     stakeoutSteal: cfg.stakeoutSteal || { enabled: false, delaySec: 3 },
                     skipStealRadish: cfg.skipStealRadish || { enabled: false },
                     forceGetAll: cfg.forceGetAll || { enabled: false },
+                    workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
                     ui: globalConfig.ui || {},
                     clusterConfig: globalConfig.clusterConfig || { dispatcherStrategy: 'round_robin' }
                 });
@@ -475,6 +511,7 @@ function getConfigSnapshot(accountId) {
         intervals: { ...cfg.intervals },
         friendQuietHours: { ...cfg.friendQuietHours },
         friendBlacklist: [...(cfg.friendBlacklist || [])],
+        workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         ui: { ...globalConfig.ui },
     };
 }
@@ -533,6 +570,41 @@ function applyConfigSnapshot(snapshot, options = {}) {
         if (theme === 'dark' || theme === 'light') {
             globalConfig.ui.theme = theme;
         }
+    }
+
+    if (cfg.stealFilter && typeof cfg.stealFilter === 'object') {
+        next.stealFilter = {
+            enabled: !!cfg.stealFilter.enabled,
+            mode: cfg.stealFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+            plantIds: Array.isArray(cfg.stealFilter.plantIds) ? cfg.stealFilter.plantIds.map(String) : (next.stealFilter?.plantIds || []),
+        };
+    }
+
+    if (cfg.stealFriendFilter && typeof cfg.stealFriendFilter === 'object') {
+        next.stealFriendFilter = {
+            enabled: !!cfg.stealFriendFilter.enabled,
+            mode: cfg.stealFriendFilter.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+            friendIds: Array.isArray(cfg.stealFriendFilter.friendIds) ? cfg.stealFriendFilter.friendIds.map(String) : (next.stealFriendFilter?.friendIds || []),
+        };
+    }
+
+    if (cfg.stakeoutSteal && typeof cfg.stakeoutSteal === 'object') {
+        next.stakeoutSteal = {
+            enabled: !!cfg.stakeoutSteal.enabled,
+            delaySec: Math.max(0, Number.parseInt(cfg.stakeoutSteal.delaySec, 10) || 0),
+        };
+    }
+
+    if (cfg.skipStealRadish && typeof cfg.skipStealRadish === 'object') {
+        next.skipStealRadish = { enabled: !!cfg.skipStealRadish.enabled };
+    }
+
+    if (cfg.forceGetAll && typeof cfg.forceGetAll === 'object') {
+        next.forceGetAll = { enabled: !!cfg.forceGetAll.enabled };
+    }
+
+    if (cfg.workflowConfig && typeof cfg.workflowConfig === 'object') {
+        next.workflowConfig = normalizeWorkflowConfig(cfg.workflowConfig, next.workflowConfig || DEFAULT_ACCOUNT_CONFIG.workflowConfig);
     }
 
     setAccountConfigSnapshot(accountId, next, false);
@@ -706,49 +778,118 @@ function setOfflineReminder(cfg) {
     return getOfflineReminder();
 }
 
+function parseAccountAuthData(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return {};
+        }
+    }
+    return {};
+}
+
 // ============ 账号管理 ============
 async function loadAccountsFromDB() {
     try {
         const pool = getPool();
         const [rows] = await pool.query('SELECT * FROM accounts');
-        let mapped = rows.map(r => ({
-            id: r.id,
-            uin: r.uin,
-            code: r.code || '',
-            nick: r.nick || '',
-            name: r.name || '',
-            platform: r.platform || 'qq',
-            running: r.running === 1,
-            avatar: r.avatar || '',
-            qq: r.qq || r.uin,
-            username: r.username || '',
-            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-            updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
-        }));
+        let mapped = rows.map((r) => {
+            const authData = parseAccountAuthData(r.auth_data);
+            const platform = r.platform || 'qq';
+            const uin = String(r.uin || authData.uin || '').trim();
+            const qq = String(authData.qq || (platform === 'qq' ? uin : '')).trim();
+            return {
+                id: r.id,
+                uin,
+                code: r.code || authData.code || '',
+                nick: r.nick || '',
+                name: r.name || '',
+                platform,
+                running: r.running === 1,
+                avatar: r.avatar || '',
+                qq,
+                username: r.username || '',
+                createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+                updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
+            };
+        });
         cachedAccountsData = normalizeAccountsData({ accounts: mapped, nextId: 1000 + mapped.length });
+        _accountsLoadedAt = Date.now();
+        return cachedAccountsData;
     } catch (e) { console.error('加载账号数据失败:', e.message); }
+    return cachedAccountsData;
 }
 
 let cachedAccountsData = { accounts: [], nextId: 1 };
+let _accountsLoadedAt = 0;
+let _accountsRefreshPromise = null;
 function loadAccounts() {
     return cachedAccountsData;
 }
 
+function cloneAccountsData(data) {
+    const normalized = normalizeAccountsData(data);
+    return {
+        nextId: normalized.nextId,
+        accounts: normalized.accounts.map(acc => ({ ...acc })),
+    };
+}
+
 let _accountsSaveTimer = null;
-function saveAccounts(data) {
+let _pendingAccountPersistIds = new Set();
+
+function queueAccountPersistIds(data, touchedAccountIds) {
+    const normalized = normalizeAccountsData(data);
+    const ids = Array.isArray(touchedAccountIds)
+        ? touchedAccountIds
+        : (touchedAccountIds !== undefined && touchedAccountIds !== null ? [touchedAccountIds] : normalized.accounts.map(acc => acc && acc.id));
+    ids
+        .map(id => String(id || '').trim())
+        .filter(Boolean)
+        .forEach(id => _pendingAccountPersistIds.add(id));
+}
+
+function saveAccounts(data, touchedAccountIds) {
     cachedAccountsData = normalizeAccountsData(data); // 内存立即生效
+    _accountsLoadedAt = Date.now();
+    queueAccountPersistIds(cachedAccountsData, touchedAccountIds);
     if (_accountsSaveTimer) clearTimeout(_accountsSaveTimer);
 
     _accountsSaveTimer = setTimeout(() => {
         _accountsSaveTimer = null;
         const pool = getPool();
+        const snapshot = cloneAccountsData(cachedAccountsData);
+        const pendingIds = Array.from(_pendingAccountPersistIds);
+        _pendingAccountPersistIds = new Set();
         try {
-            for (const acc of cachedAccountsData.accounts) {
+            for (const accountId of pendingIds) {
+                const acc = snapshot.accounts.find(item => String(item && item.id) === String(accountId));
+                if (!acc) continue;
+                const platform = acc.platform || 'qq';
+                const primaryUin = platform === 'qq'
+                    ? String(acc.uin || acc.qq || '').trim()
+                    : String(acc.uin || '').trim();
+                const authData = JSON.stringify({
+                    uin: String(acc.uin || '').trim(),
+                    qq: String(acc.qq || '').trim(),
+                    code: acc.code || '',
+                });
                 pool.query(
-                    "INSERT INTO accounts (id, uin, nick, name, platform, running, code, username) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nick=?, name=?, platform=?, running=?, code=COALESCE(NULLIF(VALUES(code),''), code), username=COALESCE(NULLIF(VALUES(username),''), username)",
+                    "INSERT INTO accounts (id, uin, nick, name, platform, running, code, username, avatar, auth_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE uin=COALESCE(NULLIF(VALUES(uin),''), uin), nick=VALUES(nick), name=VALUES(name), platform=VALUES(platform), running=VALUES(running), code=COALESCE(NULLIF(VALUES(code),''), code), username=COALESCE(NULLIF(VALUES(username),''), username), avatar=COALESCE(NULLIF(VALUES(avatar),''), avatar), auth_data=COALESCE(NULLIF(VALUES(auth_data),''), auth_data)",
                     [
-                        acc.id, acc.uin, acc.nick || '', acc.name || '', acc.platform || 'qq', acc.running ? 1 : 0, acc.code || '', acc.username || '',
-                        acc.nick || '', acc.name || '', acc.platform || 'qq', acc.running ? 1 : 0
+                        acc.id,
+                        primaryUin,
+                        acc.nick || '',
+                        acc.name || '',
+                        platform,
+                        acc.running ? 1 : 0,
+                        acc.code || '',
+                        acc.username || '',
+                        acc.avatar || '',
+                        authData,
                     ]
                 ).catch(e => console.error("DB Async Insert Account Failed", e.message));
             }
@@ -760,6 +901,64 @@ function saveAccounts(data) {
 
 function getAccounts() {
     return loadAccounts();
+}
+
+async function getAccountsFresh(options = {}) {
+    const force = !!(options && options.force);
+    const maxAgeMs = Number.parseInt(options && options.maxAgeMs, 10) || 1500;
+    const hasCache = Array.isArray(cachedAccountsData.accounts) && cachedAccountsData.accounts.length > 0;
+    const cacheIsFresh = hasCache && !force && (Date.now() - _accountsLoadedAt) <= maxAgeMs;
+
+    if (cacheIsFresh) {
+        return cloneAccountsData(cachedAccountsData);
+    }
+    if (_accountsRefreshPromise) {
+        return _accountsRefreshPromise;
+    }
+
+    _accountsRefreshPromise = loadAccountsFromDB()
+        .catch(() => cachedAccountsData)
+        .then(data => cloneAccountsData(data || cachedAccountsData))
+        .finally(() => {
+            _accountsRefreshPromise = null;
+        });
+
+    return _accountsRefreshPromise;
+}
+
+async function getAccountFull(accountId) {
+    const id = String(accountId || '').trim();
+    if (!id) return null;
+
+    try {
+        const pool = getPool();
+        const [rows] = await pool.query('SELECT * FROM accounts WHERE id = ? LIMIT 1', [id]);
+        const row = Array.isArray(rows) ? rows[0] : null;
+        if (!row) return null;
+        let authData = row.auth_data;
+        if (typeof authData === 'string' && authData) {
+            try { authData = JSON.parse(authData); } catch { authData = null; }
+        }
+        return {
+            id: row.id,
+            uin: row.uin ? String(row.uin) : String((authData && authData.uin) || ''),
+            qq: String((authData && authData.qq) || (row.platform === 'qq' ? (row.uin ? String(row.uin) : '') : '')),
+            code: row.code || (authData && authData.code) || '',
+            nick: row.nick || '',
+            name: row.name || '',
+            platform: row.platform || 'qq',
+            running: row.running === 1 || row.running === true,
+            avatar: row.avatar || '',
+            username: row.username || '',
+            createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+            updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+        };
+    } catch (e) {
+        const data = getAccounts();
+        const list = Array.isArray(data.accounts) ? data.accounts : [];
+        const found = list.find(a => String(a.id || '') === id);
+        return found ? { ...found } : null;
+    }
 }
 
 function normalizeAccountsData(raw) {
@@ -792,14 +991,14 @@ function addOrUpdateAccount(acc) {
             code: acc.code || '',
             platform: acc.platform || 'qq',
             uin: acc.uin ? String(acc.uin) : '',
-            qq: acc.qq ? String(acc.qq) : (acc.uin ? String(acc.uin) : ''),
+            qq: acc.qq ? String(acc.qq) : ((acc.platform || 'qq') === 'qq' && acc.uin ? String(acc.uin) : ''),
             avatar: acc.avatar || acc.avatarUrl || '',
             username: acc.username || '',
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
     }
-    saveAccounts(data);
+    saveAccounts(data, touchedAccountId);
     if (touchedAccountId) {
         ensureAccountConfig(touchedAccountId);
     }
@@ -812,7 +1011,7 @@ function deleteAccount(id) {
     if (data.accounts.length === 0) {
         data.nextId = 1;
     }
-    saveAccounts(data);
+    saveAccounts(data, String(id || ''));
     removeAccountConfig(id);
 
     // 修复 bug：仅 saveAccounts(data) 会触发 UPSERT（更新或插入），但不会对被 filter 剔除的数据做 DELETE，必须单独在 DB 中删除该行
@@ -983,6 +1182,8 @@ module.exports = {
     getAdminPasswordHash,
     setAdminPasswordHash,
     getAccounts,
+    getAccountsFresh,
+    getAccountFull,
     getThirdPartyApiConfig,
     setThirdPartyApiConfig,
     getTrialCardConfig,

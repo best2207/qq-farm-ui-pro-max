@@ -34,18 +34,37 @@ const visitorCache = new Map();
 
 /**
  * 根据 GID 获取好友昵称
- * 优雅降级：若查询失败或好友不存在，返回 "GID:xxx" 格式
+ * gid<=0 视为未知来源，不应被展示为真实好友名
+ * 查询失败或好友不存在时，返回 "GID:xxx" 格式
  */
 async function getFriendNameByGid(gid) {
+    const numericGid = toNum(gid);
+    if (!Number.isFinite(numericGid) || numericGid <= 0) return '';
     try {
         const { getCachedFriends } = require('./database');
-        if (!getCachedFriends || !CONFIG.accountId) return `GID:${gid}`;
+        if (!getCachedFriends || !CONFIG.accountId) return `GID:${numericGid}`;
         const friends = await getCachedFriends(CONFIG.accountId);
-        const friend = friends.find(f => toNum(f.gid) === toNum(gid));
-        return friend ? friend.name : `GID:${gid}`;
+        const friend = friends.find(f => toNum(f.gid) === numericGid);
+        return friend ? (friend.remark || friend.name || `GID:${numericGid}`) : `GID:${numericGid}`;
     } catch {
-        return `GID:${gid}`;
+        return `GID:${numericGid}`;
     }
+}
+
+function buildVisitorLogMessage(kind, landId, actorName) {
+    if (kind === 'weed') {
+        return actorName
+            ? `🌿 ${actorName} 给你的土地#${landId}放草了`
+            : `🌿 匿名好友给你的土地#${landId}放草了`;
+    }
+    if (kind === 'insect') {
+        return actorName
+            ? `🐛 ${actorName} 给你的土地#${landId}放虫了`
+            : `🐛 匿名好友给你的土地#${landId}放虫了`;
+    }
+    return actorName
+        ? `🥷 ${actorName} 偷取了你土地#${landId}的果实`
+        : `🥷 匿名好友偷取了你土地#${landId}的果实`;
 }
 
 /**
@@ -70,7 +89,9 @@ async function detectAndLogVisitorChanges(lands) {
         for (const gid of currentWeedOwners) {
             if (!cached.weed_owners.includes(gid)) {
                 const name = await getFriendNameByGid(gid);
-                log('访客', `🌿 ${name} 给你的土地#${landId}放草了`, { module: 'farm', event: 'visitor', result: 'weed', gid, landId });
+                log('访客', buildVisitorLogMessage('weed', landId, name), {
+                    module: 'farm', event: 'visitor', result: 'weed', gid, landId, sourceKnown: !!name
+                });
             }
         }
 
@@ -78,7 +99,9 @@ async function detectAndLogVisitorChanges(lands) {
         for (const gid of currentInsectOwners) {
             if (!cached.insect_owners.includes(gid)) {
                 const name = await getFriendNameByGid(gid);
-                log('访客', `🐛 ${name} 给你的土地#${landId}放虫了`, { module: 'farm', event: 'visitor', result: 'insect', gid, landId });
+                log('访客', buildVisitorLogMessage('insect', landId, name), {
+                    module: 'farm', event: 'visitor', result: 'insect', gid, landId, sourceKnown: !!name
+                });
             }
         }
 
@@ -86,7 +109,9 @@ async function detectAndLogVisitorChanges(lands) {
         for (const gid of currentStealers) {
             if (!cached.stealers.includes(gid)) {
                 const name = await getFriendNameByGid(gid);
-                log('访客', `🥷 ${name} 偷取了你土地#${landId}的果实`, { module: 'farm', event: 'visitor', result: 'steal', gid, landId });
+                log('访客', buildVisitorLogMessage('steal', landId, name), {
+                    module: 'farm', event: 'visitor', result: 'steal', gid, landId, sourceKnown: !!name
+                });
             }
         }
 

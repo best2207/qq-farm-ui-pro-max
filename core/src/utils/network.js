@@ -636,13 +636,23 @@ function connect(code, openId, onLoginSuccess) {
     }
     savedLoginCallback = onLoginSuccess;
     if (code) savedCode = code;
-    if (openId) savedOpenId = openId;
+    savedOpenId = openId ? String(openId) : '';
 
     // 抹平非标准平台标识符，防止腾讯游戏服 400 Bad Request
     const wsPlatform = (CONFIG.platform === 'wx_ipad' || CONFIG.platform === 'wx_car') ? 'wx' : CONFIG.platform;
-    const url = `${CONFIG.serverUrl}?platform=${wsPlatform}&os=${CONFIG.os}&ver=${CONFIG.clientVersion}&code=${savedCode}&openID=${savedOpenId || ''}`;
+    const effectiveOpenId = wsPlatform === 'qq' ? '' : savedOpenId;
+    const query = new URLSearchParams({
+        platform: wsPlatform,
+        os: CONFIG.os,
+        ver: CONFIG.clientVersion,
+        code: String(savedCode || ''),
+    });
+    if (effectiveOpenId) {
+        query.set('openID', effectiveOpenId);
+    }
+    const url = `${CONFIG.serverUrl}?${query.toString()}`;
 
-    console.log(`[DEBUG WS CONNECT] platform=${wsPlatform}, code=${savedCode}, openID=${savedOpenId || ''}, url=${url}`);
+    console.log(`[DEBUG WS CONNECT] platform=${wsPlatform}, code=${savedCode}, openID=${effectiveOpenId || ''}, url=${url}`);
 
     ws = new WebSocket(url, {
         headers: {
@@ -709,7 +719,7 @@ function reconnect(newCode) {
         ws = null;
     }
     userState.gid = 0;
-    connect(newCode || savedCode, savedLoginCallback);
+    connect(newCode || savedCode, savedOpenId, savedLoginCallback);
 }
 
 function getWs() { return ws; }

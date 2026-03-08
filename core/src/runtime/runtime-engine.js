@@ -41,6 +41,9 @@ function createRuntimeEngine(options = {}) {
     buildDefaultStatus,
     filterLogs,
   } = runtimeState
+  const getAccountsForProvider = typeof store.getAccountsFresh === 'function'
+    ? store.getAccountsFresh
+    : store.getAccounts
 
   const reloginReminder = createReloginReminderService({
     store,
@@ -93,7 +96,7 @@ function createRuntimeEngine(options = {}) {
     globalLogs: GLOBAL_LOGS,
     accountLogs: ACCOUNT_LOGS,
     store,
-    getAccounts: store.getAccounts,
+    getAccounts: getAccountsForProvider,
     callWorkerApi,
     buildDefaultStatus,
     normalizeStatusForPanel,

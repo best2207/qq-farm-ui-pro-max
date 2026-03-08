@@ -93,7 +93,9 @@ class MasterDispatcher {
             return;
         }
 
-        const data = await store.getAccounts();
+        const data = typeof store.getAccountsFresh === 'function'
+            ? await store.getAccountsFresh()
+            : await store.getAccounts();
         const activeAccounts = (data?.accounts || []).filter(a => a.running);
 
         const clusterConfig = store.getClusterConfig ? store.getClusterConfig() : { dispatcherStrategy: 'round_robin' };

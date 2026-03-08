@@ -4,6 +4,12 @@ set -Eeuo pipefail
 
 APP_SERVICE="qq-farm-bot"
 DEPLOY_DIR="${DEPLOY_DIR:-$(pwd)}"
+DEPLOY_BASE_DIR="${DEPLOY_BASE_DIR:-/opt}"
+CURRENT_LINK="${CURRENT_LINK:-${DEPLOY_BASE_DIR}/qq-farm-bot-current}"
+REPO_SLUG="${REPO_SLUG:-smdk000/qq-farm-ui-pro-max}"
+REPO_REF="${REPO_REF:-main}"
+RAW_BASE_URL="${RAW_BASE_URL:-https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}}"
+SOURCE_ARCHIVE_URL="${SOURCE_ARCHIVE_URL:-https://codeload.github.com/${REPO_SLUG}/tar.gz/${REPO_REF}}"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,6 +20,8 @@ SUDO=""
 COMPOSE_PULL_RETRIES="${COMPOSE_PULL_RETRIES:-3}"
 PULL_RETRY_DELAY_SECONDS="${PULL_RETRY_DELAY_SECONDS:-10}"
 SKIP_DOCKER_PULL="${SKIP_DOCKER_PULL:-0}"
+IMAGE_MIRROR_PREFIXES="${IMAGE_MIRROR_PREFIXES:-docker.m.daocloud.io,dockerpull.com,docker.1panel.live}"
+SOURCE_CACHE_DIR="${SOURCE_CACHE_DIR:-${DEPLOY_BASE_DIR}/.qq-farm-build-src/${REPO_REF}}"
 
 print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
@@ -21,6 +29,21 @@ print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 trap 'print_error "主程序更新失败，请检查上方日志。"' ERR
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --deploy-dir)
+                DEPLOY_DIR="${2:-}"
+                shift 2
+                ;;
+            *)
+                print_error "未知参数: $1"
+                exit 1
+                ;;
+        esac
+    done
+}
 
 if [ "${EUID:-$(id -u)}" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     SUDO="sudo"
@@ -45,6 +68,195 @@ ensure_docker() {
         print_error "当前 Docker 缺少 compose v2，请升级 Docker。"
         exit 1
     }
+}
+
+download_file() {
+    local remote_path="$1"
+    local target_path="$2"
+    curl -fsSL "${RAW_BASE_URL}/${remote_path}" -o "${target_path}"
+}
+
+load_deploy_env() {
+    local file="$1"
+    if [ -f "${file}" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        . "${file}"
+        set +a
+    fi
+}
+
+mirror_ref_for_image() {
+    local prefix="$1"
+    local image="$2"
+    local normalized="${prefix#http://}"
+    normalized="${normalized#https://}"
+    normalized="${normalized%/}"
+
+    if [[ "${image}" != */* ]]; then
+        printf '%s/library/%s\n' "${normalized}" "${image}"
+    else
+        printf '%s/%s\n' "${normalized}" "${image}"
+    fi
+}
+
+pull_one_image() {
+    local image="$1"
+    local attempt=1
+
+    while [ "${attempt}" -le "${COMPOSE_PULL_RETRIES}" ]; do
+        if "${DOCKER[@]}" pull "${image}"; then
+            return 0
+        fi
+        if [ "${attempt}" -lt "${COMPOSE_PULL_RETRIES}" ]; then
+            print_warning "拉取 ${image} 失败，${PULL_RETRY_DELAY_SECONDS}s 后重试（${attempt}/${COMPOSE_PULL_RETRIES}）..."
+            sleep "${PULL_RETRY_DELAY_SECONDS}"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
+prepare_source_checkout() {
+    local cache_dir="${SOURCE_CACHE_DIR}"
+    local cache_parent
+    cache_parent="$(dirname "${cache_dir}")"
+    local archive="/tmp/qq-farm-source-${REPO_REF//\//_}.tar.gz"
+    local first_entry=""
+    local strip_args=()
+
+    if [ -f "${cache_dir}/pnpm-workspace.yaml" ]; then
+        return 0
+    fi
+
+    print_warning "镜像仓库不可用，开始下载源码包用于本地构建..."
+    if [ -n "${SUDO}" ]; then
+        "${SUDO}" mkdir -p "${cache_parent}"
+        "${SUDO}" chown -R "$(id -u):$(id -g)" "${cache_parent}"
+    else
+        mkdir -p "${cache_parent}"
+    fi
+
+    curl -fsSL "${SOURCE_ARCHIVE_URL}" -o "${archive}"
+    if [ -n "${SUDO}" ]; then
+        "${SUDO}" rm -rf "${cache_dir}"
+        "${SUDO}" mkdir -p "${cache_dir}"
+        "${SUDO}" chown -R "$(id -u):$(id -g)" "${cache_dir}"
+    else
+        rm -rf "${cache_dir}"
+        mkdir -p "${cache_dir}"
+    fi
+    first_entry="$(tar -tzf "${archive}" | head -n 1 || true)"
+    if [[ "${first_entry}" == */* ]]; then
+        strip_args=(--strip-components=1)
+    fi
+    tar -xzf "${archive}" "${strip_args[@]}" -C "${cache_dir}"
+}
+
+build_image_from_source() {
+    local image="$1"
+    case "${image}" in
+        */qq-farm-bot-ui:*|qq-farm-bot-ui:*|smdk000/qq-farm-bot-ui:*)
+            prepare_source_checkout
+            pull_image_with_mirrors "node:20-alpine"
+            print_warning "镜像 ${image} 拉取失败，开始从源码构建..."
+            "${DOCKER[@]}" build -t "${image}" -f "${SOURCE_CACHE_DIR}/core/Dockerfile" "${SOURCE_CACHE_DIR}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+pull_image_with_mirrors() {
+    local image="$1"
+    print_info "拉取镜像: ${image}"
+
+    if pull_one_image "${image}"; then
+        return 0
+    fi
+
+    local old_ifs="${IFS}"
+    IFS=','
+    for prefix in ${IMAGE_MIRROR_PREFIXES}; do
+        prefix="$(printf '%s' "${prefix}" | xargs)"
+        [ -n "${prefix}" ] || continue
+        local mirror_image
+        mirror_image="$(mirror_ref_for_image "${prefix}" "${image}")"
+        print_warning "官方源拉取失败，尝试镜像源: ${mirror_image}"
+        if pull_one_image "${mirror_image}"; then
+            "${DOCKER[@]}" tag "${mirror_image}" "${image}"
+            IFS="${old_ifs}"
+            return 0
+        fi
+    done
+    IFS="${old_ifs}"
+
+    if build_image_from_source "${image}"; then
+        return 0
+    fi
+
+    return 1
+}
+
+resolve_deploy_dir() {
+    if [ -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
+        return 0
+    fi
+
+    if [ -L "${CURRENT_LINK}" ] || [ -d "${CURRENT_LINK}" ]; then
+        if [ -f "${CURRENT_LINK}/docker-compose.yml" ]; then
+            DEPLOY_DIR="${CURRENT_LINK}"
+            return 0
+        fi
+    fi
+
+    local latest=""
+    latest="$(find "${DEPLOY_BASE_DIR}" -mindepth 2 -maxdepth 2 -type d -name qq-farm-bot 2>/dev/null | sort | tail -n 1)"
+    if [ -n "${latest}" ] && [ -f "${latest}/docker-compose.yml" ]; then
+        DEPLOY_DIR="${latest}"
+        return 0
+    fi
+
+    print_error "未找到可用部署目录。请通过 --deploy-dir 指定，或先执行 fresh-install.sh。"
+    exit 1
+}
+
+sync_bundle() {
+    local target_dir="$1"
+    local init_dir="${target_dir}/init-db"
+
+    mkdir -p "${init_dir}"
+
+    if [ -f "${target_dir}/docker-compose.yml" ] && [ -f "${target_dir}/.env" ]; then
+        :
+    else
+        print_error "部署目录缺少 docker-compose.yml 或 .env: ${target_dir}"
+        exit 1
+    fi
+
+    if [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fresh-install.sh" ] \
+        && [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/docker-compose.yml" ] \
+        && [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/.env.example" ]; then
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/.env.example" "${target_dir}/.env.example"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/README.md" "${target_dir}/README.md"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../deploy/init-db/01-init.sql" "${init_dir}/01-init.sql"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update-app.sh" "${target_dir}/update-app.sh"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fresh-install.sh" "${target_dir}/fresh-install.sh"
+        cp "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
+    else
+        download_file "deploy/docker-compose.yml" "${target_dir}/docker-compose.yml"
+        download_file "deploy/.env.example" "${target_dir}/.env.example"
+        download_file "deploy/README.md" "${target_dir}/README.md"
+        download_file "deploy/init-db/01-init.sql" "${init_dir}/01-init.sql"
+        download_file "scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
+        download_file "scripts/deploy/fresh-install.sh" "${target_dir}/fresh-install.sh"
+        download_file "scripts/deploy/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
+    fi
+
+    chmod +x "${target_dir}/update-app.sh" "${target_dir}/fresh-install.sh" "${target_dir}/quick-deploy.sh"
 }
 
 wait_for_app() {
@@ -81,31 +293,21 @@ compose_pull_with_retry() {
         return 0
     fi
 
-    local attempt=1
-
-    while true; do
-        if "${DOCKER[@]}" compose pull "${APP_SERVICE}"; then
-            return 0
-        fi
-
-        if [ "${attempt}" -ge "${COMPOSE_PULL_RETRIES}" ]; then
-            print_error "主程序镜像拉取连续失败 ${COMPOSE_PULL_RETRIES} 次，请检查服务器到 Docker Hub 的网络。"
-            return 1
-        fi
-
-        print_warning "主程序镜像拉取失败，${PULL_RETRY_DELAY_SECONDS}s 后重试（${attempt}/${COMPOSE_PULL_RETRIES}）..."
-        attempt=$((attempt + 1))
-        sleep "${PULL_RETRY_DELAY_SECONDS}"
-    done
+    local app_image="${APP_IMAGE:-smdk000/qq-farm-bot-ui:latest}"
+    if ! pull_image_with_mirrors "${app_image}"; then
+        print_error "主程序镜像拉取最终失败: ${app_image}"
+        print_error "可通过 IMAGE_MIRROR_PREFIXES 指定更多镜像源，或在 .env 中覆盖 APP_IMAGE。"
+        return 1
+    fi
 }
 
 main() {
+    parse_args "$@"
     ensure_docker
+    resolve_deploy_dir
 
-    if [ ! -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
-        print_error "未找到 ${DEPLOY_DIR}/docker-compose.yml，请在部署目录内执行本脚本。"
-        exit 1
-    fi
+    sync_bundle "${DEPLOY_DIR}"
+    load_deploy_env "${DEPLOY_DIR}/.env"
 
     cd "${DEPLOY_DIR}"
 
@@ -124,6 +326,7 @@ main() {
     "${DOCKER[@]}" compose ps
     echo ""
     print_success "主程序更新完成。"
+    echo "部署目录: ${DEPLOY_DIR}"
     echo "旧镜像 ID: ${old_image:-unknown}"
     echo "新镜像 ID: ${new_image:-unknown}"
     echo "未变更服务: qq-farm-mysql / qq-farm-redis / qq-farm-ipad860"

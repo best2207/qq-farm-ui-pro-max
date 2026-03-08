@@ -346,8 +346,19 @@ const SETTINGS_SCHEMA = {
  * @returns {{ valid: boolean, errors: string[], coerced: object }}
  */
 function validateSettings(settings) {
+    const input = (settings && typeof settings === 'object') ? { ...settings } : {};
+    if (input.plantingStrategy === undefined && input.strategy !== undefined) {
+        input.plantingStrategy = input.strategy;
+    }
+    if (input.preferredSeedId === undefined) {
+        if (input.preferredSeed !== undefined) {
+            input.preferredSeedId = input.preferredSeed;
+        } else if (input.seedId !== undefined) {
+            input.preferredSeedId = input.seedId;
+        }
+    }
     const validator = new ConfigValidator(SETTINGS_SCHEMA, { coerce: true });
-    const result = validator.validate(settings);
+    const result = validator.validate(input);
 
     if (!result.valid) {
         validatorLogger.warn('配置校验失败', { errors: result.errors });

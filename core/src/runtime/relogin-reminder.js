@@ -108,12 +108,13 @@ function createReloginReminderService(options) {
                     if (status.status === 'OK') {
                         const ticket = String(status.ticket || '').trim();
                         const uin = String(status.uin || '').trim();
-                        if (!ticket) {
+                        if (!ticket && !status.authCode) {
                             log('错误', '重登录监听失败: ticket 为空');
                             stop();
                             return;
                         }
-                        const authCode = await miniProgramLoginSession.getAuthCode(ticket, '1112386029');
+                        const authCode = String(status.authCode || '').trim()
+                            || await miniProgramLoginSession.getAuthCode(ticket, '1112386029');
                         if (!authCode) {
                             log('错误', '重登录监听失败: 未获取到新 code');
                             stop();

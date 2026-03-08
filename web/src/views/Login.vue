@@ -389,7 +389,7 @@ const backgroundStyle = computed(() => {
           <div class="flex-1 overflow-y-auto px-6 pb-6 lg:px-10 lg:pb-10">
             <!-- 登录表单 -->
             <form v-if="activeTab === 'login'" class="space-y-6" @submit.prevent="handleLogin">
-              <BaseInput v-model="username" label="用户名" placeholder="请输入用户名" required>
+              <BaseInput v-model="username" label="用户名" placeholder="请输入用户名" autocomplete="username" required>
                 <template #prefix>
                   <div class="i-carbon-user text-gray-400" />
                 </template>
@@ -420,7 +420,7 @@ const backgroundStyle = computed(() => {
 
             <!-- 注册表单 -->
             <form v-else class="space-y-3 lg:space-y-5" @submit.prevent="handleRegister">
-              <BaseInput v-model="username" label="用户名" placeholder="4-20个字符" required>
+              <BaseInput v-model="username" label="用户名" placeholder="4-20个字符" autocomplete="username" required>
                 <template #prefix>
                   <div class="i-carbon-user text-gray-400" />
                 </template>
@@ -430,7 +430,7 @@ const backgroundStyle = computed(() => {
                   <div class="i-carbon-password text-gray-400" />
                 </template>
               </BaseInput>
-              <BaseInput v-model="cardCode" label="注册卡密" placeholder="请输入卡密" required>
+              <BaseInput v-model="cardCode" label="注册卡密" placeholder="请输入卡密" autocomplete="one-time-code" required>
                 <template #prefix>
                   <div class="i-carbon-vlan text-gray-400" />
                 </template>

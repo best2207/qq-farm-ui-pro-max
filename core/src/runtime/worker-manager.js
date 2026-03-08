@@ -1,5 +1,7 @@
 const { createScheduler } = require('../services/scheduler');
 const { getPool } = require('../services/mysql-db');
+const store = require('../models/store');
+const { CONFIG } = require('../config/config');
 
 let systemLogBatch = [];
 setInterval(() => {
@@ -43,6 +45,54 @@ function createWorkerManager(options) {
     const managerScheduler = createScheduler('worker_manager');
     const MAX_WORKER_LOG_LIMIT = Number(processRef.env.FARM_MAX_LOG_LIMIT) || 1000;
     const useThreadRuntime = runtimeMode === 'thread' && !processRef.pkg && typeof WorkerThread === 'function';
+
+    function isWechatPlatform(platform) {
+        return platform === 'wx' || platform === 'wx_ipad' || platform === 'wx_car';
+    }
+
+    function looksLikeWxId(uin) {
+        return /[a-z]/i.test(String(uin || '').trim());
+    }
+
+    async function refreshWechatAuthCode(account) {
+        const platform = String(account && account.platform || '').trim();
+        const wxid = String(account && account.uin || '').trim();
+        if (!isWechatPlatform(platform) || !looksLikeWxId(wxid)) {
+            throw new Error('当前账号不满足微信自动续签条件');
+        }
+
+        if (platform === 'wx_car' || platform === 'wx_ipad') {
+            const thirdPartyCfg = store.getThirdPartyApiConfig ? store.getThirdPartyApiConfig() : {};
+            const ipad860Url = thirdPartyCfg.ipad860Url || processRef.env.IPAD860_URL || 'http://127.0.0.1:8058';
+            const wxAppId = thirdPartyCfg.wxAppId || CONFIG.wxAppId;
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 10000);
+            try {
+                const jsRes = await fetch(`${ipad860Url}/api/Wxapp/JSLogin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Wxid: wxid, Appid: wxAppId }),
+                    signal: ctrl.signal,
+                }).then(r => r.json());
+                if (!(jsRes && jsRes.Code === 0 && jsRes.Success && jsRes.Data)) {
+                    throw new Error(jsRes && (jsRes.Message || jsRes.Msg) || 'JSLogin 失败');
+                }
+                const authCode = String(jsRes.Data.code || jsRes.Data.Code || '').trim();
+                if (!authCode) {
+                    throw new Error('JSLogin 未返回新 code');
+                }
+                return {
+                    ...account,
+                    code: authCode,
+                    uin: wxid,
+                };
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        throw new Error('当前微信平台暂未实现自动续签');
+    }
 
     function createThreadWorker(account) {
         const worker = new WorkerThread(workerScriptPath, {
@@ -104,6 +154,15 @@ function createWorkerManager(options) {
             disconnectedSince: 0,
             autoDeleteTriggered: false,
             wsError: null,
+            authRefreshing: false,
+            account: {
+                id: account.id,
+                name: account.name,
+                platform: account.platform,
+                uin: account.uin || account.qq || '',
+                qq: account.qq || '',
+                code: account.code || '',
+            },
         };
 
         try {
@@ -252,6 +311,7 @@ function createWorkerManager(options) {
                     if (worker.nick !== newNick) {
                         const oldNick = worker.nick;
                         worker.nick = newNick;
+                        if (worker.account) worker.account.name = newNick;
                         addOrUpdateAccount({
                             id: accountId,
                             nick: newNick,
@@ -346,6 +406,55 @@ function createWorkerManager(options) {
                 });
             } catch { }
             if (code === 400) {
+                const accountSnapshot = worker.account ? { ...worker.account, id: accountId, name: worker.name } : null;
+                if (accountSnapshot && isWechatPlatform(accountSnapshot.platform) && looksLikeWxId(accountSnapshot.uin) && !worker.authRefreshing) {
+                    worker.authRefreshing = true;
+                    log('系统', `账号 ${worker.name} 微信授权已失效，尝试自动续签...`, {
+                        accountId: String(accountId),
+                        accountName: worker.name,
+                    });
+                    void (async () => {
+                        try {
+                            const refreshedAccount = await refreshWechatAuthCode(accountSnapshot);
+                            worker.account = {
+                                ...worker.account,
+                                ...refreshedAccount,
+                            };
+                            worker.wsError = null;
+                            addOrUpdateAccount({
+                                id: accountId,
+                                code: refreshedAccount.code,
+                                uin: refreshedAccount.uin,
+                                qq: refreshedAccount.qq || '',
+                                wsError: null,
+                                running: false,
+                            });
+                            addAccountLog(
+                                'auth_refresh',
+                                `账号 ${worker.name} 自动续签微信授权成功`,
+                                accountId,
+                                worker.name,
+                            );
+                            restartWorker(refreshedAccount);
+                        } catch (refreshErr) {
+                            addAccountLog(
+                                'ws_400',
+                                `账号 ${worker.name} 登录失效，请更新 Code`,
+                                accountId,
+                                worker.name,
+                            );
+                            log('系统', `账号 ${worker.name} 微信自动续签失败: ${refreshErr.message}`, {
+                                accountId: String(accountId),
+                                accountName: worker.name,
+                            });
+                            stopWorker(accountId);
+                        } finally {
+                            const current = workers[accountId];
+                            if (current) current.authRefreshing = false;
+                        }
+                    })();
+                    return;
+                }
                 addAccountLog(
                     'ws_400',
                     `账号 ${worker.name} 登录失效，请更新 Code`,

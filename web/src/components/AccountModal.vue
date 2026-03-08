@@ -120,13 +120,6 @@ async function loadQRCode() {
   if (activeTab.value !== 'qr')
     return
 
-  // 如果是 QQ 平台，必须要有 QQ 号
-  if (qrPlatform.value === 'qq' && !qrUin.value.trim()) {
-    qrStatus.value = 'QQ扫码依赖第三方服务，需先输入待登录的QQ号码'
-    qrData.value = null
-    return
-  }
-
   stopQRCheck() // 先停掉旧的轮询
   loading.value = true
   qrData.value = null
@@ -235,6 +228,12 @@ async function submitManual() {
   if (match && match[1]) {
     code = decodeURIComponent(match[1])
     form.code = code // Update UI
+  }
+
+  const qqTempCodeMatch = code.match(/qqq\/code\/([a-f0-9]{32})/i)
+  if (form.platform === 'qq' && qqTempCodeMatch) {
+    errorMessage.value = '这是 QQ 扫码临时登录链接，请直接使用“扫码登录”完成授权，不要手动粘贴该链接'
+    return
   }
 
   const payload = {
@@ -363,20 +362,19 @@ watch(() => props.show, (newVal) => {
           </div>
           <div class="w-full text-center">
             <p class="glass-text-muted text-sm">
-              扫码默认使用登录平台昵称
+              扫码默认使用登录平台昵称，QQ 默认走官方免 UIN 通道
             </p>
           </div>
 
           <div v-if="qrPlatform === 'qq'" class="w-full">
             <BaseInput
               v-model="qrUin"
-              placeholder="请输入准备登录的QQ号码"
+              placeholder="可选：仅当第三方回退要求时再填写 QQ 号"
             />
             <BaseButton
               v-if="!qrData"
               variant="primary"
               class="mt-2 w-full"
-              :disabled="!qrUin"
               :loading="loading"
               @click="loadQRCode"
             >

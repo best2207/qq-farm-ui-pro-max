@@ -11,7 +11,7 @@
 services:
   # ========== 主应用（Node.js + Vue 前端）==========
   qq-farm-bot:
-    image: smdk000/qq-farm-bot-ui:latest
+    image: ${APP_IMAGE:-smdk000/qq-farm-bot-ui:latest}
     container_name: qq-farm-bot
     restart: unless-stopped
 
@@ -76,7 +76,7 @@ services:
 
   # ========== MySQL 8.0 数据库 ==========
   mysql:
-    image: mysql:8.0
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     container_name: qq-farm-mysql
     restart: unless-stopped
 
@@ -122,7 +122,7 @@ services:
 
   # ========== Redis 7 缓存 ==========
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: qq-farm-redis
     restart: unless-stopped
 
@@ -161,7 +161,7 @@ services:
 
   # ========== Ipad860 微信协议服务（Go）==========
   ipad860:
-    image: smdk000/ipad860:latest
+    image: ${IPAD860_IMAGE:-smdk000/ipad860:latest}
     # 注意：.so 共享库仅有 x86-64 版本
     platform: linux/amd64
     container_name: qq-farm-ipad860

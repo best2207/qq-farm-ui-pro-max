@@ -360,6 +360,9 @@ async function startBot(config) {
     if (resolvedPlatform === 'qq' && /[a-z]/i.test(uStr)) {
         resolvedPlatform = 'wx_car';
     }
+    if (resolvedPlatform === 'qq' && !uStr.trim()) {
+        log('系统', 'QQ账号未提供UIN，按仅 Code 兼容模式继续尝试登录');
+    }
     CONFIG.platform = resolvedPlatform;
     if (config.farmInterval) {
         CONFIG.farmCheckInterval = config.farmInterval;

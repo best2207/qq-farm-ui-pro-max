@@ -27,10 +27,29 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 脚本会自动：
 
 - 安装或检查 Docker / Docker Compose
-- 检查 Web 端口占用
-- 在 `/opt/YYYY_MM_DD/qq-farm-bot` 创建部署目录
-- 下载 `docker-compose.yml`、`.env.example`、初始化 SQL、更新脚本
+- 检查 Web 端口占用，必要时切换到新的可用端口
+- 在 `/opt/YYYY_MM_DD/qq-farm-bot` 创建部署目录，并维护 `/opt/qq-farm-bot-current` 当前版本链接
+- 下载 `docker-compose.yml`、`.env.example`、初始化 SQL、README、一键部署/更新脚本
 - 启动全部 4 个容器并等待健康检查
+- 官方源拉取失败时自动切换镜像源并回 tag 到正式镜像名
+- 业务镜像仍不可拉取时，自动下载 GitHub 源码包并在服务器本地构建
+
+无交互部署示例：
+
+```bash
+WEB_PORT=3080 ADMIN_PASSWORD='你的强密码' NON_INTERACTIVE=1 \
+bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh)
+```
+
+可选镜像配置（写入 `.env`）：
+
+```bash
+APP_IMAGE=smdk000/qq-farm-bot-ui:latest
+MYSQL_IMAGE=mysql:8.0
+REDIS_IMAGE=redis:7-alpine
+IPAD860_IMAGE=smdk000/ipad860:latest
+IMAGE_MIRROR_PREFIXES=docker.m.daocloud.io,dockerpull.com,docker.1panel.live
+```
 
 ### 手动部署
 
@@ -43,14 +62,15 @@ cp /path/to/deploy/.env.example .env
 mkdir -p init-db
 cp /path/to/deploy/init-db/01-init.sql init-db/
 cp /path/to/scripts/deploy/update-app.sh .
+cp /path/to/scripts/deploy/fresh-install.sh .
+cp /path/to/scripts/deploy/quick-deploy.sh .
 chmod +x update-app.sh
+chmod +x fresh-install.sh quick-deploy.sh
 
 # 按需修改密码、端口、第三方扫码参数
 vi .env
 
-docker compose pull
-docker compose up -d
-docker compose ps
+bash fresh-install.sh --non-interactive
 ```
 
 ## 场景 2：已部署环境只更新主程序
@@ -60,17 +80,14 @@ docker compose ps
 ### 一键更新
 
 ```bash
-cd /opt/YYYY_MM_DD/qq-farm-bot
-./update-app.sh
+/opt/qq-farm-bot-current/update-app.sh
 ```
 
 ### 手动更新
 
 ```bash
-cd /opt/YYYY_MM_DD/qq-farm-bot
-docker compose pull qq-farm-bot
-docker compose up -d --no-deps qq-farm-bot
-docker compose ps
+cd /opt/qq-farm-bot-current
+bash update-app.sh
 ```
 
 ## 验证部署

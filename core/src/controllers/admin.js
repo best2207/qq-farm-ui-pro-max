@@ -40,6 +40,16 @@ let server = null;
 let provider = null; // DataProvider
 let io = null;
 
+async function getAccountsSnapshot(options = {}) {
+    if (typeof store.getAccountsFresh === 'function') {
+        return await store.getAccountsFresh(options);
+    }
+    if (typeof store.getAccounts === 'function') {
+        return await store.getAccounts();
+    }
+    return { accounts: [] };
+}
+
 function emitRealtimeStatus(accountId, status) {
     if (!io) return;
     const id = String(accountId || '').trim();
@@ -210,7 +220,7 @@ function startAdminServer(dataProvider) {
             return next();
         }
 
-        const allAccounts = await store.getAccounts();
+        const allAccounts = await getAccountsSnapshot();
         const account = allAccounts.accounts.find(a => String(a.id) === String(accountId));
 
         if (!account) {
@@ -385,7 +395,7 @@ function startAdminServer(dataProvider) {
 
             // 数据隔离：非管理员只能查看自己账号的系统日志
             if (req.currentUser && req.currentUser.role !== 'admin') {
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const userAccountIds = allAccounts.accounts
                     .filter(a => a.username === req.currentUser.username)
                     .map(a => String(a.id));
@@ -542,7 +552,7 @@ function startAdminServer(dataProvider) {
         } catch {
             // ignore provider failures
         }
-        const data = store.getAccounts ? await store.getAccounts() : { accounts: [] };
+        const data = await getAccountsSnapshot();
         return Array.isArray(data.accounts) ? data.accounts : [];
     };
 
@@ -1091,7 +1101,7 @@ function startAdminServer(dataProvider) {
             // 从完整配置快照中提取工作流编排配置
             const fullSnapshot = store.getConfigSnapshot(id);
             const workflowConfig = fullSnapshot.workflowConfig || { farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] }, friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] } };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, stakeoutSteal, workflowConfig, ui, offlineReminder } });
+            res.json({ ok: true, data: { intervals, strategy, plantingStrategy: strategy, preferredSeed, preferredSeedId: preferredSeed, friendQuietHours, automation, stakeoutSteal, workflowConfig, ui, offlineReminder } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
@@ -1199,7 +1209,7 @@ function startAdminServer(dataProvider) {
 
             // 如果是新增请求，拦截并检查是否已存在相同 UIN 和 platform 的账号，如果是，则转为更新操作以避免重复创建
             if (!body.id && body.uin && body.platform) {
-                const existingAccounts = await store.getAccounts();
+                const existingAccounts = await getAccountsSnapshot();
                 const duplicateEntry = (existingAccounts.accounts || []).find(
                     a => String(a.uin) === String(body.uin) && a.platform === body.platform
                 );
@@ -1218,12 +1228,12 @@ function startAdminServer(dataProvider) {
             const payload = isUpdate ? { ...body, id: resolvedUpdateId || String(body.id) } : body;
             let wasRunning = false;
             if (isUpdate && provider.isAccountRunning) {
-                wasRunning = provider.isAccountRunning(payload.id);
+                wasRunning = await provider.isAccountRunning(payload.id);
             }
 
             // 体验卡用户账号数限制校验（仅新增时）
             if (!isUpdate && req.currentUser && req.currentUser.maxAccounts > 0) {
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const userAccounts = (allAccounts.accounts || []).filter(a => a.username === req.currentUser.username);
                 if (userAccounts.length >= req.currentUser.maxAccounts) {
                     return res.status(400).json({ ok: false, error: `体验卡用户最多绑定 ${req.currentUser.maxAccounts} 个账号` });
@@ -1232,7 +1242,7 @@ function startAdminServer(dataProvider) {
 
             // 更新时的所有权校验及防篡改防御
             if (isUpdate && req.currentUser && req.currentUser.role !== 'admin') {
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const existingAccount = (allAccounts.accounts || []).find(a => String(a.id) === payload.id);
                 if (!existingAccount || existingAccount.username !== req.currentUser.username) {
                     return res.status(403).json({ ok: false, error: '无权修改此账号' });
@@ -1244,15 +1254,17 @@ function startAdminServer(dataProvider) {
             if (String(payload.platform || '') === 'qq') {
                 let resolvedUin = String(payload.uin || payload.qq || '').trim();
                 if (!resolvedUin && isUpdate) {
-                    const allAccounts = await store.getAccounts();
+                    const allAccounts = await getAccountsSnapshot();
                     const existingAccount = (allAccounts.accounts || []).find(a => String(a.id) === String(payload.id));
                     resolvedUin = String((existingAccount && (existingAccount.uin || existingAccount.qq)) || '').trim();
                 }
-                if (!resolvedUin) {
-                    return res.status(400).json({ ok: false, error: 'QQ账号必须提供QQ号(UIN)' });
+                if (resolvedUin) {
+                    payload.uin = resolvedUin;
+                    payload.qq = resolvedUin;
+                } else {
+                    delete payload.uin;
+                    delete payload.qq;
                 }
-                payload.uin = resolvedUin;
-                payload.qq = resolvedUin;
             }
 
             // 强制将数据与操作者绑定 (admin可以选择不绑定留作公用，但这里简化直接记录创建者)
@@ -1717,7 +1729,7 @@ function startAdminServer(dataProvider) {
 
             // 数据隔离：如果不是 admin，且日志没有明确的 accountId (无法过滤)，或者 accountId 不在允许的列表中，则过滤
             if (req.currentUser && req.currentUser.role !== 'admin') {
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const userOwnedAccountIds = allAccounts.accounts
                     .filter(a => a.username === req.currentUser.username)
                     .map(a => String(a.id));
@@ -1740,7 +1752,7 @@ function startAdminServer(dataProvider) {
 
         // 数据隔离校验
         if (req.currentUser && req.currentUser.role !== 'admin') {
-            const allAccounts = await store.getAccounts();
+            const allAccounts = await getAccountsSnapshot();
             const userAccountIds = allAccounts.accounts
                 .filter(a => a.username === req.currentUser.username)
                 .map(a => String(a.id));
@@ -1770,7 +1782,7 @@ function startAdminServer(dataProvider) {
 
         // 兜底过滤: 如果 targetId 为空 (用户查询所有，但其实普通用户应该受限)
         if (!targetId && req.currentUser && req.currentUser.role !== 'admin') {
-            const allAccounts = await store.getAccounts();
+            const allAccounts = await getAccountsSnapshot();
             const userAccountIds = allAccounts.accounts
                 .filter(a => a.username === req.currentUser.username)
                 .map(a => String(a.id));
@@ -1837,9 +1849,6 @@ function startAdminServer(dataProvider) {
         const { platform = 'qq', uin = '' } = req.body || {};
         const trimmedUin = String(uin || '').trim();
         try {
-            if (platform === 'qq' && !trimmedUin) {
-                return res.status(400).json({ ok: false, error: 'QQ扫码必须提供待登录QQ号' });
-            }
             // ========== Ipad860 iPad/车机 微信协议直连 ==========
             if (platform === 'wx_ipad' || platform === 'wx_car') {
                 const thirdPartyCfg = store.getThirdPartyApiConfig();
@@ -1922,9 +1931,6 @@ function startAdminServer(dataProvider) {
         }
 
         try {
-            if (platform === 'qq' && !trimmedUin) {
-                return res.status(400).json({ ok: false, error: 'QQ扫码必须提供待登录QQ号' });
-            }
             // ========== Ipad860 iPad/车机 微信协议检测 ==========
             if (platform === 'wx_ipad' || platform === 'wx_car') {
                 const thirdPartyCfg = store.getThirdPartyApiConfig();
@@ -2134,7 +2140,10 @@ function startAdminServer(dataProvider) {
                     const nickname = result.nickname || '';
                     const appid = '1112386029';
 
-                    const authCode = await MiniProgramLoginSession.getAuthCode(ticket, appid);
+                    const authCode = result.authCode || await MiniProgramLoginSession.getAuthCode(ticket, appid);
+                    if (!authCode) {
+                        return res.json({ ok: true, data: { status: 'Error', error: '获取 QQ 授权码失败，请重新扫码' } });
+                    }
                     console.log(`[QR登录] 代理登录成功, authCode=${authCode ? `${authCode.substring(0, 20)}...` : '空'}`);
 
                     let avatar = '';
@@ -2187,7 +2196,7 @@ function startAdminServer(dataProvider) {
                 if (resolved) {
                     let allow = true;
                     if (currentUser && currentUser.role !== 'admin') {
-                        const allAccounts = await store.getAccounts();
+                        const allAccounts = await getAccountsSnapshot();
                         const account = allAccounts.accounts.find(a => String(a.id) === String(resolved));
                         if (!account || account.username !== currentUser.username) {
                             allow = false;
@@ -2223,7 +2232,7 @@ function startAdminServer(dataProvider) {
             // 请求订阅特定账号，检查权限
             let allow = true;
             if (currentUser && currentUser.role !== 'admin') {
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const account = allAccounts.accounts.find(a => String(a.id) === String(resolved));
                 if (!account || account.username !== currentUser.username) {
                     allow = false; // 无权订阅别人的
@@ -2247,7 +2256,7 @@ function startAdminServer(dataProvider) {
                 socket.emit('subscribed', { accountId: 'all' });
             } else {
                 // 普通用户订阅 "all"，实际上只能订阅他名下的所有号
-                const allAccounts = await store.getAccounts();
+                const allAccounts = await getAccountsSnapshot();
                 const userOwnedAccountIds = allAccounts.accounts
                     .filter(a => a.username === currentUser.username)
                     .map(a => String(a.id));
@@ -2268,7 +2277,7 @@ function startAdminServer(dataProvider) {
                 // 这里针对 websocket 连接建立时的初始全量快照也需要削减，防止 Vue 渲染时因为数千 DOM 产生卡顿
                 let currentLogs = await provider.getLogs(targetId, { limit: 40 });
                 if (!targetId && currentUser && currentUser.role !== 'admin') {
-                    const allAccounts = await store.getAccounts();
+                    const allAccounts = await getAccountsSnapshot();
                     const userAccountIds = allAccounts.accounts
                         .filter(a => a.username === currentUser.username)
                         .map(a => String(a.id));
@@ -2283,7 +2292,7 @@ function startAdminServer(dataProvider) {
                 // 用于账号管理界面的初始日志，同样降低获取数
                 let currentAccountLogs = provider.getAccountLogs(40);
                 if (!targetId && currentUser && currentUser.role !== 'admin') {
-                    const allAccounts = await store.getAccounts();
+                    const allAccounts = await getAccountsSnapshot();
                     const userAccountIds = allAccounts.accounts
                         .filter(a => a.username === currentUser.username)
                         .map(a => String(a.id));

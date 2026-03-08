@@ -109,8 +109,29 @@ function createDataProvider(options) {
                 throw new Error('Missing x-account-id');
             }
             const body = (payload && typeof payload === 'object') ? payload : {};
+            const automation = (body.automation && typeof body.automation === 'object') ? body.automation : {};
             const plantingStrategy = (body.plantingStrategy !== undefined) ? body.plantingStrategy : body.strategy;
-            const preferredSeedId = (body.preferredSeedId !== undefined) ? body.preferredSeedId : body.seedId;
+            const preferredSeedId = (body.preferredSeedId !== undefined)
+                ? body.preferredSeedId
+                : (body.preferredSeed !== undefined ? body.preferredSeed : body.seedId);
+            const derivedStealFilter = body.stealFilter !== undefined
+                ? body.stealFilter
+                : ((automation.stealFilterEnabled !== undefined || automation.stealFilterMode !== undefined || automation.stealFilterPlantIds !== undefined)
+                    ? {
+                            enabled: !!automation.stealFilterEnabled,
+                            mode: automation.stealFilterMode === 'whitelist' ? 'whitelist' : 'blacklist',
+                            plantIds: Array.isArray(automation.stealFilterPlantIds) ? automation.stealFilterPlantIds.map(String) : [],
+                        }
+                    : undefined);
+            const derivedStealFriendFilter = body.stealFriendFilter !== undefined
+                ? body.stealFriendFilter
+                : ((automation.stealFriendFilterEnabled !== undefined || automation.stealFriendFilterMode !== undefined || automation.stealFriendFilterIds !== undefined)
+                    ? {
+                            enabled: !!automation.stealFriendFilterEnabled,
+                            mode: automation.stealFriendFilterMode === 'whitelist' ? 'whitelist' : 'blacklist',
+                            friendIds: Array.isArray(automation.stealFriendFilterIds) ? automation.stealFriendFilterIds.map(String) : [],
+                        }
+                    : undefined);
             const snapshot = {
                 plantingStrategy,
                 preferredSeedId,
@@ -120,14 +141,20 @@ function createDataProvider(options) {
             if (body.automation !== undefined) {
                 snapshot.automation = body.automation;
             }
-            if (body.stealFilter !== undefined) {
-                snapshot.stealFilter = body.stealFilter;
+            if (derivedStealFilter !== undefined) {
+                snapshot.stealFilter = derivedStealFilter;
             }
-            if (body.stealFriendFilter !== undefined) {
-                snapshot.stealFriendFilter = body.stealFriendFilter;
+            if (derivedStealFriendFilter !== undefined) {
+                snapshot.stealFriendFilter = derivedStealFriendFilter;
             }
             if (body.stakeoutSteal !== undefined) {
                 snapshot.stakeoutSteal = body.stakeoutSteal;
+            }
+            if (automation.skipStealRadishEnabled !== undefined) {
+                snapshot.skipStealRadish = { enabled: !!automation.skipStealRadishEnabled };
+            }
+            if (automation.forceGetAllEnabled !== undefined) {
+                snapshot.forceGetAll = { enabled: !!automation.forceGetAllEnabled };
             }
             if (body.workflowConfig !== undefined) {
                 snapshot.workflowConfig = body.workflowConfig;
@@ -137,7 +164,9 @@ function createDataProvider(options) {
             broadcastConfigToWorkers(accountId);
             return {
                 strategy: store.getPlantingStrategy(accountId),
+                plantingStrategy: store.getPlantingStrategy(accountId),
                 preferredSeed: store.getPreferredSeed(accountId),
+                preferredSeedId: store.getPreferredSeed(accountId),
                 intervals: store.getIntervals(accountId),
                 friendQuietHours: store.getFriendQuietHours(accountId),
                 configRevision: rev,
@@ -206,7 +235,7 @@ function createDataProvider(options) {
             if (store && typeof store.getAccountFull === 'function') {
                 const fullAcc = await store.getAccountFull(acc.id);
                 if (fullAcc) {
-                    acc = { ...acc, ...fullAcc };
+                    acc = { ...fullAcc, ...acc };
                 }
             }
             startWorker(acc);
@@ -229,7 +258,7 @@ function createDataProvider(options) {
             if (store && typeof store.getAccountFull === 'function') {
                 const fullAcc = await store.getAccountFull(acc.id);
                 if (fullAcc) {
-                    acc = { ...acc, ...fullAcc };
+                    acc = { ...fullAcc, ...acc };
                 }
             }
             restartWorker(acc);
