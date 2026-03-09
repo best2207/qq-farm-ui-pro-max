@@ -121,18 +121,45 @@ CREATE TABLE IF NOT EXISTS `account_plant_filter` (
 CREATE TABLE IF NOT EXISTS `cards` (
     `id` INT NOT NULL AUTO_INCREMENT,
     `code` VARCHAR(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `batch_no` VARCHAR(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `batch_name` VARCHAR(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `type` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL,
     `description` TEXT COLLATE utf8mb4_unicode_ci,
     `days` INT DEFAULT NULL,
+    `source` VARCHAR(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual',
+    `channel` VARCHAR(64) COLLATE utf8mb4_unicode_ci DEFAULT '',
+    `note` TEXT COLLATE utf8mb4_unicode_ci,
+    `created_by` VARCHAR(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `used_by` INT DEFAULT NULL,
     `used_at` DATETIME DEFAULT NULL,
     `enabled` TINYINT(1) DEFAULT '1',
     `expires_at` DATETIME DEFAULT NULL,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `code` (`code`),
+    KEY `idx_cards_batch_no` (`batch_no`),
+    KEY `idx_cards_source_enabled` (`source`, `enabled`),
+    KEY `idx_cards_created_by` (`created_by`),
     KEY `used_by` (`used_by`),
     CONSTRAINT `cards_ibfk_1` FOREIGN KEY (`used_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `card_operation_logs` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `card_id` INT DEFAULT NULL,
+    `card_code` VARCHAR(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `action` VARCHAR(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `operator` VARCHAR(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `target_username` VARCHAR(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `remark` VARCHAR(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `before_snapshot` JSON DEFAULT NULL,
+    `after_snapshot` JSON DEFAULT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_card_operation_logs_card_code` (`card_code`),
+    KEY `idx_card_operation_logs_action_created` (`action`, `created_at`),
+    KEY `idx_card_operation_logs_target_created` (`target_username`, `created_at`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `config_audit_log` (

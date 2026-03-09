@@ -229,12 +229,33 @@ apply_schema_repairs() {
     ensure_column "cards" "days" \
         "ALTER TABLE cards ADD COLUMN days INT DEFAULT NULL AFTER description" \
         "cards.days"
+    ensure_column "cards" "batch_no" \
+        "ALTER TABLE cards ADD COLUMN batch_no VARCHAR(64) DEFAULT NULL AFTER code" \
+        "cards.batch_no"
+    ensure_column "cards" "batch_name" \
+        "ALTER TABLE cards ADD COLUMN batch_name VARCHAR(100) DEFAULT NULL AFTER batch_no" \
+        "cards.batch_name"
+    ensure_column "cards" "source" \
+        "ALTER TABLE cards ADD COLUMN source VARCHAR(32) NOT NULL DEFAULT 'manual' AFTER days" \
+        "cards.source"
+    ensure_column "cards" "channel" \
+        "ALTER TABLE cards ADD COLUMN channel VARCHAR(64) DEFAULT '' AFTER source" \
+        "cards.channel"
+    ensure_column "cards" "note" \
+        "ALTER TABLE cards ADD COLUMN note TEXT DEFAULT NULL AFTER channel" \
+        "cards.note"
+    ensure_column "cards" "created_by" \
+        "ALTER TABLE cards ADD COLUMN created_by VARCHAR(100) DEFAULT NULL AFTER note" \
+        "cards.created_by"
     ensure_column "cards" "used_at" \
         "ALTER TABLE cards ADD COLUMN used_at DATETIME DEFAULT NULL AFTER used_by" \
         "cards.used_at"
     ensure_column "cards" "expires_at" \
         "ALTER TABLE cards ADD COLUMN expires_at DATETIME DEFAULT NULL AFTER enabled" \
         "cards.expires_at"
+    ensure_column "cards" "updated_at" \
+        "ALTER TABLE cards ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at" \
+        "cards.updated_at"
     ensure_column "announcements" "version" \
         "ALTER TABLE announcements ADD COLUMN version VARCHAR(50) DEFAULT '' AFTER title" \
         "announcements.version"
@@ -245,6 +266,21 @@ apply_schema_repairs() {
     if [ "$(index_exists "accounts" "idx_accounts_username")" = "0" ]; then
         print_info "补齐 accounts.username 索引"
         mysql_exec "ALTER TABLE accounts ADD INDEX idx_accounts_username (username)"
+    fi
+
+    if [ "$(index_exists "cards" "idx_cards_batch_no")" = "0" ]; then
+        print_info "补齐 cards.batch_no 索引"
+        mysql_exec "ALTER TABLE cards ADD INDEX idx_cards_batch_no (batch_no)"
+    fi
+
+    if [ "$(index_exists "cards" "idx_cards_source_enabled")" = "0" ]; then
+        print_info "补齐 cards.source/enabled 索引"
+        mysql_exec "ALTER TABLE cards ADD INDEX idx_cards_source_enabled (source, enabled)"
+    fi
+
+    if [ "$(index_exists "cards" "idx_cards_created_by")" = "0" ]; then
+        print_info "补齐 cards.created_by 索引"
+        mysql_exec "ALTER TABLE cards ADD INDEX idx_cards_created_by (created_by)"
     fi
 
     if [ "$(constraint_exists "accounts" "fk_accounts_username")" = "0" ]; then
@@ -265,6 +301,9 @@ apply_schema_repairs() {
         END
         WHERE days IS NULL
     "
+    mysql_exec "UPDATE cards SET source = 'manual' WHERE source IS NULL OR source = ''"
+    mysql_exec "UPDATE cards SET channel = '' WHERE channel IS NULL"
+    mysql_exec "UPDATE cards SET updated_at = created_at WHERE updated_at IS NULL"
     mysql_exec "UPDATE cards SET used_at = created_at WHERE used_by IS NOT NULL AND used_at IS NULL"
 
     if [ "$(table_exists "cards")" = "1" ]; then

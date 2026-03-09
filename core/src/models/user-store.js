@@ -155,7 +155,17 @@ async function createTrialCard(clientIP) {
     // 生成体验卡
     const days = config.days || 1;
     const trialCode = generateTrialCardCode();
-    const card = await createCard('体验卡（自动生成）', CARD_TYPES.TRIAL, days, trialCode);
+    const card = await createCard({
+        description: '体验卡（自动生成）',
+        type: CARD_TYPES.TRIAL,
+        days,
+        forcedCode: trialCode,
+        source: 'trial_public',
+        channel: 'public-register',
+        note: `IP ${clientIP} 自动发放体验卡`,
+        createdBy: 'system',
+        operator: 'system',
+    });
 
     // 更新 IP 缓存和日计数
     trialCardIPMap.set(clientIP, { lastCreatedAt: now });
@@ -193,11 +203,21 @@ async function renewTrialUser(username, callerRole) {
     // 自动生成体验卡 → 续费
     const days = config.days || 1;
     const trialCode = generateTrialCardCode();
-    const newCard = await createCard('体验卡续费（自动）', CARD_TYPES.TRIAL, days, trialCode);
+    const newCard = await createCard({
+        description: '体验卡续费（自动）',
+        type: CARD_TYPES.TRIAL,
+        days,
+        forcedCode: trialCode,
+        source: 'trial_renew',
+        channel: callerRole === 'admin' ? 'admin-renew' : 'self-renew',
+        note: `${callerRole === 'admin' ? '管理员' : '用户自助'}续费体验卡`,
+        createdBy: callerRole === 'admin' ? 'admin' : username,
+        operator: callerRole === 'admin' ? 'admin' : username,
+    });
     const result = await renewUser(username, newCard.code);
     if (!result.ok) {
         try {
-            await deleteCard(newCard.code);
+            await deleteCard(newCard.code, 'system');
         } catch (cleanupError) {
             console.error('体验卡续费失败后的回滚清理失败:', cleanupError.message);
         }
@@ -210,6 +230,267 @@ let cards = [];
 
 function normalizeCardDays(days, type) {
     return Number.isFinite(Number(days)) ? Number(days) : getDefaultDaysForType(type);
+}
+
+function normalizeCardText(value, maxLength = 255) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+    return String(value).trim().slice(0, maxLength);
+}
+
+function normalizeCardNullableText(value, maxLength = 255) {
+    const text = normalizeCardText(value, maxLength);
+    return text || null;
+}
+
+function normalizeCardSource(source) {
+    const normalized = normalizeCardText(source, 32).toLowerCase();
+    return normalized || 'manual';
+}
+
+function normalizeCardChannel(channel) {
+    return normalizeCardText(channel, 64);
+}
+
+function normalizeCardDescription(description) {
+    return normalizeCardText(description, 255);
+}
+
+function normalizeCardNote(note) {
+    if (note === undefined || note === null) {
+        return '';
+    }
+    return String(note).trim().slice(0, 2000);
+}
+
+function normalizeCardDaysByType(days, type) {
+    if (type === CARD_TYPES.FOREVER) {
+        return null;
+    }
+
+    const parsed = Number.parseInt(days, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+    }
+    return getDefaultDaysForType(type);
+}
+
+function generateCardBatchNo() {
+    const now = new Date();
+    const stamp = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
+    return `B${stamp}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+}
+
+function parseLogJson(value) {
+    if (!value) {
+        return null;
+    }
+    if (typeof value === 'object') {
+        return value;
+    }
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+}
+
+function buildCardSnapshot(card) {
+    return {
+        code: card.code,
+        batchNo: card.batchNo || null,
+        batchName: card.batchName || null,
+        type: card.type,
+        days: card.days ?? null,
+        description: card.description || '',
+        source: card.source || 'manual',
+        channel: card.channel || '',
+        note: card.note || '',
+        createdBy: card.createdBy || null,
+        enabled: !!card.enabled,
+        usedBy: card.usedBy || null,
+        usedAt: card.usedAt || null,
+        expiresAt: card.expiresAt || null,
+        createdAt: card.createdAt || null,
+        updatedAt: card.updatedAt || null,
+    };
+}
+
+function getCardStatusKey(card, now = Date.now()) {
+    if (card.usedBy) {
+        if (card.expiresAt && card.expiresAt <= now) {
+            return 'used_expired';
+        }
+        if (card.type === CARD_TYPES.FOREVER || !card.expiresAt) {
+            return 'used_forever';
+        }
+        if (card.expiresAt - now <= 7 * 24 * 60 * 60 * 1000) {
+            return 'used_expiring';
+        }
+        return 'used_active';
+    }
+
+    return card.enabled ? 'unused' : 'disabled';
+}
+
+function getCardStatusMeta(card, now = Date.now()) {
+    const key = getCardStatusKey(card, now);
+    const meta = {
+        unused: { label: '待使用', tone: 'blue' },
+        disabled: { label: '已禁用', tone: 'gray' },
+        used_active: { label: '已使用', tone: 'green' },
+        used_expiring: { label: '即将到期', tone: 'amber' },
+        used_expired: { label: '已过期', tone: 'red' },
+        used_forever: { label: '永久生效', tone: 'purple' },
+    }[key] || { label: key, tone: 'gray' };
+
+    return { key, ...meta };
+}
+
+function decorateCard(card, now = Date.now()) {
+    const status = getCardStatusMeta(card, now);
+    return {
+        ...card,
+        status: status.key,
+        statusLabel: status.label,
+        statusTone: status.tone,
+        isUsed: !!card.usedBy,
+        isExpired: status.key === 'used_expired',
+        canDelete: !card.usedBy,
+        canToggleEnabled: !card.usedBy,
+        canEditType: !card.usedBy,
+    };
+}
+
+function buildCardSummary(cardList) {
+    const summary = {
+        total: cardList.length,
+        unused: 0,
+        disabled: 0,
+        used: 0,
+        usedActive: 0,
+        usedExpiring: 0,
+        usedExpired: 0,
+        usedForever: 0,
+        trial: 0,
+        permanent: 0,
+        batches: new Set(),
+        sources: new Set(),
+        creators: new Set(),
+    };
+
+    for (const card of cardList) {
+        if (card.batchNo) {
+            summary.batches.add(card.batchNo);
+        }
+        if (card.source) {
+            summary.sources.add(card.source);
+        }
+        if (card.createdBy) {
+            summary.creators.add(card.createdBy);
+        }
+
+        if (card.type === CARD_TYPES.TRIAL) {
+            summary.trial++;
+        }
+        if (card.type === CARD_TYPES.FOREVER) {
+            summary.permanent++;
+        }
+
+        switch (card.status || getCardStatusKey(card)) {
+            case 'unused':
+                summary.unused++;
+                break;
+            case 'disabled':
+                summary.disabled++;
+                break;
+            case 'used_expiring':
+                summary.used++;
+                summary.usedExpiring++;
+                break;
+            case 'used_expired':
+                summary.used++;
+                summary.usedExpired++;
+                break;
+            case 'used_forever':
+                summary.used++;
+                summary.usedForever++;
+                break;
+            case 'used_active':
+                summary.used++;
+                summary.usedActive++;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return {
+        total: summary.total,
+        unused: summary.unused,
+        disabled: summary.disabled,
+        used: summary.used,
+        usedActive: summary.usedActive,
+        usedExpiring: summary.usedExpiring,
+        usedExpired: summary.usedExpired,
+        usedForever: summary.usedForever,
+        trial: summary.trial,
+        permanent: summary.permanent,
+        batches: summary.batches.size,
+        sources: Array.from(summary.sources).sort(),
+        creators: Array.from(summary.creators).sort(),
+    };
+}
+
+async function insertCardOperationLog(executor, payload) {
+    await executor.query(
+        `INSERT INTO card_operation_logs
+            (card_id, card_code, action, operator, target_username, remark, before_snapshot, after_snapshot)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            payload.cardId || null,
+            payload.cardCode,
+            payload.action,
+            payload.operator || null,
+            payload.targetUsername || null,
+            payload.remark || null,
+            payload.beforeSnapshot ? JSON.stringify(payload.beforeSnapshot) : null,
+            payload.afterSnapshot ? JSON.stringify(payload.afterSnapshot) : null,
+        ]
+    );
+}
+
+async function getCardLogs(cardCode, limit = 50) {
+    const pool = getPool();
+    const [rows] = await pool.query(
+        `SELECT id, card_id, card_code, action, operator, target_username, remark, before_snapshot, after_snapshot, created_at
+         FROM card_operation_logs
+         WHERE card_code = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT ?`,
+        [cardCode, limit]
+    );
+
+    return rows.map(row => ({
+        id: row.id,
+        cardId: row.card_id,
+        cardCode: row.card_code,
+        action: row.action,
+        operator: row.operator,
+        targetUsername: row.target_username,
+        remark: row.remark,
+        beforeSnapshot: parseLogJson(row.before_snapshot),
+        afterSnapshot: parseLogJson(row.after_snapshot),
+        createdAt: row.created_at ? new Date(row.created_at).getTime() : null,
+    }));
 }
 
 function getCardEffectiveTime(row) {
@@ -339,14 +620,21 @@ async function loadCards() {
         cards = rows.map(r => ({
             id: r.id,
             code: r.code,
+            batchNo: r.batch_no || null,
+            batchName: r.batch_name || null,
             type: r.type,
             typeChar: r.type,
             description: r.description,
             days: normalizeCardDays(r.days, r.type),
+            source: r.source || 'manual',
+            channel: r.channel || '',
+            note: r.note || '',
+            createdBy: r.created_by || null,
             enabled: r.enabled === 1,
             usedBy: r.usedBy,
             usedAt: r.used_at ? new Date(r.used_at).getTime() : null,
             createdAt: new Date(r.created_at).getTime(),
+            updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : new Date(r.created_at).getTime(),
             expiresAt: r.expires_at ? new Date(r.expires_at).getTime() : null
         }));
     } catch (e) { console.error('加载卡密数据失败:', e.message); }
@@ -359,12 +647,38 @@ async function saveCards() {
             for (const c of cards) {
                 if (c.code) {
                     await conn.query(
-                        "INSERT INTO cards (code, type, description, days, enabled, used_by, used_at, expires_at) VALUES (?, ?, ?, ?, ?, (SELECT id FROM users WHERE username = ?), ?, ?) ON DUPLICATE KEY UPDATE description=?, days=?, enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=?",
+                        "INSERT INTO cards (code, batch_no, batch_name, type, description, days, source, channel, note, created_by, enabled, used_by, used_at, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM users WHERE username = ?), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE batch_no=?, batch_name=?, type=?, description=?, days=?, source=?, channel=?, note=?, created_by=?, enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=?, updated_at=?",
                         [
-                            c.code, c.type, c.description || '', c.days || getDefaultDaysForType(c.type), c.enabled ? 1 : 0, c.usedBy || null,
-                            c.usedAt ? new Date(c.usedAt) : null, c.expiresAt ? new Date(c.expiresAt) : null,
-                            c.description || '', c.days || getDefaultDaysForType(c.type), c.enabled ? 1 : 0, c.usedBy || null,
-                            c.usedAt ? new Date(c.usedAt) : null, c.expiresAt ? new Date(c.expiresAt) : null
+                            c.code,
+                            c.batchNo || null,
+                            c.batchName || null,
+                            c.type,
+                            c.description || '',
+                            c.days ?? getDefaultDaysForType(c.type),
+                            c.source || 'manual',
+                            c.channel || '',
+                            c.note || '',
+                            c.createdBy || null,
+                            c.enabled ? 1 : 0,
+                            c.usedBy || null,
+                            c.usedAt ? new Date(c.usedAt) : null,
+                            c.expiresAt ? new Date(c.expiresAt) : null,
+                            c.createdAt ? new Date(c.createdAt) : new Date(),
+                            c.updatedAt ? new Date(c.updatedAt) : new Date(),
+                            c.batchNo || null,
+                            c.batchName || null,
+                            c.type,
+                            c.description || '',
+                            c.days ?? getDefaultDaysForType(c.type),
+                            c.source || 'manual',
+                            c.channel || '',
+                            c.note || '',
+                            c.createdBy || null,
+                            c.enabled ? 1 : 0,
+                            c.usedBy || null,
+                            c.usedAt ? new Date(c.usedAt) : null,
+                            c.expiresAt ? new Date(c.expiresAt) : null,
+                            c.updatedAt ? new Date(c.updatedAt) : new Date()
                         ]
                     );
                 }
@@ -514,6 +828,8 @@ async function registerUser(username, password, cardCode) {
         createdAt: now
     };
 
+    const beforeSnapshot = buildCardSnapshot(card);
+
     await transaction(async (conn) => {
         await conn.query(
             "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
@@ -523,6 +839,22 @@ async function registerUser(username, password, cardCode) {
             "UPDATE cards SET enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=? WHERE code=?",
             [0, username, new Date(now), expiresAt ? new Date(expiresAt) : null, card.code]
         );
+        await insertCardOperationLog(conn, {
+            cardId: card.id,
+            cardCode: card.code,
+            action: 'register_use',
+            operator: username,
+            targetUsername: username,
+            remark: '注册时使用卡密',
+            beforeSnapshot,
+            afterSnapshot: {
+                ...beforeSnapshot,
+                enabled: false,
+                usedBy: username,
+                usedAt: now,
+                expiresAt,
+            },
+        });
     });
 
     users.push(newUser);
@@ -530,6 +862,7 @@ async function registerUser(username, password, cardCode) {
     card.usedAt = now;
     card.enabled = false;
     card.expiresAt = expiresAt;
+    card.updatedAt = now;
 
     // 记录操作日志
     logUserAction('register', username, {
@@ -602,12 +935,29 @@ async function renewUser(username, cardCode) {
     }
 
     const renewDays = card.days || getDefaultDaysForType(card.type);
+    const beforeSnapshot = buildCardSnapshot(card);
 
     await transaction(async (conn) => {
         await conn.query(
             "UPDATE cards SET enabled=?, used_by=(SELECT id FROM users WHERE username = ?), used_at=?, expires_at=? WHERE code=?",
             [0, username, new Date(now), newExpiresAt ? new Date(newExpiresAt) : null, card.code]
         );
+        await insertCardOperationLog(conn, {
+            cardId: card.id,
+            cardCode: card.code,
+            action: 'renew_use',
+            operator: username,
+            targetUsername: username,
+            remark: '续费时使用卡密',
+            beforeSnapshot,
+            afterSnapshot: {
+                ...beforeSnapshot,
+                enabled: false,
+                usedBy: username,
+                usedAt: now,
+                expiresAt: newExpiresAt,
+            },
+        });
     });
 
     user.card.code = card.code;
@@ -626,6 +976,7 @@ async function renewUser(username, cardCode) {
     card.usedAt = now;
     card.enabled = false;
     card.expiresAt = newExpiresAt;
+    card.updatedAt = now;
 
     // 记录操作日志
     logUserAction('renew', username, {
@@ -791,89 +1142,329 @@ async function changeAdminPassword(username, oldPassword, newPassword) {
 
 async function getAllCards() {
     await loadCards();
-    return cards;
+    const decoratedCards = cards
+        .map(card => decorateCard(card))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return decoratedCards;
 }
 
-async function createCard(description, type, days, forcedCode) {
-    await loadCards();
+async function getCardCatalog() {
+    const decoratedCards = await getAllCards();
+    const batchMap = new Map();
 
-    // 验证卡密类型，使用统一枚举
-    if (!isValidCardType(type)) {
-        type = CARD_TYPES.MONTH; // 默认月卡
+    for (const card of decoratedCards) {
+        if (card.batchNo) {
+            batchMap.set(card.batchNo, {
+                value: card.batchNo,
+                label: card.batchName || card.batchNo,
+            });
+        }
     }
 
-    const parsedDays = Number.parseInt(days, 10) || getDefaultDaysForType(type);
+    return {
+        cards: decoratedCards,
+        summary: buildCardSummary(decoratedCards),
+        filterOptions: {
+            sources: Array.from(new Set(decoratedCards.map(card => card.source).filter(Boolean))).sort(),
+            creators: Array.from(new Set(decoratedCards.map(card => card.createdBy).filter(Boolean))).sort(),
+            batches: Array.from(batchMap.values()).sort((a, b) => a.label.localeCompare(b.label, 'zh-CN')),
+        },
+    };
+}
 
-    const newCard = {
-        code: forcedCode || generateCardCode(),
-        description,
-        type,
-        typeChar: type,
-        days: parsedDays,
-        enabled: true,
-        usedBy: null,
-        usedAt: null, // 修正为 usedAt
-        createdAt: Date.now()
+async function getCardDetail(code) {
+    await loadCards();
+    const card = cards.find(item => item.code === code);
+    if (!card) {
+        return null;
+    }
+
+    const detail = decorateCard(card);
+    let logs = [];
+    try {
+        logs = await getCardLogs(code, 50);
+    } catch (error) {
+        console.error('加载卡密操作日志失败:', error.message);
+    }
+
+    return { card: detail, logs };
+}
+
+async function createCardsBatch(payload = {}) {
+    await loadCards();
+
+    let type = payload.type;
+    if (!isValidCardType(type)) {
+        type = CARD_TYPES.MONTH;
+    }
+
+    const count = Math.max(1, Math.min(200, Number.parseInt(payload.count, 10) || 1));
+    const description = normalizeCardDescription(payload.description);
+    const days = normalizeCardDaysByType(payload.days, type);
+    const source = normalizeCardSource(payload.source);
+    const channel = normalizeCardChannel(payload.channel);
+    const note = normalizeCardNote(payload.note);
+    const createdBy = normalizeCardNullableText(payload.createdBy || payload.operator, 100);
+    const batchName = normalizeCardNullableText(payload.batchName, 100);
+    const batchNo = normalizeCardNullableText(payload.batchNo, 64) || (count > 1 || batchName ? generateCardBatchNo() : null);
+    const existingCodes = new Set(cards.map(card => card.code));
+    const now = Date.now();
+
+    const newCards = [];
+    for (let i = 0; i < count; i++) {
+        let code = payload.forcedCode && i === 0 ? String(payload.forcedCode).trim() : '';
+        if (!code) {
+            do {
+                code = generateCardCode();
+            } while (existingCodes.has(code));
+        } else if (existingCodes.has(code)) {
+            throw new Error(`卡密已存在: ${code}`);
+        }
+        existingCodes.add(code);
+
+        newCards.push({
+            code,
+            batchNo,
+            batchName,
+            type,
+            typeChar: type,
+            description,
+            days,
+            source,
+            channel,
+            note,
+            createdBy,
+            enabled: true,
+            usedBy: null,
+            usedAt: null,
+            createdAt: now,
+            updatedAt: now,
+            expiresAt: null,
+        });
+    }
+
+    const pool = getPool();
+    if (pool) {
+        await transaction(async (conn) => {
+            for (const card of newCards) {
+                const [result] = await conn.query(
+                    `INSERT INTO cards
+                        (code, batch_no, batch_name, type, description, days, source, channel, note, created_by, enabled, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        card.code,
+                        card.batchNo,
+                        card.batchName,
+                        card.type,
+                        card.description || '',
+                        card.days,
+                        card.source,
+                        card.channel,
+                        card.note || '',
+                        card.createdBy,
+                        1,
+                        new Date(card.createdAt),
+                        new Date(card.updatedAt),
+                    ]
+                );
+                card.id = result.insertId;
+                await insertCardOperationLog(conn, {
+                    cardId: card.id,
+                    cardCode: card.code,
+                    action: 'create',
+                    operator: payload.operator || createdBy,
+                    remark: count > 1 ? `批量生成 ${count} 张卡密` : '生成卡密',
+                    afterSnapshot: buildCardSnapshot(card),
+                });
+            }
+        });
+    } else {
+        cards.push(...newCards);
+        await saveCards();
+        return newCards.map(card => decorateCard(card));
+    }
+
+    cards.push(...newCards);
+    return newCards.map(card => decorateCard(card));
+}
+
+async function createCard(descriptionOrPayload, type, days, forcedCode, extraPayload = {}) {
+    const payload = typeof descriptionOrPayload === 'object' && descriptionOrPayload !== null
+        ? { ...descriptionOrPayload }
+        : {
+                description: descriptionOrPayload,
+                type,
+                days,
+                forcedCode,
+                ...extraPayload,
+            };
+    const createdCards = await createCardsBatch({ ...payload, count: 1 });
+    return createdCards[0];
+}
+
+async function updateCard(code, updates = {}, operator = null, options = {}) {
+    if (!options.skipLoad) {
+        await loadCards();
+    }
+
+    const card = cards.find(c => c.code === code);
+    if (!card) {
+        return null;
+    }
+
+    const isUsed = !!card.usedBy;
+    if (isUsed && updates.enabled !== undefined && Boolean(updates.enabled) !== card.enabled) {
+        return { ok: false, error: '已使用卡密不可修改启用状态' };
+    }
+    if (isUsed && (updates.type !== undefined || updates.days !== undefined)) {
+        return { ok: false, error: '已使用卡密不可修改类型或时长' };
+    }
+
+    let nextType = updates.type !== undefined ? String(updates.type).trim() : card.type;
+    if (!isValidCardType(nextType)) {
+        nextType = card.type;
+    }
+
+    const beforeSnapshot = buildCardSnapshot(card);
+    const nextCard = {
+        ...card,
+        batchNo: updates.batchNo !== undefined ? normalizeCardNullableText(updates.batchNo, 64) : card.batchNo || null,
+        batchName: updates.batchName !== undefined ? normalizeCardNullableText(updates.batchName, 100) : card.batchName || null,
+        type: nextType,
+        typeChar: nextType,
+        description: updates.description !== undefined ? normalizeCardDescription(updates.description) : card.description,
+        days: updates.days !== undefined || updates.type !== undefined ? normalizeCardDaysByType(updates.days ?? card.days, nextType) : card.days,
+        source: updates.source !== undefined ? normalizeCardSource(updates.source) : card.source || 'manual',
+        channel: updates.channel !== undefined ? normalizeCardChannel(updates.channel) : card.channel || '',
+        note: updates.note !== undefined ? normalizeCardNote(updates.note) : card.note || '',
+        createdBy: updates.createdBy !== undefined ? normalizeCardNullableText(updates.createdBy, 100) : card.createdBy || null,
+        enabled: updates.enabled !== undefined ? Boolean(updates.enabled) : card.enabled,
+        updatedAt: Date.now(),
     };
 
-    const pool = getPool();
-    if (pool) {
-        await pool.query(
-            "INSERT INTO cards (code, type, description, days, enabled) VALUES (?, ?, ?, ?, ?)",
-            [newCard.code, newCard.type, newCard.description || '', newCard.days, 1]
-        );
-    } else {
-        cards.push(newCard);
-        await saveCards();
-        return newCard;
+    if (nextCard.type === CARD_TYPES.FOREVER) {
+        nextCard.days = null;
     }
-
-    cards.push(newCard);
-    return newCard;
-}
-
-async function updateCard(code, updates) {
-    await loadCards();
-    const card = cards.find(c => c.code === code);
-    if (!card) return null;
-
-    const nextDescription = updates.description !== undefined ? updates.description : card.description;
-    const nextEnabled = updates.enabled !== undefined ? updates.enabled : card.enabled;
 
     const pool = getPool();
     if (pool) {
-        await pool.query(
-            "UPDATE cards SET description=?, enabled=? WHERE code=?",
-            [nextDescription || '', nextEnabled ? 1 : 0, card.code]
-        );
+        await transaction(async (conn) => {
+            await conn.query(
+                `UPDATE cards
+                 SET batch_no=?, batch_name=?, type=?, description=?, days=?, source=?, channel=?, note=?, created_by=?, enabled=?, updated_at=?
+                 WHERE code=?`,
+                [
+                    nextCard.batchNo,
+                    nextCard.batchName,
+                    nextCard.type,
+                    nextCard.description || '',
+                    nextCard.days,
+                    nextCard.source,
+                    nextCard.channel,
+                    nextCard.note || '',
+                    nextCard.createdBy,
+                    nextCard.enabled ? 1 : 0,
+                    new Date(nextCard.updatedAt),
+                    card.code,
+                ]
+            );
+            await insertCardOperationLog(conn, {
+                cardId: card.id,
+                cardCode: card.code,
+                action: 'update',
+                operator,
+                remark: '更新卡密信息',
+                beforeSnapshot,
+                afterSnapshot: buildCardSnapshot(nextCard),
+            });
+        });
     } else {
-        card.description = nextDescription;
-        card.enabled = nextEnabled;
+        Object.assign(card, nextCard);
         await saveCards();
-        return card;
+        return { ok: true, card: decorateCard(card) };
     }
 
-    card.description = nextDescription;
-    card.enabled = nextEnabled;
-    return card;
+    Object.assign(card, nextCard);
+    return { ok: true, card: decorateCard(card) };
 }
 
-async function deleteCard(code) {
+async function batchUpdateCards(codes = [], updates = {}, operator = null) {
     await loadCards();
+    const uniqueCodes = Array.from(new Set((codes || []).map(code => String(code || '').trim()).filter(Boolean)));
+    const results = [];
+    const skipped = [];
+
+    for (const code of uniqueCodes) {
+        const result = await updateCard(code, updates, operator, { skipLoad: true });
+        if (result && result.ok) {
+            results.push(result.card);
+        } else {
+            skipped.push({ code, error: result?.error || '卡密不存在' });
+        }
+    }
+
+    return {
+        updatedCount: results.length,
+        cards: results,
+        skipped,
+    };
+}
+
+async function deleteCard(code, operator = null, options = {}) {
+    if (!options.skipLoad) {
+        await loadCards();
+    }
+
     const idx = cards.findIndex(c => c.code === code);
-    if (idx === -1) return false;
+    if (idx === -1) {
+        return { ok: false, error: '卡密不存在' };
+    }
 
+    const card = cards[idx];
+    if (card.usedBy) {
+        return { ok: false, error: '已使用卡密不可删除' };
+    }
+
+    const beforeSnapshot = buildCardSnapshot(card);
     const pool = getPool();
     if (pool) {
-        await pool.query("DELETE FROM cards WHERE code=?", [code]);
+        await transaction(async (conn) => {
+            await insertCardOperationLog(conn, {
+                cardId: card.id,
+                cardCode: card.code,
+                action: 'delete',
+                operator,
+                remark: '删除未使用卡密',
+                beforeSnapshot,
+            });
+            await conn.query("DELETE FROM cards WHERE code=?", [code]);
+        });
     } else {
         cards.splice(idx, 1);
         await saveCards();
-        return true;
+        return { ok: true };
     }
 
     cards.splice(idx, 1);
-    return true;
+    return { ok: true };
+}
+
+async function batchDeleteCards(codes = [], operator = null) {
+    await loadCards();
+    const uniqueCodes = Array.from(new Set((codes || []).map(code => String(code || '').trim()).filter(Boolean)));
+    let deletedCount = 0;
+    const skipped = [];
+
+    for (const code of uniqueCodes) {
+        const result = await deleteCard(code, operator, { skipLoad: true });
+        if (result.ok) {
+            deletedCount++;
+        } else {
+            skipped.push({ code, error: result.error || '删除失败' });
+        }
+    }
+
+    return { deletedCount, skipped };
 }
 
 // 初始化
@@ -922,10 +1513,15 @@ module.exports = {
     deleteUser,
     changePassword,
     changeAdminPassword,
+    getCardCatalog,
+    getCardDetail,
     getAllCards,
     createCard,
+    createCardsBatch,
     updateCard,
+    batchUpdateCards,
     deleteCard,
+    batchDeleteCards,
     hashPassword,
     createTrialCard,
     renewTrialUser,

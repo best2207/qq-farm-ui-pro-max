@@ -148,6 +148,55 @@ async function initMysql() {
                 );
             }
 
+            const [cardBatchCols] = await pool.execute(
+                `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cards' AND COLUMN_NAME = 'batch_no'`,
+                [DB_NAME]
+            );
+            const [cardLogTable] = await pool.execute(`SHOW TABLES LIKE 'card_operation_logs'`);
+            if (cardBatchCols.length === 0 || cardLogTable.length === 0) {
+                await runMigrationFile(
+                    path.join(migrationsDir, '012-card-management.sql'),
+                    '检测到 cards 表缺少精细化管理字段，正在执行迁移 012-card-management.sql',
+                );
+            }
+
+            const cardColumnEnsures = [
+                ['batch_name', "ALTER TABLE cards ADD COLUMN batch_name VARCHAR(100) DEFAULT NULL AFTER batch_no", 'cards.batch_name'],
+                ['source', "ALTER TABLE cards ADD COLUMN source VARCHAR(32) NOT NULL DEFAULT 'manual' AFTER days", 'cards.source'],
+                ['channel', "ALTER TABLE cards ADD COLUMN channel VARCHAR(64) DEFAULT '' AFTER source", 'cards.channel'],
+                ['note', "ALTER TABLE cards ADD COLUMN note TEXT DEFAULT NULL AFTER channel", 'cards.note'],
+                ['created_by', "ALTER TABLE cards ADD COLUMN created_by VARCHAR(100) DEFAULT NULL AFTER note", 'cards.created_by'],
+                ['updated_at', "ALTER TABLE cards ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at", 'cards.updated_at'],
+            ];
+            for (const [columnName, alterSql, label] of cardColumnEnsures) {
+                const [columnRows] = await pool.execute(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cards' AND COLUMN_NAME = ?`,
+                    [DB_NAME, columnName]
+                );
+                if (columnRows.length === 0) {
+                    logger.info(`检测到缺少 ${label}，正在添加...`);
+                    await pool.query(alterSql);
+                    logger.info(`✅ ${label} 添加完成`);
+                }
+            }
+
+            const cardIndexEnsures = [
+                ['idx_cards_batch_no', 'ALTER TABLE cards ADD INDEX idx_cards_batch_no (batch_no)'],
+                ['idx_cards_source_enabled', 'ALTER TABLE cards ADD INDEX idx_cards_source_enabled (source, enabled)'],
+                ['idx_cards_created_by', 'ALTER TABLE cards ADD INDEX idx_cards_created_by (created_by)'],
+            ];
+            for (const [indexName, alterSql] of cardIndexEnsures) {
+                const [indexRows] = await pool.execute(
+                    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cards' AND INDEX_NAME = ?`,
+                    [DB_NAME, indexName]
+                );
+                if (indexRows.length === 0) {
+                    logger.info(`检测到 cards 表缺少索引 ${indexName}，正在添加...`);
+                    await pool.query(alterSql);
+                    logger.info(`✅ cards.${indexName} 添加完成`);
+                }
+            }
+
             const [modeCols] = await pool.execute(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'account_configs' AND COLUMN_NAME = 'account_mode'`,
                 [DB_NAME]

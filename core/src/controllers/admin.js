@@ -1373,7 +1373,28 @@ function startAdminServer(dataProvider) {
             // 从完整配置快照中提取工作流编排配置
             const fullSnapshot = store.getConfigSnapshot(id);
             const workflowConfig = fullSnapshot.workflowConfig || { farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] }, friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] } };
-            res.json({ ok: true, data: { intervals, strategy, plantingStrategy: strategy, preferredSeed, preferredSeedId: preferredSeed, friendQuietHours, automation, stakeoutSteal, workflowConfig, tradeConfig, reportConfig, ui, offlineReminder } });
+            res.json({
+                ok: true,
+                data: {
+                    accountMode: fullSnapshot.accountMode || 'main',
+                    harvestDelay: fullSnapshot.harvestDelay || { min: 0, max: 0 },
+                    riskPromptEnabled: fullSnapshot.riskPromptEnabled !== false,
+                    modeScope: fullSnapshot.modeScope || { zoneScope: 'same_zone_only', requiresGameFriend: true, fallbackBehavior: 'standalone' },
+                    intervals,
+                    strategy,
+                    plantingStrategy: strategy,
+                    preferredSeed,
+                    preferredSeedId: preferredSeed,
+                    friendQuietHours,
+                    automation,
+                    stakeoutSteal,
+                    workflowConfig,
+                    tradeConfig,
+                    reportConfig,
+                    ui,
+                    offlineReminder,
+                },
+            });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
@@ -1846,6 +1867,14 @@ function startAdminServer(dataProvider) {
         cardsController.getAllCards(req, res);
     });
 
+    // 获取卡密详情（仅管理员）
+    app.get('/api/cards/:code', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        cardsController.getCardDetail(req, res);
+    });
+
     // 生成卡密（仅管理员）
     app.post('/api/cards', authRequired, userRequired, async (req, res) => {
         if (req.currentUser.role !== 'admin') {
@@ -1876,6 +1905,14 @@ function startAdminServer(dataProvider) {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
         }
         cardsController.batchDeleteCards(req, res);
+    });
+
+    // 批量更新卡密（仅管理员）
+    app.post('/api/cards/batch-update', authRequired, userRequired, async (req, res) => {
+        if (req.currentUser.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        cardsController.batchUpdateCards(req, res);
     });
 
     // ============ 体验卡全局及独立网关 防刷限频 ============

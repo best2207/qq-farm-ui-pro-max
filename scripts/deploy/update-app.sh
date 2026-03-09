@@ -350,7 +350,7 @@ compose_pull_with_retry() {
         return 0
     fi
 
-    local app_image="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.14}"
+    local app_image="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.15}"
     if ! pull_image_or_build "${app_image}"; then
         print_error "主程序镜像拉取最终失败: ${app_image}"
         print_error "请检查 GitHub / Docker Hub 官方网络连通性，或在 .env 中覆盖 APP_IMAGE。"

@@ -10,11 +10,29 @@ const userStore = require('../models/user-store');
  */
 async function getAllCards(req, res) {
     try {
-        const cards = await userStore.getAllCards();
-        res.json({ ok: true, cards });
+        const data = await userStore.getCardCatalog();
+        res.json({ ok: true, ...data });
     } catch (error) {
         console.error('获取卡密列表失败:', error.message);
         res.status(500).json({ ok: false, error: '获取卡密列表失败' });
+    }
+}
+
+/**
+ * 获取卡密详情
+ */
+async function getCardDetail(req, res) {
+    try {
+        const { code } = req.params;
+        const detail = await userStore.getCardDetail(code);
+        if (!detail) {
+            return res.status(404).json({ ok: false, error: '卡密不存在' });
+        }
+
+        res.json({ ok: true, ...detail });
+    } catch (error) {
+        console.error('获取卡密详情失败:', error.message);
+        res.status(500).json({ ok: false, error: '获取卡密详情失败' });
     }
 }
 
@@ -23,17 +41,36 @@ async function getAllCards(req, res) {
  */
 async function createCard(req, res) {
     try {
-        const { description, type, days, count = 1 } = req.body;
+        const {
+            description,
+            type,
+            days,
+            count = 1,
+            batchNo,
+            batchName,
+            source,
+            channel,
+            note,
+            createdBy,
+        } = req.body;
 
-        if (!description || !type) {
+        if (!type) {
             return res.status(400).json({ ok: false, error: '缺少必要参数' });
         }
 
-        const cards = [];
-        for (let i = 0; i < count; i++) {
-            const card = await userStore.createCard(description, type, days);
-            cards.push(card);
-        }
+        const cards = await userStore.createCardsBatch({
+            description,
+            type,
+            days,
+            count,
+            batchNo,
+            batchName,
+            source,
+            channel,
+            note,
+            createdBy: createdBy || req.currentUser?.username || 'admin',
+            operator: req.currentUser?.username || 'admin',
+        });
 
         res.json({ ok: true, cards });
     } catch (error) {
@@ -48,18 +85,17 @@ async function createCard(req, res) {
 async function updateCard(req, res) {
     try {
         const { code } = req.params;
-        const { description, enabled } = req.body;
+        const updates = { ...req.body };
 
-        const updates = {};
-        if (description !== undefined) updates.description = description;
-        if (enabled !== undefined) updates.enabled = enabled;
-
-        const result = await userStore.updateCard(code, updates);
+        const result = await userStore.updateCard(code, updates, req.currentUser?.username || 'admin');
         if (!result) {
             return res.status(404).json({ ok: false, error: '卡密不存在' });
         }
+        if (!result.ok) {
+            return res.status(400).json(result);
+        }
 
-        res.json({ ok: true, card: result });
+        res.json({ ok: true, card: result.card });
     } catch (error) {
         console.error('更新卡密失败:', error.message);
         res.status(500).json({ ok: false, error: '更新卡密失败' });
@@ -72,16 +108,35 @@ async function updateCard(req, res) {
 async function deleteCard(req, res) {
     try {
         const { code } = req.params;
-        const result = await userStore.deleteCard(code);
+        const result = await userStore.deleteCard(code, req.currentUser?.username || 'admin');
 
-        if (!result) {
-            return res.status(404).json({ ok: false, error: '卡密不存在' });
+        if (!result.ok) {
+            return res.status(result.error === '卡密不存在' ? 404 : 400).json(result);
         }
 
         res.json({ ok: true });
     } catch (error) {
         console.error('删除卡密失败:', error.message);
         res.status(500).json({ ok: false, error: '删除卡密失败' });
+    }
+}
+
+/**
+ * 批量更新卡密
+ */
+async function batchUpdateCards(req, res) {
+    try {
+        const { codes, updates } = req.body;
+
+        if (!Array.isArray(codes) || !updates || typeof updates !== 'object') {
+            return res.status(400).json({ ok: false, error: '参数格式错误' });
+        }
+
+        const result = await userStore.batchUpdateCards(codes, updates, req.currentUser?.username || 'admin');
+        res.json({ ok: true, ...result });
+    } catch (error) {
+        console.error('批量更新卡密失败:', error.message);
+        res.status(500).json({ ok: false, error: '批量更新卡密失败' });
     }
 }
 
@@ -96,14 +151,9 @@ async function batchDeleteCards(req, res) {
             return res.status(400).json({ ok: false, error: '卡密列表格式错误' });
         }
 
-        let deletedCount = 0;
-        for (const code of codes) {
-            if (await userStore.deleteCard(code)) {
-                deletedCount++;
-            }
-        }
+        const result = await userStore.batchDeleteCards(codes, req.currentUser?.username || 'admin');
 
-        res.json({ ok: true, deletedCount });
+        res.json({ ok: true, ...result });
     } catch (error) {
         console.error('批量删除卡密失败:', error.message);
         res.status(500).json({ ok: false, error: '批量删除卡密失败' });
@@ -112,8 +162,10 @@ async function batchDeleteCards(req, res) {
 
 module.exports = {
     getAllCards,
+    getCardDetail,
     createCard,
     updateCard,
     deleteCard,
+    batchUpdateCards,
     batchDeleteCards
 };

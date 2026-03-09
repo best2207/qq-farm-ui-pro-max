@@ -29,7 +29,7 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh)
 ```
 
-自 `v4.5.14` 起，部署链路额外内置 `repair-mysql.sh`。全新安装会在启动后自动补齐 MySQL 旧结构；已部署环境更新主程序前，也会先执行一次数据库修复。只要主程序镜像版本不低于 `v4.5.14`，旧版本因数据库结构滞后导致的账号丢失和体验卡状态漂移就不会继续复现。
+自 `v4.5.15` 起，部署链路额外内置 `repair-mysql.sh`。全新安装会在启动后自动补齐 MySQL 旧结构；已部署环境更新主程序前，也会先执行一次数据库修复。只要主程序镜像版本不低于 `v4.5.15`，旧版本因数据库结构滞后导致的账号丢失、体验卡状态漂移和卡密管理结构缺失就不会继续复现。
 
 脚本会自动：
 
@@ -51,7 +51,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 可选镜像配置（写入 `.env`）：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.14
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.15
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -97,7 +97,7 @@ cd /opt/qq-farm-bot-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.14
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.15
 
 # 仅执行历史数据库修复
 bash repair-mysql.sh --backup

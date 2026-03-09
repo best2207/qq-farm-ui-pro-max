@@ -105,7 +105,7 @@ curl http://127.0.0.1:3080/api/ping
 
 ```bash
 cd /opt/qq-farm-bot-current
-SKIP_DOCKER_PULL=1 ./update-app.sh --image smdk000/qq-farm-bot-ui:4.5.14
+SKIP_DOCKER_PULL=1 ./update-app.sh --image smdk000/qq-farm-bot-ui:4.5.15
 
 # 如果只想先补旧数据库结构
 ./repair-mysql.sh --backup
@@ -120,8 +120,8 @@ SKIP_DOCKER_PULL=1 ./update-app.sh --image smdk000/qq-farm-bot-ui:4.5.14
 补充说明：
 
 - `deploy/init-db/01-init.sql` 只在 MySQL 空数据卷首次启动时执行。
-- 从 `v4.5.14` 开始，部署目录会额外提供 `repair-mysql.sh`，用于补齐旧库缺失表/列并回填体验卡历史数据；`update-app.sh` 更新主程序前会自动执行它。
-- 所以已部署服务器要彻底消除“添加账号后切换/刷新消失”和体验卡异常，关键是把主程序镜像更新到 `v4.5.14+`，不只是替换脚本文件。
+- 从 `v4.5.15` 开始，部署目录会额外提供 `repair-mysql.sh`，用于补齐旧库缺失表/列并回填体验卡历史数据，同时补齐卡密精细化管理的新字段和历史日志表；`update-app.sh` 更新主程序前会自动执行它。
+- 所以已部署服务器要彻底消除“添加账号后切换/刷新消失”、体验卡异常，以及卡密管理结构缺失问题，关键是把主程序镜像更新到 `v4.5.15+`，不只是替换脚本文件。
 
 ## 如果服务器可以直连官方源
 
