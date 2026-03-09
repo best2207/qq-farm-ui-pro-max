@@ -259,7 +259,7 @@ ADMIN_PASSWORD='你的强密码' pnpm dev:core
 本节默认假设服务器可以直接访问 GitHub 和 Docker Hub 官方源。一键脚本默认从 GitHub 官方地址下载部署文件，并从 Docker Hub 官方仓库拉取镜像；若主程序镜像或 `ipad860` 镜像拉取失败，脚本会回退到下载当前仓库源码包并在服务器本地构建。
 如果你的服务器在中国大陆网络环境，优先查看 [deploy/README.cn.md](deploy/README.cn.md)，里面单独整理了离线包和预载镜像的部署方式。
 
-自 `v4.5.13` 起，一键安装默认按 MySQL 正式链路初始化；账号新增会在返回成功前强制落 MySQL，体验卡生成/续费会把到期时间写回并自动修复旧卡历史。只要拉到 `v4.5.13+` 主程序镜像，全新安装不会再复现“添加账号成功但切换/刷新后消失”，已部署环境更新后也不会再出现体验卡状态漂移。
+自 `v4.5.14` 起，部署链路额外内置 `repair-mysql.sh`：全新安装会在启动后自动校验并补齐 MySQL 旧结构；已部署环境更新时也会先执行数据库修复，再拉起新主程序镜像。只要主程序镜像更新到 `v4.5.14+`，旧版本因数据库结构滞后导致的账号丢失、体验卡到期状态漂移，都不会继续复现。
 
 ### 一键脚本
 
@@ -285,7 +285,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.13
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.14
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -301,10 +301,11 @@ curl -fsSLO https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/de
 curl -fsSLo .env.example https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/.env.example
 curl -fsSLo init-db/01-init.sql --create-dirs https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/deploy/init-db/01-init.sql
 curl -fsSLo update-app.sh https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/update-app.sh
+curl -fsSLo repair-mysql.sh https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/repair-mysql.sh
 curl -fsSLo fresh-install.sh https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/fresh-install.sh
 curl -fsSLo quick-deploy.sh https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/main/scripts/deploy/quick-deploy.sh
 chmod +x update-app.sh
-chmod +x fresh-install.sh quick-deploy.sh
+chmod +x repair-mysql.sh fresh-install.sh quick-deploy.sh
 
 # 按需修改端口、管理员密码、第三方扫码配置
 cp .env.example .env
@@ -330,12 +331,16 @@ cd /opt/qq-farm-bot-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.13
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.14
+
+# 只想单独修复旧 MySQL 结构
+bash repair-mysql.sh --backup
 ```
 
 补充说明：
 - `deploy/init-db/01-init.sql` 只会在 MySQL 空数据卷首次启动时执行。
-- 已部署环境如果直接更新到 `v4.5.13+`，主程序启动阶段会自动补齐缺失表/列，并修复账号持久化“假成功”以及体验卡续费状态漂移问题。
+- `repair-mysql.sh` 会对旧数据库执行幂等修复，补齐缺失表/列、回填 `cards.days / used_at / expires_at`，可重复执行。
+- 已部署环境如果直接更新到 `v4.5.14+`，`update-app.sh` 会先执行 `repair-mysql.sh`，再更新主程序镜像。
 - 如果服务器仍在运行旧镜像，即使部署脚本和 SQL 已更新，账号切换后丢失的问题仍可能复现。
 
 ## 📊 验证部署成功

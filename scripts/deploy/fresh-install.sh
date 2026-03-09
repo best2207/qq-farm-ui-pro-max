@@ -187,6 +187,7 @@ copy_or_download_bundle() {
         cp "${REPO_ROOT}/deploy/init-db/01-init.sql" "${target_dir}/init-db/01-init.sql"
         cp "${REPO_ROOT}/deploy/README.md" "${target_dir}/README.md"
         cp "${REPO_ROOT}/scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
+        cp "${REPO_ROOT}/scripts/deploy/repair-mysql.sh" "${target_dir}/repair-mysql.sh"
         cp "${REPO_ROOT}/scripts/deploy/fresh-install.sh" "${target_dir}/fresh-install.sh"
         cp "${REPO_ROOT}/scripts/deploy/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
     else
@@ -195,12 +196,14 @@ copy_or_download_bundle() {
         download_file "deploy/init-db/01-init.sql" "${target_dir}/init-db/01-init.sql"
         download_file "deploy/README.md" "${target_dir}/README.md"
         download_file "scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
+        download_file "scripts/deploy/repair-mysql.sh" "${target_dir}/repair-mysql.sh"
         download_file "scripts/deploy/fresh-install.sh" "${target_dir}/fresh-install.sh"
         download_file "scripts/deploy/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
     fi
 
     cp "${target_dir}/.env.example" "${target_dir}/.env"
     chmod +x "${target_dir}/update-app.sh"
+    chmod +x "${target_dir}/repair-mysql.sh"
     chmod +x "${target_dir}/fresh-install.sh"
     chmod +x "${target_dir}/quick-deploy.sh"
 }
@@ -258,7 +261,7 @@ load_deploy_env() {
 
 get_required_images() {
     printf '%s\n' \
-        "${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.13}" \
+        "${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.14}" \
         "${MYSQL_IMAGE:-mysql:8.0}" \
         "${REDIS_IMAGE:-redis:7-alpine}" \
         "${IPAD860_IMAGE:-smdk000/ipad860:latest}"
@@ -473,6 +476,8 @@ main() {
     wait_for_container "qq-farm-mysql" 240
     wait_for_container "qq-farm-redis" 120
     wait_for_container "qq-farm-ipad860" 180
+    print_info "执行 MySQL 结构修复脚本..."
+    "${DEPLOY_DIR}/repair-mysql.sh" --deploy-dir "${DEPLOY_DIR}"
     wait_for_container "qq-farm-bot" 240
 
     if command -v curl >/dev/null 2>&1; then
@@ -488,6 +493,7 @@ main() {
     echo "目录: ${DEPLOY_DIR}"
     echo "当前版本链接: ${CURRENT_LINK}"
     echo "访问地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):${web_port}"
+    echo "数据库修复脚本: ${CURRENT_LINK}/repair-mysql.sh"
     echo "默认管理员: admin"
     echo "管理员密码: 见 ${DEPLOY_DIR}/.env 中的 ADMIN_PASSWORD"
     echo "后续仅更新主程序: ${CURRENT_LINK}/update-app.sh"

@@ -24,6 +24,7 @@ SUDO=""
 COMPOSE_PULL_RETRIES="${COMPOSE_PULL_RETRIES:-3}"
 PULL_RETRY_DELAY_SECONDS="${PULL_RETRY_DELAY_SECONDS:-10}"
 SKIP_DOCKER_PULL="${SKIP_DOCKER_PULL:-0}"
+SKIP_DB_REPAIR="${SKIP_DB_REPAIR:-0}"
 SOURCE_CACHE_DIR="${SOURCE_CACHE_DIR:-${DEPLOY_BASE_DIR}/.qq-farm-build-src/${REPO_REF}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -47,6 +48,10 @@ parse_args() {
                 ;;
             --preserve-compose)
                 PRESERVE_COMPOSE_LAYOUT=1
+                shift
+                ;;
+            --skip-db-repair)
+                SKIP_DB_REPAIR=1
                 shift
                 ;;
             *)
@@ -237,6 +242,7 @@ sync_bundle() {
     local bundle_readme=""
     local bundle_init_sql=""
     local bundle_update=""
+    local bundle_repair=""
     local bundle_fresh=""
     local bundle_quick=""
 
@@ -257,6 +263,7 @@ sync_bundle() {
         bundle_readme="${bundle_dir}/README.md"
         bundle_init_sql="${bundle_dir}/init-db/01-init.sql"
         bundle_update="${SCRIPT_DIR}/update-app.sh"
+        bundle_repair="${SCRIPT_DIR}/repair-mysql.sh"
         bundle_fresh="${SCRIPT_DIR}/fresh-install.sh"
         bundle_quick="${SCRIPT_DIR}/quick-deploy.sh"
     elif [ -f "${SCRIPT_DIR}/docker-compose.yml" ] \
@@ -267,6 +274,7 @@ sync_bundle() {
         bundle_readme="${bundle_dir}/README.md"
         bundle_init_sql="${bundle_dir}/init-db/01-init.sql"
         bundle_update="${bundle_dir}/update-app.sh"
+        bundle_repair="${bundle_dir}/repair-mysql.sh"
         bundle_fresh="${bundle_dir}/fresh-install.sh"
         bundle_quick="${bundle_dir}/quick-deploy.sh"
     fi
@@ -282,6 +290,11 @@ sync_bundle() {
         fi
 
         copy_file_if_needed "${bundle_update}" "${target_dir}/update-app.sh"
+        if [ -n "${bundle_repair}" ] && [ -f "${bundle_repair}" ]; then
+            copy_file_if_needed "${bundle_repair}" "${target_dir}/repair-mysql.sh"
+        else
+            download_file "scripts/deploy/repair-mysql.sh" "${target_dir}/repair-mysql.sh"
+        fi
         copy_file_if_needed "${bundle_fresh}" "${target_dir}/fresh-install.sh"
         copy_file_if_needed "${bundle_quick}" "${target_dir}/quick-deploy.sh"
     else
@@ -295,11 +308,12 @@ sync_bundle() {
         fi
 
         download_file "scripts/deploy/update-app.sh" "${target_dir}/update-app.sh"
+        download_file "scripts/deploy/repair-mysql.sh" "${target_dir}/repair-mysql.sh"
         download_file "scripts/deploy/fresh-install.sh" "${target_dir}/fresh-install.sh"
         download_file "scripts/deploy/quick-deploy.sh" "${target_dir}/quick-deploy.sh"
     fi
 
-    chmod +x "${target_dir}/update-app.sh" "${target_dir}/fresh-install.sh" "${target_dir}/quick-deploy.sh"
+    chmod +x "${target_dir}/update-app.sh" "${target_dir}/repair-mysql.sh" "${target_dir}/fresh-install.sh" "${target_dir}/quick-deploy.sh"
 }
 
 wait_for_app() {
@@ -336,7 +350,7 @@ compose_pull_with_retry() {
         return 0
     fi
 
-    local app_image="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.13}"
+    local app_image="${APP_IMAGE:-smdk000/qq-farm-bot-ui:4.5.14}"
     if ! pull_image_or_build "${app_image}"; then
         print_error "主程序镜像拉取最终失败: ${app_image}"
         print_error "请检查 GitHub / Docker Hub 官方网络连通性，或在 .env 中覆盖 APP_IMAGE。"
@@ -372,6 +386,12 @@ main() {
     old_image="$("${DOCKER[@]}" inspect -f '{{.Image}}' "${APP_CONTAINER_NAME}" 2>/dev/null || true)"
 
     print_info "仅更新主程序容器，不会重启 MySQL / Redis / ipad860。"
+    if [ "${SKIP_DB_REPAIR}" = "1" ] || [ "${SKIP_DB_REPAIR}" = "true" ]; then
+        print_warning "检测到 SKIP_DB_REPAIR=${SKIP_DB_REPAIR}，跳过数据库修复步骤。"
+    else
+        print_info "先执行旧 MySQL 结构修复脚本..."
+        "${DEPLOY_DIR}/repair-mysql.sh" --deploy-dir "${DEPLOY_DIR}"
+    fi
     compose_pull_with_retry
     "${DOCKER[@]}" compose up -d --no-deps "${COMPOSE_APP_SERVICE}"
     wait_for_app 240
@@ -388,6 +408,7 @@ main() {
     echo "旧镜像 ID: ${old_image:-unknown}"
     echo "新镜像 ID: ${new_image:-unknown}"
     echo "未变更服务: qq-farm-mysql / qq-farm-redis / qq-farm-ipad860"
+    echo "数据库修复脚本: ${DEPLOY_DIR}/repair-mysql.sh"
     echo ""
 }
 

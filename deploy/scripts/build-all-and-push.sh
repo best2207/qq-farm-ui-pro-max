@@ -144,6 +144,7 @@ export_offline() {
     cp "${PROJECT_ROOT}/deploy/README.md" "${TMP_DEPLOY_DIR}/"
     cp -r "${PROJECT_ROOT}/deploy/init-db" "${TMP_DEPLOY_DIR}/"
     cp "${PROJECT_ROOT}/scripts/deploy/fresh-install.sh" "${TMP_DEPLOY_DIR}/"
+    cp "${PROJECT_ROOT}/scripts/deploy/repair-mysql.sh" "${TMP_DEPLOY_DIR}/"
     cp "${PROJECT_ROOT}/scripts/deploy/update-app.sh" "${TMP_DEPLOY_DIR}/"
     cp "${PROJECT_ROOT}/scripts/deploy/quick-deploy.sh" "${TMP_DEPLOY_DIR}/"
     tar czf "${EXPORT_DIR}/qq-farm-bot-deploy.tar.gz" -C "${TMP_DEPLOY_DIR}" .
@@ -158,7 +159,7 @@ export_offline() {
     cp deploy/docker-compose.yml /tmp/qq-farm-bot-release/
     cp deploy/.env.example /tmp/qq-farm-bot-release/
     cp -r deploy/init-db deploy/README.md /tmp/qq-farm-bot-release/
-    cp scripts/deploy/fresh-install.sh scripts/deploy/update-app.sh scripts/deploy/quick-deploy.sh /tmp/qq-farm-bot-release/
+    cp scripts/deploy/fresh-install.sh scripts/deploy/repair-mysql.sh scripts/deploy/update-app.sh scripts/deploy/quick-deploy.sh /tmp/qq-farm-bot-release/
 
     # 生成安装脚本
     cat > /tmp/qq-farm-bot-release/install.sh << 'INSTALL_EOF'
@@ -190,7 +191,7 @@ echo "📌 后续仅更新主程序: ./update-app.sh"
 echo ""
 INSTALL_EOF
     chmod +x /tmp/qq-farm-bot-release/install.sh
-    chmod +x /tmp/qq-farm-bot-release/fresh-install.sh /tmp/qq-farm-bot-release/update-app.sh /tmp/qq-farm-bot-release/quick-deploy.sh
+    chmod +x /tmp/qq-farm-bot-release/fresh-install.sh /tmp/qq-farm-bot-release/repair-mysql.sh /tmp/qq-farm-bot-release/update-app.sh /tmp/qq-farm-bot-release/quick-deploy.sh
 
     cd /tmp
     tar czf "${PROJECT_ROOT}/deploy/offline/qq-farm-bot-v${VERSION}-offline.tar.gz" \
