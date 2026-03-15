@@ -333,6 +333,247 @@ const currentUsername = computed(() => {
   catch { return '' }
 })
 
+type SettingsPrimaryCategoryKey = 'common' | 'plant' | 'auto' | 'notice' | 'security' | 'advanced'
+type AdvancedDetailSectionKey = 'health' | 'timing' | 'update' | 'cluster' | 'theme' | 'trial' | 'api'
+type SystemUpdateDetailTabKey = 'overview' | 'jobs' | 'nodes'
+
+const settingsPrimaryCategoryTabs: Array<{
+  key: SettingsPrimaryCategoryKey
+  label: string
+  icon: string
+  description: string
+}> = [
+  {
+    key: 'common',
+    label: '常用设置',
+    icon: 'i-carbon-home',
+    description: '聚合高频入口：当前账号策略、密码与通知、外观调优。',
+  },
+  {
+    key: 'plant',
+    label: '种植策略',
+    icon: 'i-carbon-sprout',
+    description: '专注种植参数：选种策略、库存规则、巡查节奏与收获延迟。',
+  },
+  {
+    key: 'auto',
+    label: '自动任务',
+    icon: 'i-carbon-automation',
+    description: '集中自动化开关：农场动作、好友互动、化肥策略与任务领取。',
+  },
+  {
+    key: 'notice',
+    label: '通知提醒',
+    icon: 'i-carbon-notification',
+    description: '管理下线提醒与经营汇报：渠道、文案、发送时段与历史记录。',
+  },
+  {
+    key: 'security',
+    label: '账号与安全',
+    icon: 'i-carbon-user-avatar',
+    description: '账号风险相关能力：密码管理、风控提示、关键接口与权限项。',
+  },
+  {
+    key: 'advanced',
+    label: '高级设置',
+    icon: 'i-carbon-settings-adjust',
+    description: '管理员高级面板：系统自检、时间参数、更新中心与集群能力。',
+  },
+]
+
+const settingsPrimaryCategoryFallback = settingsPrimaryCategoryTabs[0]!
+const advancedDetailSectionTabs: Array<{
+  key: AdvancedDetailSectionKey
+  label: string
+  icon: string
+  hint: string
+}> = [
+  {
+    key: 'health',
+    label: '系统体检',
+    icon: 'i-carbon-data-check',
+    hint: '查看 system_settings 自检、静态资源选路和好友协议诊断。',
+  },
+  {
+    key: 'timing',
+    label: '时间参数',
+    icon: 'i-carbon-time',
+    hint: '调整心跳、限流、调度器等系统级运行节奏。',
+  },
+  {
+    key: 'update',
+    label: '系统更新',
+    icon: 'i-carbon-upgrade',
+    hint: '独立管理版本检查、更新配置和任务执行记录。',
+  },
+  {
+    key: 'cluster',
+    label: '集群流控',
+    icon: 'i-carbon-flow-stream',
+    hint: '单独维护集群路由策略与分布式派发行为。',
+  },
+  {
+    key: 'theme',
+    label: '主题外观',
+    icon: 'i-carbon-paint-brush',
+    hint: '专注主题、背景、视觉预设等界面外观能力。',
+  },
+  {
+    key: 'trial',
+    label: '体验卡配置',
+    icon: 'i-carbon-chemistry',
+    hint: '独立维护体验卡时长、续费与频率控制参数。',
+  },
+  {
+    key: 'api',
+    label: '第三方 API',
+    icon: 'i-carbon-api-1',
+    hint: '集中管理扫码登录网关和外部接口授权参数。',
+  },
+]
+const advancedDetailSectionFallback = advancedDetailSectionTabs[0]!
+const systemUpdateDetailTabs: Array<{
+  key: SystemUpdateDetailTabKey
+  label: string
+  icon: string
+  hint: string
+}> = [
+  {
+    key: 'overview',
+    label: '总览配置',
+    icon: 'i-carbon-chart-line-data',
+    hint: '查看版本状态、更新预检与默认配置，并可创建更新任务。',
+  },
+  {
+    key: 'jobs',
+    label: '任务执行',
+    icon: 'i-carbon-task',
+    hint: '聚焦活跃任务、批次进度与历史任务重试操作。',
+  },
+  {
+    key: 'nodes',
+    label: '节点状态',
+    icon: 'i-carbon-network-4',
+    hint: '独立管理更新代理心跳与集群节点排空操作。',
+  },
+]
+const systemUpdateDetailTabFallback = systemUpdateDetailTabs[0]!
+
+const activeSettingsPrimaryCategory = ref<SettingsPrimaryCategoryKey>('common')
+const activeAdvancedDetailSection = ref<AdvancedDetailSectionKey>('health')
+const activeSystemUpdateDetailTab = ref<SystemUpdateDetailTabKey>('overview')
+
+const activeSettingsPrimaryCategoryMeta = computed(() => {
+  return settingsPrimaryCategoryTabs.find(item => item.key === activeSettingsPrimaryCategory.value) || settingsPrimaryCategoryFallback
+})
+const activeAdvancedDetailSectionMeta = computed(() => {
+  return advancedDetailSectionTabs.find(item => item.key === activeAdvancedDetailSection.value) || advancedDetailSectionFallback
+})
+const activeSystemUpdateDetailTabMeta = computed(() => {
+  return systemUpdateDetailTabs.find(item => item.key === activeSystemUpdateDetailTab.value) || systemUpdateDetailTabFallback
+})
+
+const showSettingsCategoryEmptyState = computed(() => {
+  if (loading.value)
+    return false
+  return activeSettingsPrimaryCategory.value === 'advanced' && !isAdmin.value
+})
+
+const settingsCategoryEmptyHint = computed(() => {
+  if (activeSettingsPrimaryCategory.value === 'advanced' && !isAdmin.value)
+    return '当前账号不是管理员，无法查看高级设置。'
+  return '当前分类暂无可显示内容。'
+})
+
+function switchSettingsPrimaryCategory(key: SettingsPrimaryCategoryKey) {
+  activeSettingsPrimaryCategory.value = key
+}
+
+function isSettingsCategoryVisible(categories: SettingsPrimaryCategoryKey[]) {
+  return categories.includes(activeSettingsPrimaryCategory.value)
+}
+
+const strategyCategoryGuideMap: Record<SettingsPrimaryCategoryKey, {
+  title: string
+  hint: string
+  tags: string[]
+}> = {
+  common: {
+    title: '常用设置视图',
+    hint: '首屏仅保留 8 项高频快捷配置；详细参数请切换到对应分类继续完善。',
+    tags: ['账号模式', '风控提示', '巡查区间', '静默时段'],
+  },
+  plant: {
+    title: '种植策略视图',
+    hint: '只展示种植、库存、巡查节奏和出售策略，避免被其他内容干扰。',
+    tags: ['选种策略', '背包优先顺序', '库存保留规则', '巡查与静默时段'],
+  },
+  auto: {
+    title: '自动任务视图',
+    hint: '集中查看自动化开关和好友互动策略，便于一次性校准执行行为。',
+    tags: ['自动控制总开关', '每日收益领取', '化肥策略', '社交互动'],
+  },
+  notice: {
+    title: '通知提醒视图',
+    hint: '当前策略卡片已隐藏。请在右侧配置下线提醒和经营汇报。',
+    tags: ['下线提醒', '经营汇报'],
+  },
+  security: {
+    title: '账号与安全视图',
+    hint: '先看安全快捷项，再按需展开详细配置；先控风险再调收益。',
+    tags: ['账号模式', '风控提示', '高风险区间', '静默时段'],
+  },
+  advanced: {
+    title: '高级设置视图',
+    hint: '优先使用快捷总览完成巡检；需要细调时再展开系统级详细配置。',
+    tags: ['系统体检', '时间参数', '系统更新', '集群流控', '主题外观', '接入配置'],
+  },
+}
+
+const strategyCategoryGuide = computed(() => {
+  return strategyCategoryGuideMap[activeSettingsPrimaryCategory.value]
+})
+
+const isCommonSettingsCategory = computed(() => activeSettingsPrimaryCategory.value === 'common')
+const isNoticeSettingsCategory = computed(() => activeSettingsPrimaryCategory.value === 'notice')
+const isSecuritySettingsCategory = computed(() => activeSettingsPrimaryCategory.value === 'security')
+const isAdvancedSettingsCategory = computed(() => activeSettingsPrimaryCategory.value === 'advanced')
+const strategyPanelFullWidth = computed(() => isSettingsCategoryVisible(['plant', 'auto']))
+const accountPanelFullWidth = computed(() => isSettingsCategoryVisible(['notice']))
+const showNoticeQuickPanel = computed(() => isSettingsCategoryVisible(['common', 'notice']))
+const noticeHasDetailPanels = computed(() => isAdmin.value || !!currentAccountId.value)
+const noticeDetailExpanded = ref(false)
+const securityDetailExpanded = ref(false)
+const advancedDetailExpanded = ref(false)
+const securityCrossPanelsVisible = computed(() => !isSecuritySettingsCategory.value || securityDetailExpanded.value)
+const advancedPanelsVisible = computed(() => !isAdvancedSettingsCategory.value || advancedDetailExpanded.value)
+
+function switchAdvancedDetailSection(key: AdvancedDetailSectionKey) {
+  activeAdvancedDetailSection.value = key
+}
+
+function isAdvancedDetailSectionVisible(sections: AdvancedDetailSectionKey[]) {
+  if (!isAdvancedSettingsCategory.value)
+    return true
+  return sections.includes(activeAdvancedDetailSection.value)
+}
+
+function switchSystemUpdateDetailTab(key: SystemUpdateDetailTabKey) {
+  activeSystemUpdateDetailTab.value = key
+}
+
+function isSystemUpdateDetailTabVisible(tabs: SystemUpdateDetailTabKey[]) {
+  return tabs.includes(activeSystemUpdateDetailTab.value)
+}
+
+watch(activeSettingsPrimaryCategory, () => {
+  noticeDetailExpanded.value = false
+  securityDetailExpanded.value = false
+  advancedDetailExpanded.value = false
+  activeAdvancedDetailSection.value = 'health'
+  activeSystemUpdateDetailTab.value = 'overview'
+})
+
 const trialConfig = ref({
   enabled: true,
   days: 1,
@@ -480,6 +721,43 @@ const trialCooldownOptions = [
   { label: '4 小时', value: 14400000 },
   { label: '8 小时', value: 28800000 },
 ]
+const trialDurationLabel = computed(() => {
+  return trialDaysOptions.find(item => item.value === trialConfig.value.days)?.label
+    || `${trialConfig.value.days} 天`
+})
+const trialCooldownLabel = computed(() => {
+  return trialCooldownOptions.find(item => item.value === trialConfig.value.cooldownMs)?.label
+    || `${Math.round(trialConfig.value.cooldownMs / 3600000)} 小时`
+})
+const trialRenewModeLabel = computed(() => {
+  if (trialConfig.value.adminRenewEnabled && trialConfig.value.userRenewEnabled)
+    return '管理员 + 用户续费'
+  if (trialConfig.value.adminRenewEnabled)
+    return '仅管理员续费'
+  if (trialConfig.value.userRenewEnabled)
+    return '仅用户续费'
+  return '未启用续费'
+})
+const thirdPartyApiConfiguredCount = computed(() => {
+  return [
+    thirdPartyApiConfig.value.wxApiKey,
+    thirdPartyApiConfig.value.wxAppId,
+    thirdPartyApiConfig.value.wxApiUrl,
+    thirdPartyApiConfig.value.ipad860Url,
+    thirdPartyApiConfig.value.aineisheKey,
+  ].filter(value => !!String(value || '').trim()).length
+})
+const thirdPartyApiGatewayHost = computed(() => {
+  const raw = String(thirdPartyApiConfig.value.wxApiUrl || '').trim()
+  if (!raw)
+    return '未配置'
+  try {
+    return new URL(raw).host || raw
+  }
+  catch {
+    return raw
+  }
+})
 
 async function loadTrialConfig() {
   if (!isAdmin.value)
@@ -649,6 +927,14 @@ const activeSystemUpdateBatch = computed<SystemUpdateBatchSummary | null>(() => 
 })
 const systemUpdateAgents = computed<SystemUpdateRuntimeAgent[]>(() => systemUpdateOverview.value?.runtime?.agentSummary || [])
 const systemUpdateClusterNodes = computed<SystemUpdateClusterNode[]>(() => systemUpdateOverview.value?.runtime?.clusterNodes || [])
+const clusterConnectedNodeCount = computed(() => systemUpdateClusterNodes.value.filter(node => node.connected).length)
+const clusterDrainingNodeCount = computed(() => systemUpdateClusterNodes.value.filter(node => node.draining).length)
+const clusterAgentErrorCount = computed(() => systemUpdateAgents.value.filter(agent => agent.status === 'error').length)
+const clusterActiveStrategyLabel = computed(() => {
+  return clusterStrategyOptions.find(item => item.value === clusterConfig.value.dispatcherStrategy)?.label
+    || clusterConfig.value.dispatcherStrategy
+    || '未配置'
+})
 const SYSTEM_UPDATE_ACTIVE_STATUSES = ['pending', 'claimed', 'running'] as const
 const SYSTEM_UPDATE_AUTO_REFRESH_MS = 15000
 let systemUpdateAutoRefreshTimer: ReturnType<typeof window.setInterval> | null = null
@@ -1131,6 +1417,9 @@ const appScenePreviewMaskStyle = computed(() => ({
 }))
 const currentThemeOption = computed(() => getThemeOption(appStore.colorTheme))
 const currentThemeBackgroundPreset = computed(() => getThemeBackgroundPreset(appStore.colorTheme))
+const currentBackgroundScopeOption = computed(() => {
+  return UI_BACKGROUND_SCOPE_OPTIONS.find(option => option.value === appStore.backgroundScope) || UI_BACKGROUND_SCOPE_OPTIONS[0]
+})
 const currentWorkspaceVisualSummary = computed(() => {
   const activePreset = workspaceVisualPresets.find(preset => isWorkspaceVisualPresetApplied(preset.key))
   if (activePreset) {
@@ -2276,6 +2565,45 @@ const reportChannelDocUrl = computed(() => {
 
 const isReportEmailChannel = computed(() => localSettings.value.reportConfig.channel === 'email')
 
+const noticeQuickOverviewItems = computed(() => {
+  const offlineChannelLabel = isAdmin.value
+    ? (channelOptions.find(option => option.value === localOffline.value.channel)?.label || '未设置')
+    : '仅管理员'
+  const reportEnabledLabel = currentAccountId.value
+    ? (localSettings.value.reportConfig.enabled ? '已启用' : '已关闭')
+    : '未登录账号'
+  const reportChannelLabel = currentAccountId.value
+    ? (reportChannelOptions.find(option => option.value === localSettings.value.reportConfig.channel)?.label || '未设置')
+    : '不可用'
+
+  return [
+    {
+      key: 'offline-channel',
+      label: '下线提醒',
+      value: offlineChannelLabel,
+      note: isAdmin.value ? '全局提醒渠道' : '无权限修改',
+    },
+    {
+      key: 'report-enabled',
+      label: '经营汇报',
+      value: reportEnabledLabel,
+      note: currentAccountId.value ? '当前账号级开关' : '登录账号后可配置',
+    },
+    {
+      key: 'report-channel',
+      label: '汇报渠道',
+      value: reportChannelLabel,
+      note: currentAccountId.value ? '当前账号推送通道' : '当前不可配置',
+    },
+    {
+      key: 'detail-mode',
+      label: '显示层级',
+      value: noticeDetailExpanded.value ? '详细模式' : '快捷模式',
+      note: noticeHasDetailPanels.value ? '可展开详细面板' : '当前仅快捷项',
+    },
+  ]
+})
+
 const preferredSeedOptions = computed(() => {
   const options = [{ label: '自动选择', value: 0 }]
   if (seeds.value) {
@@ -2420,6 +2748,13 @@ function moveSeedIdInOrder(seedIds: number[], fromIndex: number, toIndex: number
   return next
 }
 
+const analyticsSortByMap: Record<string, string> = {
+  max_exp: 'exp',
+  max_fert_exp: 'fert',
+  max_profit: 'profit',
+  max_fert_profit: 'fert_profit',
+}
+
 async function sortBagSeedPriorityByFallbackStrategy() {
   const strategy = localSettings.value.bagSeedFallbackStrategy
   if (strategy === 'level') {
@@ -2528,13 +2863,6 @@ function addInventoryReserveRule() {
 
 function removeInventoryReserveRule(index: number) {
   localSettings.value.inventoryPlanting.reserveRules.splice(index, 1)
-}
-
-const analyticsSortByMap: Record<string, string> = {
-  max_exp: 'exp',
-  max_fert_exp: 'fert',
-  max_profit: 'profit',
-  max_fert_profit: 'fert_profit',
 }
 
 const strategyPreviewLabel = ref<string | null>(null)
@@ -3481,3414 +3809,4573 @@ async function restoreTimingDefaults() {
       <p>加载中...</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 mt-12 gap-4 text-sm lg:grid-cols-2">
-      <!-- Card 1: Strategy & Automation -->
-      <div v-if="currentAccountId" class="card glass-panel h-full flex flex-col rounded-lg shadow">
-        <!-- Strategy Header -->
-        <div class="settings-card-divider settings-primary-toolbar ui-mobile-sticky-panel flex flex-col justify-between gap-3 px-4 py-3 md:flex-row md:items-center">
-          <div class="settings-primary-toolbar-heading">
-            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-              <div class="i-fas-cogs" />
-              策略设置
-              <span v-if="currentAccountName" class="glass-text-muted text-sm font-normal">
-                ({{ currentAccountName }})
-              </span>
-            </h3>
-            <div class="settings-primary-toolbar-summary md:hidden">
-              <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
-                区服 {{ currentAccountZoneLabel }}
-              </span>
-              <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
-                生效 {{ currentModeExecutionMeta.effectiveMeta.label }}
-              </span>
-              <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
-                {{ localSettings.riskPromptEnabled ? '风控提示已开' : '风控提示已关' }}
-              </span>
-              <span
-                v-if="hasUnsavedAccountSettings"
-                class="settings-primary-toolbar-chip ui-meta-chip--warning"
-              >
-                {{ accountSettingsDirtyCount }} 项待保存
-              </span>
-            </div>
-          </div>
-          <!-- 预设配置快捷组 -->
-          <div class="settings-primary-actions ui-bulk-actions flex flex-wrap items-center gap-2">
-            <span class="glass-text-muted mr-1 hidden text-xs lg:inline-block">预设:</span>
-            <button
-              type="button"
-              class="settings-preset-chip ui-meta-chip--brand"
-              title="安全优先，最像真人"
-              @click="applyPreset('conservative')"
-            >
-              <div class="i-carbon-security" /> 保守
-            </button>
-            <button
-              type="button"
-              class="settings-preset-chip ui-meta-chip--info"
-              title="推荐配置，收益与安全并重"
-              @click="applyPreset('balanced')"
-            >
-              <div class="i-carbon-scales" /> 平衡
-            </button>
-            <button
-              type="button"
-              class="settings-preset-chip ui-meta-chip--warning"
-              title="收益优先，适合小号跑图"
-              @click="applyPreset('aggressive')"
-            >
-              <div class="i-carbon-rocket" /> 激进
-            </button>
-
-            <div class="settings-toolbar-divider mx-1 h-4 w-px" />
-
-            <BaseButton
-              variant="primary"
-              size="sm"
-              :loading="saving"
-              class="settings-footer-button flex items-center gap-1 text-xs !h-auto !px-3 !py-1"
-              @click="saveAccountSettings"
-            >
-              <div class="i-carbon-save" /> 保存当前账号
-            </BaseButton>
-          </div>
+    <div v-else class="settings-layout mt-4 space-y-4">
+      <div class="settings-primary-category card glass-panel rounded-xl px-3 py-3 shadow-sm">
+        <div class="settings-primary-category-list">
+          <button
+            v-for="tab in settingsPrimaryCategoryTabs"
+            :key="tab.key"
+            type="button"
+            class="settings-primary-category-item"
+            :class="tab.key === activeSettingsPrimaryCategory ? 'settings-primary-category-item-active' : ''"
+            @click="switchSettingsPrimaryCategory(tab.key)"
+          >
+            <div class="text-base" :class="[tab.icon]" />
+            <span>{{ tab.label }}</span>
+          </button>
         </div>
+        <div class="settings-primary-category-desc">
+          {{ activeSettingsPrimaryCategoryMeta.description }}
+        </div>
+      </div>
 
-        <!-- Strategy Content -->
-        <div class="p-4 space-y-3">
-          <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,260px)_1fr]">
-            <div class="settings-mode-panel rounded-xl p-3 shadow-sm">
-              <BaseSwitch
-                v-model="localSettings.riskPromptEnabled"
-                label="显示风控功能提示"
-                hint="关闭后仅隐藏界面提示，不会关闭系统真实的安全保护和频率拦截。"
-                recommend="on"
-              />
-            </div>
-            <div
-              v-if="localSettings.riskPromptEnabled"
-              class="settings-mode-banner settings-mode-banner-info bg-linear-to-br rounded-xl p-4 text-sm shadow-sm"
-            >
-              <div class="settings-mode-banner-title mb-2 flex items-center gap-2 font-semibold">
-                <div class="i-carbon-model-alt" />
-                主号 / 小号作用范围已按区服重构
-              </div>
-              <div class="settings-mode-banner-copy leading-6 space-y-1.5">
-                <div>当前账号区服：<strong>{{ currentAccountZoneLabel }}</strong>。QQ 区和微信区的数据互不打通，主号/小号关系只在同区内讨论。</div>
-                <div>协同前提：主号和小号必须互为<strong>游戏好友</strong>，否则“主小号协同”没有业务意义。</div>
-                <div>降级规则：若跨区或不是游戏好友，系统仍保留当前账号的运行策略，但会按<strong>独立账号</strong>理解，不再误套主小号联动。</div>
-              </div>
-            </div>
-            <div
-              v-if="localSettings.riskPromptEnabled"
-              class="settings-mode-state-card rounded-xl p-4 text-sm shadow-sm"
-            >
-              <div class="settings-mode-state-title mb-2 flex items-center gap-2 font-semibold">
-                <div class="i-carbon-chart-relationship" />
-                当前运行态判定
-              </div>
-              <div class="space-y-3">
-                <div class="settings-mode-state-copy leading-6">
-                  当前账号：<strong>{{ currentAccountName || currentAccountId || '未选中' }}</strong>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="currentModeExecutionMeta.configuredMeta.badge">
-                    配置:{{ currentModeExecutionMeta.configuredMeta.label }}
-                  </span>
-                  <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="currentModeExecutionMeta.effectiveMeta.badge">
-                    生效:{{ currentModeExecutionMeta.effectiveMeta.label }}
-                  </span>
-                  <span
-                    v-if="currentModeExecutionMeta.statusBadge"
-                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                    :class="currentModeExecutionMeta.statusBadge.badge"
-                  >
-                    {{ currentModeExecutionMeta.statusBadge.label }}
-                  </span>
-                </div>
-                <div class="text-xs leading-5" :class="currentModeExecutionMeta.noteClass">
-                  {{ currentModeExecutionMeta.note }}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Account Mode Selection Panel -->
-          <div class="grid grid-cols-1 mb-4 gap-3 md:grid-cols-3">
-            <!-- 主号模式 -->
-            <div
-              class="settings-mode-card settings-mode-card-brand cursor-pointer rounded-lg p-3 transition-all duration-200"
-              :class="{ 'settings-mode-card-active': localSettings.accountMode === 'main' }"
-              @click="localSettings.accountMode = 'main'"
-            >
-              <div class="mb-1 flex items-center justify-between">
-                <div class="settings-mode-card-title flex items-center gap-1 font-bold">
-                  <div class="i-carbon-user-avatar items-center" /> 主号模式
-                </div>
-                <div v-show="localSettings.accountMode === 'main'" class="settings-mode-card-check i-carbon-checkmark-filled" />
-              </div>
-              <div class="settings-mode-card-copy text-xs leading-tight">
-                当前区服内的核心运营号；仅在同区且互为游戏好友时，才具备主号协同意义
-              </div>
-            </div>
-            <!-- 小号模式 -->
-            <div
-              class="settings-mode-card settings-mode-card-warning cursor-pointer rounded-lg p-3 transition-all duration-200"
-              :class="{ 'settings-mode-card-active': localSettings.accountMode === 'alt' }"
-              @click="localSettings.accountMode = 'alt'"
-            >
-              <div class="mb-1 flex items-center justify-between">
-                <div class="settings-mode-card-title flex items-center gap-1 font-bold">
-                  <div class="i-carbon-user-multiple items-center" /> 小号模式
-                </div>
-                <div v-show="localSettings.accountMode === 'alt'" class="settings-mode-card-check i-carbon-checkmark-filled" />
-              </div>
-              <div class="settings-mode-card-copy text-xs leading-tight">
-                当前区服内的辅助号；默认延迟收获并抑制高仇恨动作，跨区或非好友时仅保留本号策略
-              </div>
-            </div>
-            <!-- 风险规避模式 -->
-            <div
-              class="settings-mode-card settings-mode-card-success cursor-pointer rounded-lg p-3 transition-all duration-200"
-              :class="{ 'settings-mode-card-active': localSettings.accountMode === 'safe' }"
-              @click="localSettings.accountMode = 'safe'"
-            >
-              <div class="mb-1 flex items-center justify-between">
-                <div class="settings-mode-card-title flex items-center gap-1 font-bold">
-                  <div class="i-carbon-security items-center" /> 风险规避
-                </div>
-                <div v-show="localSettings.accountMode === 'safe'" class="settings-mode-card-check i-carbon-checkmark-filled" />
-              </div>
-              <div class="settings-mode-card-copy text-xs leading-tight">
-                敏感期防守号；压低高风险互动，不参与主小号协同，优先保证账号生存
-              </div>
-            </div>
-          </div>
-
-          <!-- 小号模式特供区：假延迟 -->
-          <div v-if="localSettings.accountMode === 'alt'" class="settings-mode-banner settings-mode-banner-warning mb-4 flex flex-col gap-2 rounded-md p-3">
-            <h4 class="settings-mode-banner-title flex items-center gap-1 text-sm font-semibold">
-              <div class="i-carbon-time" /> 小号专属：收获延迟保护
-            </h4>
-            <span v-if="localSettings.riskPromptEnabled" class="settings-mode-banner-copy text-xs">当农作物成熟时，主动随机延后再收，降低被风控或与主号形成同秒轨迹的概率。</span>
-            <div class="grid grid-cols-2 mt-2 gap-3 md:grid-cols-4">
-              <BaseInput
-                v-model.number="localSettings.harvestDelay.min"
-                label="随机延迟下限 (秒)"
-                type="number"
-                min="0"
-              />
-              <BaseInput
-                v-model.number="localSettings.harvestDelay.max"
-                label="随机延迟上限 (秒)"
-                type="number"
-                min="10"
-              />
-            </div>
-          </div>
-
-          <!-- 风险规避特供区：一键分析拦截 -->
-          <div v-if="localSettings.accountMode === 'safe'" class="settings-mode-banner settings-mode-banner-success mb-4 flex flex-col items-start gap-2 rounded-md p-3">
-            <h4 class="settings-mode-banner-title flex items-center gap-1 text-sm font-semibold">
-              <div class="i-carbon-ibm-cloud-security-compliance-center" /> 风险规避专属护盾
-            </h4>
-            <span v-if="localSettings.riskPromptEnabled" class="settings-mode-banner-copy text-xs">此模式除自动关闭捣乱接口外，可进一步针对历史出现被封警告的号外置强阻断。</span>
-            <BaseButton
-              variant="outline"
-              size="sm"
-              class="settings-mode-inline-action mt-1"
-              :loading="safeChecking"
-              @click="handleSafeCheck"
-            >
-              <div class="i-carbon-search mr-1" /> 分析并加入防御名单
-            </BaseButton>
-          </div>
-
-          <!-- 极值警告 -->
-          <div v-if="farmIntervalHardBlockVisible && !isAdmin" class="settings-risk-alert mb-3 flex items-start gap-2 rounded-md p-3 text-sm">
-            <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-lg" />
-            <div>
-              <strong>农场轮询过低，无法保存。</strong><br>
-              普通用户农田循环下限仍为 15 秒；低于该值会被后端直接拦截。
-            </div>
-          </div>
-
-          <div v-if="timeWarningVisible && !isAdmin" class="settings-risk-alert mb-3 flex items-start gap-2 rounded-md p-3 text-sm">
-            <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-lg" />
-            <div>
-              <strong>好友相关巡查低于 60 秒，风险极高。</strong><br>
-              保存时会要求你再次确认；确认后仍可保存，但更容易触发腾讯风控或出现 1002003。
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <BaseSelect
-              v-model="localSettings.plantingStrategy"
-              label="种植策略"
-              :options="plantingStrategyOptions"
-            />
-            <BaseSelect
-              v-if="localSettings.plantingStrategy === 'bag_priority'"
-              v-model="localSettings.bagSeedFallbackStrategy"
-              label="第二优先策略"
-              :options="bagSeedFallbackStrategyOptions"
-            />
-            <BaseSelect
-              v-else
-              v-model="localSettings.plantingFallbackStrategy"
-              label="失配回退"
-              :options="plantingFallbackStrategyOptions"
-            />
-            <BaseSelect
-              v-if="localSettings.plantingStrategy === 'preferred'"
-              v-model="localSettings.preferredSeedId"
-              label="优先种植种子"
-              :options="preferredSeedOptions"
-            />
-            <div v-else class="flex flex-col gap-1">
-              <span class="glass-text-muted text-xs">策略选种预览</span>
-              <div class="settings-strategy-preview h-9 flex items-center rounded-md px-3 text-sm font-bold">
-                <div class="i-carbon-checkmark-filled mr-1.5 text-primary-500" />
-                {{ localSettings.plantingStrategy === 'bag_priority' ? bagPriorityPreviewLabel : (strategyPreviewLabel ?? '加载中...') }}
-              </div>
-            </div>
-          </div>
-
-          <div v-if="localSettings.plantingStrategy === 'bag_priority'" class="settings-bag-panel rounded-xl p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div class="settings-bag-title text-sm font-semibold">
-                  背包种子优先顺序
-                </div>
-                <div class="settings-bag-copy mt-1 text-xs leading-5">
-                  会先按下面的顺序尝试消耗背包中的种子。1x1 和 2x2 都参与排序；未解锁或可用数量为 0 的种子只展示，不会参与实际种植。
-                </div>
-              </div>
-              <div class="settings-bag-summary rounded-full px-3 py-1 text-[11px] font-semibold">
-                共 {{ bagPrioritySeeds.length }} 种
-              </div>
-            </div>
-
-            <div class="mb-3 flex flex-wrap items-center gap-2">
-              <BaseButton
-                size="sm"
-                variant="outline"
-                @click="resetBagSeedPriorityRecommended"
-              >
-                推荐重排
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="outline"
-                @click="sortBagSeedPriorityByLevel"
-              >
-                按等级重排
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="outline"
-                :loading="bagPrioritySorting"
-                @click="sortBagSeedPriorityByFallbackStrategy"
-              >
-                按第二优先策略重排
-              </BaseButton>
-              <BaseButton
-                v-if="unconfiguredBagPrioritySeeds.length"
-                size="sm"
-                variant="ghost"
-                @click="appendNewBagSeedsToPriority"
-              >
-                新种子追加到末尾 ({{ unconfiguredBagPrioritySeeds.length }})
-              </BaseButton>
-            </div>
-
-            <div v-if="unconfiguredBagPrioritySeeds.length" class="settings-bag-notice mb-3 rounded-lg px-3 py-2 text-xs leading-5">
-              检测到 {{ unconfiguredBagPrioritySeeds.length }} 个新种子尚未固化到你的优先列表中。当前会先临时显示在列表末尾；你可以直接点“新种子追加到末尾”或“推荐重排”固定顺序。
-            </div>
-
-            <div v-if="bagPrioritySeeds.length > 0" class="space-y-3">
-              <div
-                v-for="(seed, index) in bagPrioritySeeds"
-                :key="`bag-priority-${seed.seedId}`"
-                class="settings-bag-seed-card flex flex-col gap-3 rounded-xl p-3 md:flex-row md:items-center"
-                :class="{ 'settings-bag-seed-card-muted': !seed.unlocked || seed.usableCount <= 0 }"
-                draggable="true"
-                @dragstart="handleBagSeedDragStart(seed.seedId)"
-                @dragover="handleBagSeedDragOver"
-                @drop="handleBagSeedDrop(seed.seedId)"
-                @dragend="handleBagSeedDragEnd"
-              >
-                <div class="flex items-center gap-3">
-                  <div class="settings-bag-drag flex h-9 w-9 items-center justify-center rounded-full text-sm">
-                    <div class="i-carbon-draggable" />
-                  </div>
-                  <div class="settings-bag-index flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold">
-                    {{ index + 1 }}
-                  </div>
-                  <img
-                    :src="seed.image"
-                    :alt="seed.name"
-                    class="h-12 w-12 rounded-xl object-cover"
-                  >
-                </div>
-
-                <div class="min-w-0 flex-1">
-                  <div class="truncate text-sm font-semibold">
-                    {{ seed.name }}
-                  </div>
-                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Seed ID: {{ seed.seedId }} · Lv.{{ seed.requiredLevel }} · 占地 {{ seed.plantSize }}x{{ seed.plantSize }}
-                  </div>
-                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    背包 {{ seed.count }} · 可用 {{ seed.usableCount }} · 保留 {{ seed.reservedCount }}
-                    <span v-if="!seed.unlocked"> · 当前等级未解锁</span>
-                    <span v-else-if="seed.usableCount <= 0"> · 已被保留规则拦截</span>
-                    <span v-else-if="!configuredBagPriorityIdSet.has(seed.seedId)"> · 新发现，待确认顺序</span>
-                  </div>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2 md:justify-end">
-                  <BaseBadge surface="glass-soft" tone="warning">
-                    {{ seed.plantSize }}x{{ seed.plantSize }}
-                  </BaseBadge>
-                  <BaseButton
-                    size="sm"
-                    variant="ghost"
-                    :disabled="index === 0"
-                    @click="moveBagSeedPriority(seed.seedId, -1)"
-                  >
-                    上移
-                  </BaseButton>
-                  <BaseButton
-                    size="sm"
-                    variant="ghost"
-                    :disabled="index === bagPrioritySeeds.length - 1"
-                    @click="moveBagSeedPriority(seed.seedId, 1)"
-                  >
-                    下移
-                  </BaseButton>
-                </div>
-              </div>
-            </div>
-            <div v-else class="settings-bag-empty rounded-lg border-dashed px-3 py-4 text-xs">
-              当前背包中没有种子，或该账号尚未完成背包数据刷新。
-            </div>
-          </div>
-
-          <div class="settings-inventory-panel rounded-xl p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div class="settings-inventory-title text-sm font-semibold">
-                  库存优先种植
-                </div>
-                <div class="settings-inventory-copy mt-1 text-xs leading-5">
-                  优先消耗背包现有种子。可按“全局保留数量 + 指定种子保留规则”决定哪些库存不参与自动种植。
-                </div>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <BaseSelect
-                v-model="localSettings.inventoryPlanting.mode"
-                label="库存种植模式"
-                :options="inventoryPlantingModeOptions"
-              />
-              <BaseInput
-                v-model.number="localSettings.inventoryPlanting.globalKeepCount"
-                label="全局保留数量"
-                type="number"
-                min="0"
-              />
-            </div>
-
-            <div v-if="localSettings.inventoryPlanting.mode !== 'disabled'" class="mt-4">
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <div class="text-xs text-teal-700/80 dark:text-teal-200/70">
-                  指定种子保留规则会覆盖全局保留数量。留空时仅使用上面的全局值。
-                </div>
-                <BaseButton
-                  size="sm"
-                  variant="outline"
-                  class="settings-inventory-action"
-                  @click="addInventoryReserveRule"
+      <div class="grid grid-cols-1 gap-4 text-sm lg:grid-cols-2">
+        <!-- Card 1: Strategy & Automation -->
+        <div
+          v-if="currentAccountId"
+          v-show="isSettingsCategoryVisible(['common', 'plant', 'auto', 'security'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow"
+          :class="strategyPanelFullWidth ? 'lg:col-span-2' : ''"
+        >
+          <!-- Strategy Header -->
+          <div class="settings-card-divider settings-primary-toolbar ui-mobile-sticky-panel flex flex-col justify-between gap-3 px-4 py-3 md:flex-row md:items-center">
+            <div class="settings-primary-toolbar-heading">
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <div class="i-fas-cogs" />
+                策略设置
+                <span v-if="currentAccountName" class="glass-text-muted text-sm font-normal">
+                  ({{ currentAccountName }})
+                </span>
+              </h3>
+              <div class="settings-primary-toolbar-summary md:hidden">
+                <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
+                  区服 {{ currentAccountZoneLabel }}
+                </span>
+                <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
+                  生效 {{ currentModeExecutionMeta.effectiveMeta.label }}
+                </span>
+                <span class="settings-primary-toolbar-chip ui-meta-chip--brand">
+                  {{ localSettings.riskPromptEnabled ? '风控提示已开' : '风控提示已关' }}
+                </span>
+                <span
+                  v-if="hasUnsavedAccountSettings"
+                  class="settings-primary-toolbar-chip ui-meta-chip--warning"
                 >
-                  <div class="i-carbon-add mr-1" /> 添加保留规则
-                </BaseButton>
+                  {{ accountSettingsDirtyCount }} 项待保存
+                </span>
               </div>
+            </div>
+            <!-- 预设配置快捷组 -->
+            <div class="settings-primary-actions ui-bulk-actions flex flex-wrap items-center gap-2">
+              <span class="glass-text-muted mr-1 hidden text-xs lg:inline-block">预设:</span>
+              <button
+                type="button"
+                class="settings-preset-chip ui-meta-chip--brand"
+                title="安全优先，最像真人"
+                @click="applyPreset('conservative')"
+              >
+                <div class="i-carbon-security" /> 保守
+              </button>
+              <button
+                type="button"
+                class="settings-preset-chip ui-meta-chip--info"
+                title="推荐配置，收益与安全并重"
+                @click="applyPreset('balanced')"
+              >
+                <div class="i-carbon-scales" /> 平衡
+              </button>
+              <button
+                type="button"
+                class="settings-preset-chip ui-meta-chip--warning"
+                title="收益优先，适合小号跑图"
+                @click="applyPreset('aggressive')"
+              >
+                <div class="i-carbon-rocket" /> 激进
+              </button>
 
-              <div v-if="localSettings.inventoryPlanting.reserveRules.length > 0" class="space-y-2">
-                <div
-                  v-for="(rule, index) in localSettings.inventoryPlanting.reserveRules"
-                  :key="`inventory-rule-${index}`"
-                  class="settings-inventory-rule grid grid-cols-1 gap-2 rounded-lg p-3 md:grid-cols-[minmax(0,1fr)_140px_auto]"
-                >
-                  <BaseSelect
-                    v-model="rule.seedId"
-                    label="种子"
-                    :options="inventoryReserveSeedOptions"
-                  />
-                  <BaseInput
-                    v-model.number="rule.keepCount"
-                    label="至少保留"
-                    type="number"
-                    min="0"
-                  />
-                  <div class="flex items-end">
-                    <BaseButton
-                      size="sm"
-                      variant="ghost"
-                      class="settings-inventory-remove"
-                      @click="removeInventoryReserveRule(index)"
-                    >
-                      <div class="i-carbon-trash-can mr-1" /> 删除
-                    </BaseButton>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="settings-inventory-empty rounded-lg border-dashed px-3 py-4 text-xs">
-                当前没有指定种子保留规则，系统只使用“全局保留数量”。
-              </div>
+              <div class="settings-toolbar-divider mx-1 h-4 w-px" />
+
+              <BaseButton
+                variant="primary"
+                size="sm"
+                :loading="saving"
+                class="settings-footer-button flex items-center gap-1 text-xs !h-auto !px-3 !py-1"
+                @click="saveAccountSettings"
+              >
+                <div class="i-carbon-save" /> 保存当前账号
+              </BaseButton>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 items-end gap-3 md:grid-cols-4 xl:grid-cols-6">
-            <BaseInput
-              v-model.number="localSettings.intervals.farmMin"
-              label="农场巡查最小 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.farmMax"
-              label="农场巡查最大 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.friendMin"
-              label="好友巡查最小 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.friendMax"
-              label="好友巡查最大 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.helpMin"
-              label="帮忙最小 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.helpMax"
-              label="帮忙最大 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.stealMin"
-              label="偷菜最小 (秒)"
-              type="number"
-              min="1"
-            />
-            <BaseInput
-              v-model.number="localSettings.intervals.stealMax"
-              label="偷菜最大 (秒)"
-              type="number"
-              min="1"
-            />
-          </div>
-          <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            好友巡查用于综合好友扫描节拍；若帮忙/偷菜仍保持默认值 60~180 秒，会自动跟随好友巡查区间。单次扫描耗时超过设定值时，下一轮会在完成后尽快补跑。
-          </p>
-
-          <div class="settings-section-divider mt-4 flex flex-wrap items-center gap-4 pt-3">
-            <BaseSwitch
-              v-model="localSettings.friendQuietHours.enabled"
-              label="启用静默时段"
-            />
-            <div class="flex items-center gap-2">
-              <BaseInput
-                v-model="localSettings.friendQuietHours.start"
-                type="time"
-                class="w-24"
-                :disabled="!localSettings.friendQuietHours.enabled"
-              />
-              <span class="glass-text-muted">-</span>
-              <BaseInput
-                v-model="localSettings.friendQuietHours.end"
-                type="time"
-                class="w-24"
-                :disabled="!localSettings.friendQuietHours.enabled"
-              />
-            </div>
-          </div>
-
-          <div class="settings-section-divider mt-4 pt-4">
-            <div class="mb-3">
-              <h4 class="text-sm font-semibold">
-                出售策略
-              </h4>
-              <p class="settings-mode-card-copy mt-1 text-xs">
-                当前自动出售仅作用于果实类物品。可配置基础保留数量、强制保留清单以及稀有果实保留规则。
+          <!-- Strategy Content -->
+          <div class="p-4 space-y-3">
+            <div class="settings-strategy-focus rounded-xl px-3 py-2.5">
+              <div class="settings-strategy-focus-title text-xs font-semibold">
+                {{ strategyCategoryGuide.title }}
+              </div>
+              <p class="settings-strategy-focus-hint mt-1 text-xs leading-5">
+                {{ strategyCategoryGuide.hint }}
               </p>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <BaseInput
-                v-model.number="localSettings.tradeConfig.sell.keepMinEachFruit"
-                label="每种果实至少保留"
-                type="number"
-                min="0"
-                max="999999"
-              />
-              <BaseInput
-                v-model.number="localSettings.tradeConfig.sell.batchSize"
-                label="出售批大小"
-                type="number"
-                min="1"
-                max="50"
-              />
-              <BaseSelect
-                v-model="localSettings.tradeConfig.sell.rareKeep.judgeBy"
-                label="稀有判定方式"
-                :options="[
-                  { label: '任一条件命中', value: 'either' },
-                  { label: '按作物等级', value: 'plant_level' },
-                  { label: '按果实单价', value: 'unit_price' },
-                ]"
-              />
-            </div>
-
-            <div class="mt-3">
-              <label class="settings-mode-card-copy mb-1 block text-xs font-semibold">
-                强制保留果实 ID（逗号或空格分隔）
-              </label>
-              <textarea
-                v-model="tradeKeepFruitIdsText"
-                rows="2"
-                class="settings-trade-textarea w-full rounded-lg px-3 py-2 text-sm"
-                placeholder="例如：2001, 2002, 2003"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 mt-4 gap-3 md:grid-cols-2">
-              <div class="settings-mode-panel rounded-xl p-4">
-                <BaseSwitch
-                  v-model="localSettings.tradeConfig.sell.rareKeep.enabled"
-                  label="启用稀有果实保留"
-                />
-                <div class="grid grid-cols-2 mt-3 gap-3">
-                  <BaseInput
-                    v-model.number="localSettings.tradeConfig.sell.rareKeep.minPlantLevel"
-                    label="最低作物等级"
-                    type="number"
-                    min="0"
-                    max="999"
-                    :disabled="!localSettings.tradeConfig.sell.rareKeep.enabled"
-                  />
-                  <BaseInput
-                    v-model.number="localSettings.tradeConfig.sell.rareKeep.minUnitPrice"
-                    label="最低单价"
-                    type="number"
-                    min="0"
-                    max="999999999"
-                    :disabled="!localSettings.tradeConfig.sell.rareKeep.enabled"
-                  />
-                </div>
-              </div>
-
-              <div class="settings-mode-panel rounded-xl p-4">
-                <BaseSwitch
-                  v-model="localSettings.tradeConfig.sell.previewBeforeManualSell"
-                  label="手动出售前先刷新预览"
-                />
-                <p class="settings-mode-card-copy mt-2 text-xs">
-                  背包页手动出售时会先刷新出售计划，避免在你改动保留策略后直接误卖。
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Auto Control Header -->
-        <div class="settings-section-divider border-t bg-transparent px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-fas-toggle-on" />
-            自动控制
-          </h3>
-        </div>
-
-        <!-- Auto Control Content -->
-        <div class="flex-1 p-6 space-y-8">
-          <!-- 分组网格 -->
-          <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 md:grid-cols-2">
-            <!-- 分组 1: 农场基础操作 -->
-            <div class="settings-automation-card rounded-2xl p-5 transition-all">
-              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-agriculture-analytics mr-2" /> 农场基础操作
-                <BaseTooltip text="农场自动化的核心控制区，包含种植收获、好友互动、升级土地等基础功能" />
-              </h4>
-              <div class="space-y-4">
-                <BaseSwitch v-model="localSettings.automation.farm" label="自动种植收获" hint="核心总开关。自动巡查农场：成熟即收、空地即种、异常即处理（浇水/除草/除虫/铲除枯死）。关闭后所有农场自动化停止。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.friend" label="自动好友互动" hint="好友巡查总开关。开启后按下方子策略遍历好友农场执行操作（偷菜/帮忙/捣乱）。关闭则所有好友互动停止。" recommend="on" />
-                <div class="flex flex-col gap-2">
-                  <BaseSwitch v-model="localSettings.automation.land_upgrade" label="自动升级土地" hint="金币充足且满足条件时自动升级土地等级，可提高产量。升级花费较大，金币紧张时建议关闭。" recommend="conditional" />
-                  <div v-show="localSettings.automation.land_upgrade" class="ml-7 space-y-1">
-                    <div class="flex items-center gap-2">
-                      <span class="glass-text-muted shrink-0 text-[11px] font-bold tracking-widest uppercase">
-                        最高升级到：
-                      </span>
-                      <BaseInput
-                        v-model.number="localSettings.automation.landUpgradeTarget"
-                        type="number"
-                        min="0"
-                        max="6"
-                        class="w-16 shrink-0 text-sm shadow-inner !py-1"
-                      />
-                    </div>
-                    <p class="settings-automation-note text-[10px]">
-                      0=普通，6=蓝宝石
-                    </p>
-                  </div>
-                </div>
-                <BaseSwitch v-model="localSettings.automation.sell" label="自动卖果实" hint="收获后自动将仓库中的果实出售换取金币。关闭则果实堆积在仓库不处理。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.farm_push" label="推送触发巡田" hint="收到外部事件（如消息推送）时立即触发一次农场巡查，而非等待定时轮询，提高响应灵敏度。" recommend="on" />
-              </div>
-            </div>
-
-            <!-- 分组 2: 每日收益领取 -->
-            <div class="settings-automation-card rounded-2xl p-5 transition-all">
-              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-gift mr-2" /> 每日收益领取
-                <BaseTooltip text="每日可领取的免费奖励，建议全部开启以最大化日常收益" />
-              </h4>
-              <div class="space-y-4">
-                <BaseSwitch v-model="localSettings.automation.free_gifts" label="自动商城礼包" hint="每日自动领取商城中的免费礼包（种子/化肥/装饰等），错过后次日才能再领。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.task" label="自动任务领奖" hint="自动领取每日任务、成长任务、活跃奖励；任务进度会随着种植、收菜、好友互动、分享等自动化行为自然推进。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.share_reward" label="自动分享奖励" hint="自动触发分享操作并领取分享奖励，某些活动需分享才能获取额外收益。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.email" label="自动领取邮件" hint="自动领取系统邮件中的附件奖励（活动奖励/补偿/系统礼品等）。" recommend="on" />
-                <div class="grid grid-cols-1 gap-4 pt-1">
-                  <BaseSwitch v-model="localSettings.automation.vip_gift" label="自动VIP礼包" hint="VIP 用户专属，自动领取每日 VIP 礼包。非 VIP 用户开启无效但不会报错。" recommend="conditional" />
-                  <BaseSwitch v-model="localSettings.automation.month_card" label="自动月卡奖励" hint="月卡用户专属，自动领取月卡每日奖励。无月卡开启无效但不会报错。" recommend="conditional" />
-                  <BaseSwitch v-model="localSettings.automation.open_server_gift" label="自动开服红包" hint="自动领取开服活动红包奖励。活动期间有效，非活动期开启无影响。" recommend="on" />
-                </div>
-              </div>
-            </div>
-
-            <!-- 分组 3: 化肥与杂项控制 -->
-            <div class="settings-automation-card rounded-2xl p-5 transition-all">
-              <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-tool-box mr-2" /> 化肥与精细控制
-                <BaseTooltip text="化肥管理和高级防盗功能的精细控制区" />
-              </h4>
-              <div class="space-y-4">
-                <BaseSwitch v-model="localSettings.automation.fertilizer_gift" label="自动填充化肥" hint="有免费化肥领取机会时自动领取，保证化肥库存不断档。" recommend="on" />
-                <div class="flex flex-col gap-2">
-                  <BaseSwitch v-model="localSettings.automation.fertilizer_buy" label="自动购买化肥" hint="通过商城点券礼包自动补普通肥/有机肥容器，可按余量阈值触发，也可持续补满。" recommend="conditional" />
-                  <div v-show="localSettings.automation.fertilizer_buy" class="ml-7 space-y-3">
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <BaseSelect
-                        v-model="localSettings.automation.fertilizer_buy_type"
-                        label="购肥类型"
-                        :options="fertilizerBuyTypeOptions"
-                      />
-                      <BaseSelect
-                        v-model="localSettings.automation.fertilizer_buy_mode"
-                        label="触发模式"
-                        :options="fertilizerBuyModeOptions"
-                      />
-                    </div>
-                    <div v-if="localSettings.automation.fertilizer_buy_mode === 'threshold'" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <BaseInput
-                        v-model.number="localSettings.automation.fertilizer_buy_threshold_normal"
-                        label="普通肥阈值 (小时)"
-                        type="number"
-                        min="0"
-                      />
-                      <BaseInput
-                        v-model.number="localSettings.automation.fertilizer_buy_threshold_organic"
-                        label="有机肥阈值 (小时)"
-                        type="number"
-                        min="0"
-                      />
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">
-                        - 单日最大购买上限 (包)：
-                      </span>
-                      <BaseInput
-                        v-model.number="localSettings.automation.fertilizer_buy_limit"
-                        type="number"
-                        min="1"
-                        class="w-24 text-sm shadow-inner !py-1"
-                      />
-                    </div>
-                    <p class="settings-automation-note text-[10px]">
-                      优先使用点券礼包。若选择“双容器”，系统会先补剩余时长更低的一侧。
-                    </p>
-                  </div>
-                </div>
-                <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
-                <BaseSwitch v-model="localSettings.automation.fastHarvest" label="成熟秒收取" hint="在作物进入成熟前预设定时任务，约提前 200ms 发起收获请求，尽量压缩被偷窗口。和 60 秒施肥防偷可并存。" recommend="conditional" />
-                <BaseSwitch v-model="localSettings.automation.fertilizer_smart_phase" label="智能二季施肥" hint="开启后，二季作物刚种植时不会马上浪费化肥，而是等到耗时最长的黄金阶段再自动进行延期施肥，实现单果经验/金钱收益最大化。" recommend="conditional" />
-                <div class="settings-section-divider pt-2">
-                  <div class="settings-automation-scope mb-2 rounded-md px-2.5 py-1.5 text-xs">
-                    {{ fertilizerScopeText }}
-                  </div>
-                  <BaseSelect
-                    v-model="localSettings.automation.fertilizer"
-                    label="内容选择：施肥策略"
-                    class="!w-full"
-                    :options="fertilizerOptions"
-                    title="种植后自动施肥的方式。普通肥加速生长、有机肥改善土壤（可循环施直到耗尽）、两者兼用效果最佳。推荐：普通+有机"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 好友互动详细控制 (始终显示，关闭时灰化) -->
-          <div class="settings-friend-panel relative rounded-2xl p-5 transition-all" :class="localSettings.automation.friend ? 'settings-friend-panel-active' : 'settings-friend-panel-inactive'">
-            <!-- 灰化遮罩：总开关关闭时覆盖内容区 -->
-            <div v-if="!localSettings.automation.friend" class="settings-friend-overlay absolute inset-0 z-10 flex items-center justify-center rounded-2xl">
-              <span class="settings-friend-overlay-badge ui-glass-chip rounded-lg px-4 py-2 text-sm font-bold shadow-lg">
-                🔒 请先开启上方「自动好友互动」总开关
-              </span>
-            </div>
-            <h4 class="mb-4 flex items-center text-xs font-bold tracking-widest uppercase" :class="localSettings.automation.friend ? 'settings-friend-title-active' : 'settings-friend-title-inactive'">
-              <div class="i-carbon-user-multiple mr-2" /> 社交互动详细策略
-              <BaseTooltip text="只有在主开关【自动好友互动】开启时此策略组才会生效，控制在好友农场的具体行为。" />
-            </h4>
-            <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2" :class="{ 'opacity-40 pointer-events-none select-none': !localSettings.automation.friend }">
-              <!-- 蹲守开关：独立占一格 -->
-              <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间，到点精准出击偷取高价值果实。" recommend="conditional" />
-              <!-- 蹲守延迟设置：独立占一格，仅在开启后显示内容 -->
-              <div class="inline-flex flex-col gap-1">
-                <template v-if="localSettings.stakeoutSteal.enabled">
-                  <label class="inline-flex items-center gap-2">
-                    <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
-                    <div class="settings-stakeout-delay flex items-center gap-1.5 rounded-md px-2 py-1">
-                      <input
-                        v-model.number="localSettings.stakeoutSteal.delaySec"
-                        type="number"
-                        min="0"
-                        max="60"
-                        class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
-                      >
-                      <span class="glass-text-muted text-xs font-bold">秒</span>
-                    </div>
-                  </label>
-                  <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
-                    成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
-                    <BaseBadge surface="meta" tone="warning" class="recommend-badge">
-                      推荐 3 秒
-                    </BaseBadge>
-                  </p>
-                </template>
-                <template v-else>
-                  <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
-                  <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
-                    请先开启左侧「精准蹲守偷菜」开关。
-                  </p>
-                </template>
-              </div>
-
-              <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。" recommend="on" />
-              <BaseSwitch v-model="localSettings.automation.friend_help" label="自动帮忙" hint="访问好友农场时自动帮忙浇水/除草/除虫，可获得经验奖励。" recommend="on" />
-              <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />
-              <BaseSwitch v-model="localSettings.automation.friend_auto_accept" label="自动同意好友" hint="自动同意所有好友申请。好友越多偷菜机会越多，但也增加被偷风险。" recommend="conditional" />
-              <BaseSwitch v-model="localSettings.automation.friend_help_exp_limit" label="经验上限停止帮忙" hint="当日帮忙经验达到系统上限后自动停止，避免做无用功浪费请求配额。" recommend="on" />
-              <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="如果发现好友列表一直为空（多见于微信最新环境），请开启此项强制尝试 GetAll 拉取。" recommend="conditional" />
-            </div>
-          </div>
-
-          <!-- 偷菜与好友过滤 (已迁移) -->
-          <div class="border-2 border-primary-200 rounded-2xl border-dashed bg-primary-50/50 p-6 text-center dark:border-primary-800/30 dark:bg-primary-900/10">
-            <div class="mx-auto mb-3 h-12 w-12 flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-800/50">
-              <div class="i-carbon-sprout text-2xl text-primary-600 dark:text-primary-400" />
-            </div>
-            <h4 class="glass-text-main text-sm font-bold">
-              偷菜白名单与作物过滤已迁移
-            </h4>
-            <p class="glass-text-muted dark:glass-text-muted mx-auto mt-2 max-w-md text-xs">
-              为了提供更加流畅与精细的控制体验，我们设计了全新的独立管理面板。包含可视化图标、等级检视以及便捷的模糊搜索。
-            </p>
-            <BaseButton
-              to="/steal-settings"
-              variant="success"
-              class="mt-4"
-            >
-              前往偷菜控制台 <div class="i-carbon-arrow-right ml-2" />
-            </BaseButton>
-          </div>
-        </div>
-
-        <!-- Save Button -->
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-          <p class="settings-sticky-save-note md:hidden">
-            保存后会立即应用到当前账号。
-          </p>
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="saving"
-            class="settings-footer-button"
-            @click="saveAccountSettings"
-          >
-            保存当前账号设置
-          </BaseButton>
-        </div>
-      </div>
-
-      <div v-else class="card glass-panel flex flex-col items-center justify-center gap-4 rounded-lg p-12 text-center shadow">
-        <div class="settings-empty-icon rounded-full p-4">
-          <div class="i-carbon-settings-adjust glass-text-muted text-4xl" />
-        </div>
-        <div class="max-w-xs">
-          <h3 class="glass-text-main text-lg font-medium">
-            需要登录账号
-          </h3>
-          <p class="glass-text-muted mt-1 text-sm">
-            请先登录账号以配置策略和自动化选项。
-          </p>
-        </div>
-      </div>
-
-      <!-- Card 2: System Settings (Password & Offline) -->
-      <div class="card glass-panel h-full flex flex-col rounded-lg shadow">
-        <!-- Password Header -->
-        <div class="settings-card-divider px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-password" />
-            账号密码
-            <span v-if="currentUsername" class="settings-mode-badge ui-meta-chip--brand text-xs font-normal">
-              {{ currentUsername }}
-            </span>
-          </h3>
-        </div>
-
-        <!-- Password Content -->
-        <form class="p-4 space-y-3" @submit.prevent="handleChangePassword">
-          <input
-            :value="currentUsername || ''"
-            type="text"
-            name="username"
-            autocomplete="username"
-            class="hidden"
-            readonly
-            tabindex="-1"
-            aria-hidden="true"
-          >
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <BaseInput
-              v-model="passwordForm.old"
-              label="当前密码"
-              type="password"
-              autocomplete="current-password"
-              placeholder="当前登录密码"
-            />
-            <BaseInput
-              v-model="passwordForm.new"
-              label="新密码"
-              type="password"
-              autocomplete="new-password"
-              :placeholder="isAdmin ? '至少 4 位' : '至少 6 位，需含字母和数字'"
-            />
-            <BaseInput
-              v-model="passwordForm.confirm"
-              label="确认新密码"
-              type="password"
-              autocomplete="new-password"
-              placeholder="再次输入新密码"
-            />
-          </div>
-
-          <div class="flex items-center justify-between pt-1">
-            <p class="glass-text-muted text-xs">
-              修改当前登录账号 <strong>{{ currentUsername }}</strong> 的密码
-            </p>
-            <BaseButton
-              variant="primary"
-              size="sm"
-              type="submit"
-              :loading="passwordSaving"
-            >
-              修改密码
-            </BaseButton>
-          </div>
-        </form>
-
-        <template v-if="isAdmin">
-          <!-- Offline Header -->
-          <div class="settings-card-divider settings-card-divider-top px-4 py-3">
-            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-              <div class="i-carbon-notification" />
-              下线提醒
-              <span class="settings-mode-badge ui-meta-chip--info text-[11px]">
-                全局 / 仅管理员
-              </span>
-            </h3>
-            <p class="settings-system-note mt-2 text-xs">
-              这是系统级的统一提醒配置，所有账号共用一套渠道和文案，仅管理员可以修改。
-            </p>
-          </div>
-
-          <!-- Offline Content -->
-          <div class="flex-1 p-4 space-y-3">
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div class="flex items-center gap-2">
-                <BaseSelect
-                  v-model="localOffline.channel"
-                  label="推送渠道"
-                  :options="channelOptions"
-                  class="flex-1"
-                />
-                <a
-                  v-if="channelDocUrl"
-                  :href="channelDocUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="settings-system-doc-link settings-system-doc-link-info mt-5 inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium"
-                  title="查看官方文档"
-                >
-                  <span class="i-carbon-launch text-xs" />
-                  官网
-                </a>
-              </div>
-              <BaseSelect
-                v-model="localOffline.reloginUrlMode"
-                label="重登录链接"
-                :options="reloginUrlModeOptions"
-              />
-            </div>
-
-            <BaseInput
-              v-model="localOffline.endpoint"
-              label="接口地址"
-              type="text"
-              :disabled="localOffline.channel !== 'webhook'"
-            />
-
-            <BaseInput
-              v-model="localOffline.token"
-              label="Token"
-              type="text"
-              placeholder="接收端 token"
-            />
-
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <BaseInput
-                v-model="localOffline.title"
-                label="标题"
-                type="text"
-                placeholder="提醒标题"
-              />
-              <BaseSwitch
-                v-model="localOffline.offlineDeleteEnabled"
-                label="离线自动删号"
-                hint="默认关闭。开启后按下面秒数，账号持续离线超时会自动删除。"
-                recommend="off"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <BaseInput
-                v-model.number="localOffline.offlineDeleteSec"
-                label="离线删除账号 (秒)"
-                type="number"
-                min="1"
-                :disabled="!localOffline.offlineDeleteEnabled"
-                placeholder="默认 1"
-              />
-            </div>
-
-            <BaseInput
-              v-model="localOffline.msg"
-              label="内容"
-              type="text"
-              placeholder="提醒内容"
-            />
-
-            <div v-if="localOffline.channel === 'webhook'" class="settings-system-panel rounded-lg p-3 space-y-2">
-              <BaseSwitch
-                v-model="localOffline.webhookCustomJsonEnabled"
-                label="Webhook 自定义 JSON"
-                hint="开启后将按下方 JSON 模板作为请求体发送。可用变量：{{title}} {{content}} {{accountId}} {{accountName}} {{reason}} {{timestamp}} {{isoTime}}"
-                recommend="conditional"
-              />
-              <textarea
-                v-model="localOffline.webhookCustomJsonTemplate"
-                :disabled="!localOffline.webhookCustomJsonEnabled"
-                class="settings-system-editor min-h-[120px] w-full p-2 text-xs font-mono"
-                placeholder="{&quot;title&quot;:&quot;{{title}}&quot;,&quot;content&quot;:&quot;{{content}}&quot;,&quot;accountId&quot;:&quot;{{accountId}}&quot;,&quot;accountName&quot;:&quot;{{accountName}}&quot;,&quot;timestamp&quot;:&quot;{{timestamp}}&quot;}"
-              />
-            </div>
-          </div>
-
-          <!-- Save Offline Button -->
-          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel flex items-center justify-end gap-3 px-4 py-3">
-            <p class="settings-sticky-save-note hidden max-w-xs text-right md:block">
-              这里只保存右侧的全局下线提醒，不会保存左侧巡查时间、静默时段和自动控制。
-            </p>
-            <BaseButton
-              variant="primary"
-              size="sm"
-              :loading="offlineSaving"
-              class="settings-footer-button"
-              @click="handleSaveOffline"
-            >
-              只保存下线提醒（不保存账号设置）
-            </BaseButton>
-          </div>
-        </template>
-
-        <template v-if="currentAccountId">
-          <div class="settings-card-divider settings-card-divider-top px-4 py-3">
-            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-              <div class="i-carbon-report-data" />
-              经营汇报
-              <span class="settings-mode-badge ui-meta-chip--success text-[11px]">
-                账号级 / 当前账号
-              </span>
-            </h3>
-            <p class="settings-system-note mt-2 text-xs">
-              这是当前选中账号的独立汇报配置。不同账号可以分别设置不同的推送渠道、发送时段和邮件收件人。
-            </p>
-          </div>
-
-          <div class="p-4">
-            <div class="settings-report-hero rounded-2xl p-5">
-              <div class="mb-4 flex items-center justify-between gap-3">
-                <h4 class="settings-report-hero-title flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
-                  <div class="i-carbon-report-data mr-1" /> {{ currentAccountName || '当前账号' }} · 经营汇报
-                </h4>
-                <div class="flex flex-wrap gap-2">
-                  <BaseButton
-                    variant="secondary"
-                    size="sm"
-                    :loading="reportSendingMode === 'hourly'"
-                    @click="handleSendReport('hourly')"
-                  >
-                    立即发小时汇报
-                  </BaseButton>
-                  <BaseButton
-                    variant="secondary"
-                    size="sm"
-                    :loading="reportSendingMode === 'daily'"
-                    @click="handleSendReport('daily')"
-                  >
-                    立即发日报
-                  </BaseButton>
-                  <BaseButton
-                    variant="secondary"
-                    size="sm"
-                    :loading="reportTesting"
-                    @click="handleSendReportTest"
-                  >
-                    发送测试汇报
-                  </BaseButton>
-                </div>
-              </div>
-
-              <div class="space-y-4">
-                <BaseSwitch
-                  v-model="localSettings.reportConfig.enabled"
-                  label="启用经营汇报"
-                  hint="按设定周期向当前账号的专属渠道发送经营摘要。这里的设置只影响当前账号，不会改动上方的全局下线提醒；改完后要点“保存当前账号设置”才会真正持久化。"
-                  recommend="conditional"
-                />
-
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div class="flex items-center gap-2">
-                    <BaseSelect
-                      v-model="localSettings.reportConfig.channel"
-                      label="推送渠道"
-                      :options="reportChannelOptions"
-                      class="flex-1"
-                    />
-                    <a
-                      v-if="reportChannelDocUrl"
-                      :href="reportChannelDocUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="settings-system-doc-link settings-system-doc-link-success mt-5 inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium"
-                      title="查看官方文档"
-                    >
-                      <span class="i-carbon-launch text-xs" />
-                      官网
-                    </a>
-                  </div>
-                  <BaseInput
-                    v-model="localSettings.reportConfig.title"
-                    label="汇报标题"
-                    type="text"
-                    placeholder="经营汇报"
-                  />
-                </div>
-
-                <div v-if="!isReportEmailChannel" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <BaseInput
-                    v-model="localSettings.reportConfig.endpoint"
-                    label="接口地址"
-                    type="text"
-                    :disabled="localSettings.reportConfig.channel !== 'webhook'"
-                    placeholder="Webhook 渠道必填"
-                  />
-                  <BaseInput
-                    v-model="localSettings.reportConfig.token"
-                    label="Token"
-                    type="text"
-                    placeholder="非 Webhook 渠道通常必填"
-                  />
-                </div>
-
-                <div v-else class="settings-report-mail-panel rounded-2xl p-4 space-y-4">
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <BaseInput
-                      v-model="localSettings.reportConfig.smtpHost"
-                      label="SMTP 服务器"
-                      type="text"
-                      placeholder="例如 smtp.qq.com"
-                    />
-                    <BaseInput
-                      v-model.number="localSettings.reportConfig.smtpPort"
-                      label="SMTP 端口"
-                      type="number"
-                      placeholder="465 / 587"
-                    />
-                  </div>
-
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <BaseInput
-                      v-model="localSettings.reportConfig.smtpUser"
-                      label="SMTP 用户名"
-                      type="text"
-                      placeholder="通常填完整邮箱，如 123456@qq.com"
-                    />
-                    <BaseInput
-                      v-model="localSettings.reportConfig.smtpPass"
-                      label="SMTP 密码 / 授权码"
-                      type="password"
-                      placeholder="邮箱 SMTP 授权码"
-                    />
-                  </div>
-
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <BaseInput
-                      v-model="localSettings.reportConfig.emailFrom"
-                      label="发件邮箱"
-                      type="text"
-                      placeholder="只填纯邮箱地址；留空则默认取 SMTP 用户名"
-                    />
-                    <BaseInput
-                      v-model="localSettings.reportConfig.emailTo"
-                      label="收件邮箱"
-                      type="text"
-                      placeholder="支持多个，逗号分隔"
-                    />
-                  </div>
-
-                  <div class="settings-report-meta text-xs leading-5">
-                    QQ 邮箱建议使用 <code>smtp.qq.com</code> + <code>465</code> 并开启“直连 TLS”；SMTP 用户名和发件邮箱都尽量填写完整邮箱地址，不要写成“昵称 &lt;邮箱&gt;”。
-                  </div>
-
-                  <BaseSwitch
-                    v-model="localSettings.reportConfig.smtpSecure"
-                    label="直连 TLS"
-                    hint="465 端口通常开启；587 端口会自动尝试 STARTTLS。"
-                    recommend="on"
-                  />
-                </div>
-
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
-                    <BaseSwitch
-                      v-model="localSettings.reportConfig.hourlyEnabled"
-                      label="小时汇报"
-                      hint="到达指定分钟后，发送最近 1 小时的收益与动作摘要。"
-                      recommend="conditional"
-                    />
-                    <div class="mt-3 flex items-center gap-3">
-                      <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">每小时第</span>
-                      <BaseInput
-                        v-model.number="localSettings.reportConfig.hourlyMinute"
-                        type="number"
-                        min="0"
-                        max="59"
-                        class="w-24 text-sm shadow-inner !py-1"
-                        :disabled="!localSettings.reportConfig.hourlyEnabled"
-                      />
-                      <span class="settings-inline-unit text-xs">分钟发送</span>
-                    </div>
-                  </div>
-
-                  <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
-                    <BaseSwitch
-                      v-model="localSettings.reportConfig.dailyEnabled"
-                      label="每日汇报"
-                      hint="按设定时刻发送今日累计经营摘要，适合晚间复盘。"
-                      recommend="on"
-                    />
-                    <div class="mt-3 flex items-center gap-3">
-                      <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">每天</span>
-                      <BaseInput
-                        v-model.number="localSettings.reportConfig.dailyHour"
-                        type="number"
-                        min="0"
-                        max="23"
-                        class="w-24 text-sm shadow-inner !py-1"
-                        :disabled="!localSettings.reportConfig.dailyEnabled"
-                      />
-                      <span class="settings-inline-unit text-xs">时</span>
-                      <BaseInput
-                        v-model.number="localSettings.reportConfig.dailyMinute"
-                        type="number"
-                        min="0"
-                        max="59"
-                        class="w-24 text-sm shadow-inner !py-1"
-                        :disabled="!localSettings.reportConfig.dailyEnabled"
-                      />
-                      <span class="settings-inline-unit text-xs">分发送</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
-                  <div class="settings-report-panel-title mb-2 flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
-                    <div class="i-carbon-data-base mr-1" /> 历史保留策略
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">自动保留</span>
-                    <BaseInput
-                      v-model.number="localSettings.reportConfig.retentionDays"
-                      type="number"
-                      min="0"
-                      max="365"
-                      class="w-24 text-sm shadow-inner !py-1"
-                    />
-                    <span class="settings-inline-unit text-xs">天</span>
-                  </div>
-                  <p class="settings-report-meta mt-2 text-xs leading-relaxed">
-                    填 <span class="font-bold">0</span> 表示不自动清理；填 1~365 表示系统每天自动清理一次过期汇报，并在每次发送后顺手回收当前账号的旧记录。
-                  </p>
-                </div>
-
-                <div class="settings-report-divider pt-4">
-                  <div class="mb-3 flex items-center justify-between gap-3">
-                    <h5 class="settings-report-panel-title text-xs font-bold tracking-widest uppercase">
-                      最近汇报记录
-                    </h5>
-                    <div class="flex flex-wrap gap-2">
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :disabled="selectedReportLogCount === 0"
-                        :loading="reportHistoryBatchDeleting"
-                        @click="handleDeleteReportLogs(selectedReportLogIds)"
-                      >
-                        删除选中
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :loading="reportHistoryExporting"
-                        @click="handleExportReportLogs"
-                      >
-                        导出当前筛选
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :loading="reportHistoryLoading"
-                        @click="() => refreshReportLogs()"
-                      >
-                        刷新记录
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :loading="reportHistoryClearing"
-                        @click="handleClearReportLogs"
-                      >
-                        清空记录
-                      </BaseButton>
-                    </div>
-                  </div>
-
-                  <div class="settings-info-banner mb-3 rounded-xl px-3 py-2 text-xs leading-5">
-                    {{ REPORT_HISTORY_BROWSER_PREF_NOTE }}
-                  </div>
-
-                  <div class="grid grid-cols-1 mb-3 gap-3 md:grid-cols-3">
-                    <BaseSelect
-                      v-model="reportFilters.mode"
-                      label="筛选类型"
-                      :options="reportModeOptions"
-                    />
-                    <BaseSelect
-                      v-model="reportFilters.status"
-                      label="筛选结果"
-                      :options="reportStatusOptions"
-                    />
-                    <BaseInput
-                      v-model="reportKeyword"
-                      label="关键字搜索"
-                      type="text"
-                      placeholder="标题 / 正文 / 失败原因"
-                      @keydown.enter="handleApplyReportSearch"
-                    />
-                  </div>
-
-                  <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
-                    <div class="settings-report-meta text-xs">
-                      <span v-if="reportKeyword.trim()">当前关键字：{{ reportKeyword.trim() }}</span>
-                      <span v-else>未启用关键字搜索</span>
-                      <span class="mx-2">·</span>
-                      <span>固定 3 条/页</span>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        @click="handleApplyReportSearch"
-                      >
-                        搜索
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        @click="handleShowLatestFailed"
-                      >
-                        最新失败
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        @click="handleResetReportHistoryView"
-                      >
-                        恢复默认视图
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :disabled="!reportKeyword"
-                        @click="reportKeyword = ''; handleApplyReportSearch()"
-                      >
-                        清空搜索
-                      </BaseButton>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 mb-3 gap-3 md:grid-cols-2">
-                    <BaseSelect
-                      v-model="reportSortOrder"
-                      label="时间排序"
-                      :options="reportSortOrderOptions"
-                    />
-                  </div>
-
-                  <div class="grid grid-cols-2 mb-3 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                    <button
-                      v-for="item in reportHistoryStatsCards"
-                      :key="item.key"
-                      type="button"
-                      class="settings-report-stat-card rounded-xl px-3 py-3 text-left transition-all duration-150"
-                      :class="[
-                        item.bg,
-                        item.active
-                          ? 'settings-report-stat-card-active shadow-md'
-                          : 'hover:-translate-y-0.5 hover:shadow-sm',
-                      ]"
-                      :title="`点击筛选${item.label}`"
-                      @click="handleReportStatsCardClick(item.key)"
-                    >
-                      <div class="settings-report-stat-label flex items-center justify-between gap-2 text-[11px] font-bold tracking-widest uppercase">
-                        <span>{{ item.label }}</span>
-                        <span v-if="item.active" class="settings-report-active">已筛选</span>
-                      </div>
-                      <div class="mt-2 text-2xl font-black" :class="item.tone">
-                        {{ item.value }}
-                      </div>
-                      <div class="settings-report-stat-hint mt-1 text-[11px]">
-                        点击快速筛选
-                      </div>
-                    </button>
-                  </div>
-
-                  <div class="settings-report-selection mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div class="flex flex-wrap items-center gap-3">
-                      <span>
-                        共 {{ reportLogPagination.total }} 条记录，当前第 {{ reportLogPagination.page }} / {{ reportLogPagination.totalPages }} 页
-                      </span>
-                      <label class="inline-flex select-none items-center gap-2">
-                        <input
-                          type="checkbox"
-                          class="settings-report-checkbox h-4 w-4 rounded"
-                          :checked="allVisibleReportLogsSelected"
-                          @change="toggleSelectAllVisibleReportLogs"
-                        >
-                        <span>全选当前页</span>
-                      </label>
-                      <span v-if="selectedReportLogCount > 0" class="settings-report-active font-semibold">
-                        已选 {{ selectedReportLogCount }} 条
-                      </span>
-                    </div>
-                    <div class="flex gap-2">
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :disabled="reportHistoryLoading || reportLogPagination.page <= 1"
-                        @click="goToReportLogPage(reportLogPagination.page - 1)"
-                      >
-                        上一页
-                      </BaseButton>
-                      <BaseButton
-                        variant="secondary"
-                        size="sm"
-                        :disabled="reportHistoryLoading || reportLogPagination.page >= reportLogPagination.totalPages"
-                        @click="goToReportLogPage(reportLogPagination.page + 1)"
-                      >
-                        下一页
-                      </BaseButton>
-                    </div>
-                  </div>
-
-                  <div v-if="reportHistoryLoading" class="settings-report-empty rounded-xl px-4 py-5 text-center text-xs">
-                    正在加载汇报历史...
-                  </div>
-
-                  <div v-else-if="reportLogs.length === 0" class="settings-report-empty rounded-xl px-4 py-5 text-center text-xs">
-                    还没有经营汇报历史记录
-                  </div>
-
-                  <div v-else class="space-y-3">
-                    <div
-                      v-for="item in reportLogs"
-                      :key="item.id"
-                      class="settings-report-log-card rounded-xl p-4"
-                    >
-                      <div class="flex flex-wrap items-start justify-between gap-2">
-                        <div class="min-w-0 flex flex-1 items-start gap-3">
-                          <label class="mt-0.5 inline-flex items-center">
-                            <input
-                              type="checkbox"
-                              class="settings-report-checkbox h-4 w-4 rounded"
-                              :checked="isReportLogSelected(item.id)"
-                              @change="toggleReportLogSelected(item.id)"
-                            >
-                          </label>
-                          <div class="min-w-0 flex-1">
-                            <div class="settings-report-log-title truncate text-sm font-semibold">
-                              {{ item.title || '经营汇报' }}
-                            </div>
-                            <div class="settings-report-log-meta mt-1 text-[11px]">
-                              {{ formatReportMode(item.mode) }} · {{ formatReportLogTime(item.createdAt) }} · {{ item.channel || 'unknown' }}
-                            </div>
-                          </div>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span
-                            class="settings-result-badge rounded-full px-2 py-0.5 text-[11px] font-bold"
-                            :class="item.ok ? 'ui-meta-chip--success' : 'ui-meta-chip--danger'"
-                          >
-                            {{ item.ok ? '成功' : '失败' }}
-                          </span>
-                          <BaseButton
-                            variant="secondary"
-                            size="sm"
-                            :loading="reportHistoryDeletingIds.includes(item.id)"
-                            @click="handleDeleteReportLogs([item.id], { single: true, title: `「${item.title || '经营汇报'}」` })"
-                          >
-                            删除
-                          </BaseButton>
-                        </div>
-                      </div>
-
-                      <div
-                        class="settings-report-log-body mt-3 overflow-auto whitespace-pre-line rounded-lg px-3 py-2 text-xs leading-5"
-                        :class="isReportLogExpanded(item.id) ? 'max-h-64' : 'max-h-24'"
-                      >
-                        {{ isReportLogExpanded(item.id) ? (item.content || '无正文') : getReportLogPreview(item.content) }}
-                      </div>
-
-                      <div
-                        v-if="item.errorMessage"
-                        class="settings-report-error mt-2 text-xs"
-                      >
-                        失败原因：{{ item.errorMessage }}
-                      </div>
-
-                      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <span class="settings-report-state-note text-[11px]">
-                          {{ isReportLogExpanded(item.id) ? '已展开完整正文' : '当前显示正文预览' }}
-                        </span>
-                        <div class="flex flex-wrap gap-2">
-                          <BaseButton
-                            variant="secondary"
-                            size="sm"
-                            @click="toggleReportLogExpanded(item.id)"
-                          >
-                            {{ isReportLogExpanded(item.id) ? '收起正文' : '展开正文' }}
-                          </BaseButton>
-                          <BaseButton
-                            variant="secondary"
-                            size="sm"
-                            @click="openReportLogDetail(item)"
-                          >
-                            查看详情
-                          </BaseButton>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-section-divider flex items-center justify-between bg-transparent px-4 py-3">
-          <div>
-            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-              <div class="i-carbon-data-check" />
-              系统自检与前端产物状态
-            </h3>
-            <p class="settings-health-note mt-1 text-xs">
-              展示 `system_settings` 自检结果，以及当前面板实际使用的前端静态目录。
-            </p>
-          </div>
-          <BaseButton
-            variant="secondary"
-            size="sm"
-            :loading="systemHealthLoading || qqFriendDiagnosticsLoading"
-            @click="refreshAdminHealthPanels(true)"
-          >
-            <div class="i-carbon-renew mr-1" /> 刷新状态
-          </BaseButton>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div class="settings-health-card rounded-xl p-4">
-              <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                system_settings
-              </div>
-              <div class="mt-2">
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" :class="systemHealthStatusClass">
-                  {{ systemHealthStatusLabel }}
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span v-for="tag in strategyCategoryGuide.tags" :key="`strategy-guide-${tag}`" class="settings-strategy-focus-chip px-2 py-0.5 text-[11px]">
+                  {{ tag }}
                 </span>
               </div>
             </div>
 
-            <div class="settings-health-card rounded-xl p-4">
-              <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                最近检查时间
+            <div v-show="isCommonSettingsCategory" class="settings-common-quick rounded-xl p-3">
+              <div class="settings-common-quick-title flex items-center gap-2 text-sm font-semibold">
+                <div class="i-carbon-flash-filled text-base" />
+                常用 8 项快捷配置
               </div>
-              <div class="settings-health-card-value mt-2 text-sm font-medium">
-                {{ systemHealthCheckedAtLabel }}
+              <p class="settings-common-quick-hint mt-1 text-xs leading-5">
+                仅保留高频项，改完即可直接保存。完整参数仍在“种植策略 / 自动任务 / 账号与安全”分类中。
+              </p>
+              <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSelect
+                    v-model="localSettings.accountMode"
+                    label="账号模式"
+                    :options="accountModeOptions"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSwitch
+                    v-model="localSettings.riskPromptEnabled"
+                    label="风控提示"
+                    hint="建议开启，关键风险动作会有明确提示。"
+                    recommend="on"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSelect
+                    v-model="localSettings.plantingStrategy"
+                    label="种植策略"
+                    :options="plantingStrategyOptions"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSwitch
+                    v-model="localSettings.automation.farm"
+                    label="自动种植收获"
+                    hint="农场自动化总开关。"
+                    recommend="on"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSwitch
+                    v-model="localSettings.automation.friend"
+                    label="自动好友互动"
+                    hint="好友巡查总开关。"
+                    recommend="on"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSwitch
+                    v-model="localSettings.automation.sell"
+                    label="自动卖果实"
+                    hint="收获后自动出售果实。"
+                    recommend="on"
+                  />
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <div class="settings-common-quick-label mb-2 text-xs font-semibold">
+                    好友巡查区间 (秒)
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <BaseInput
+                      v-model.number="localSettings.intervals.friendMin"
+                      label="最小"
+                      type="number"
+                      min="1"
+                    />
+                    <BaseInput
+                      v-model.number="localSettings.intervals.friendMax"
+                      label="最大"
+                      type="number"
+                      min="1"
+                    />
+                  </div>
+                </div>
+                <div class="settings-common-quick-card rounded-xl p-3">
+                  <BaseSwitch
+                    v-model="localSettings.friendQuietHours.enabled"
+                    label="静默时段"
+                    hint="避免在高风险时段执行好友动作。"
+                  />
+                  <div class="settings-quiet-hours-row mt-2">
+                    <BaseInput
+                      v-model="localSettings.friendQuietHours.start"
+                      type="time"
+                      class="settings-quiet-hours-input"
+                      :disabled="!localSettings.friendQuietHours.enabled"
+                    />
+                    <BaseInput
+                      v-model="localSettings.friendQuietHours.end"
+                      type="time"
+                      class="settings-quiet-hours-input"
+                      :disabled="!localSettings.friendQuietHours.enabled"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="settings-health-card rounded-xl p-4">
-              <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                当前选路原因
+            <div v-show="isSettingsCategoryVisible(['security'])" class="space-y-3">
+              <div class="settings-security-quick rounded-xl p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div class="settings-security-quick-title flex items-center gap-2 text-sm font-semibold">
+                      <div class="i-carbon-security text-base" />
+                      账号与安全快捷配置
+                    </div>
+                    <p class="settings-security-quick-copy mt-1 text-xs leading-5">
+                      首屏保留关键风控项；详细说明和高级保护策略可按需展开。
+                    </p>
+                  </div>
+                  <span class="settings-security-quick-chip px-2.5 py-1 text-[11px]">
+                    {{ securityDetailExpanded ? '详细模式' : '快捷模式' }}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-2">
+                  <div class="settings-security-quick-card rounded-xl p-3">
+                    <BaseSelect
+                      v-model="localSettings.accountMode"
+                      label="账号模式"
+                      :options="accountModeOptions"
+                    />
+                  </div>
+                  <div class="settings-security-quick-card rounded-xl p-3">
+                    <BaseSwitch
+                      v-model="localSettings.riskPromptEnabled"
+                      label="显示风控功能提示"
+                      hint="建议开启，可明确看到当前模式和高风险提示。"
+                      recommend="on"
+                    />
+                  </div>
+                  <div class="settings-security-quick-card rounded-xl p-3">
+                    <div class="text-xs font-semibold">
+                      好友巡查区间 (秒)
+                    </div>
+                    <div class="grid grid-cols-2 mt-2 gap-2">
+                      <BaseInput
+                        v-model.number="localSettings.intervals.friendMin"
+                        label="最小"
+                        type="number"
+                        min="1"
+                      />
+                      <BaseInput
+                        v-model.number="localSettings.intervals.friendMax"
+                        label="最大"
+                        type="number"
+                        min="1"
+                      />
+                    </div>
+                  </div>
+                  <div class="settings-security-quick-card rounded-xl p-3">
+                    <BaseSwitch
+                      v-model="localSettings.friendQuietHours.enabled"
+                      label="静默时段"
+                      hint="在高风险时段暂缓好友动作。"
+                    />
+                    <div class="settings-quiet-hours-row mt-2">
+                      <BaseInput
+                        v-model="localSettings.friendQuietHours.start"
+                        type="time"
+                        class="settings-quiet-hours-input"
+                        :disabled="!localSettings.friendQuietHours.enabled"
+                      />
+                      <BaseInput
+                        v-model="localSettings.friendQuietHours.end"
+                        type="time"
+                        class="settings-quiet-hours-input"
+                        :disabled="!localSettings.friendQuietHours.enabled"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="saving"
+                    @click="saveAccountSettings"
+                  >
+                    保存当前账号设置
+                  </BaseButton>
+                  <BaseButton
+                    variant="secondary"
+                    size="sm"
+                    @click="securityDetailExpanded = !securityDetailExpanded"
+                  >
+                    {{ securityDetailExpanded ? '收起详细配置' : '展开详细配置' }}
+                  </BaseButton>
+                </div>
               </div>
-              <div class="settings-health-card-value mt-2 text-sm font-medium">
-                {{ webAssetsSnapshot?.selectionReasonLabel || '未获取' }}
+
+              <div v-show="securityDetailExpanded" class="space-y-3">
+                <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,260px)_1fr]">
+                  <div class="settings-mode-panel rounded-xl p-3 shadow-sm">
+                    <BaseSwitch
+                      v-model="localSettings.riskPromptEnabled"
+                      label="显示风控功能提示"
+                      hint="关闭后仅隐藏界面提示，不会关闭系统真实的安全保护和频率拦截。"
+                      recommend="on"
+                    />
+                  </div>
+                  <div
+                    v-if="localSettings.riskPromptEnabled"
+                    class="settings-mode-banner settings-mode-banner-info bg-linear-to-br rounded-xl p-4 text-sm shadow-sm"
+                  >
+                    <div class="settings-mode-banner-title mb-2 flex items-center gap-2 font-semibold">
+                      <div class="i-carbon-model-alt" />
+                      主号 / 小号作用范围已按区服重构
+                    </div>
+                    <div class="settings-mode-banner-copy leading-6 space-y-1.5">
+                      <div>当前账号区服：<strong>{{ currentAccountZoneLabel }}</strong>。QQ 区和微信区的数据互不打通，主号/小号关系只在同区内讨论。</div>
+                      <div>协同前提：主号和小号必须互为<strong>游戏好友</strong>，否则“主小号协同”没有业务意义。</div>
+                      <div>降级规则：若跨区或不是游戏好友，系统仍保留当前账号的运行策略，但会按<strong>独立账号</strong>理解，不再误套主小号联动。</div>
+                    </div>
+                  </div>
+                  <div
+                    v-if="localSettings.riskPromptEnabled"
+                    class="settings-mode-state-card rounded-xl p-4 text-sm shadow-sm"
+                  >
+                    <div class="settings-mode-state-title mb-2 flex items-center gap-2 font-semibold">
+                      <div class="i-carbon-chart-relationship" />
+                      当前运行态判定
+                    </div>
+                    <div class="space-y-3">
+                      <div class="settings-mode-state-copy leading-6">
+                        当前账号：<strong>{{ currentAccountName || currentAccountId || '未选中' }}</strong>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="currentModeExecutionMeta.configuredMeta.badge">
+                          配置:{{ currentModeExecutionMeta.configuredMeta.label }}
+                        </span>
+                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="currentModeExecutionMeta.effectiveMeta.badge">
+                          生效:{{ currentModeExecutionMeta.effectiveMeta.label }}
+                        </span>
+                        <span
+                          v-if="currentModeExecutionMeta.statusBadge"
+                          class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                          :class="currentModeExecutionMeta.statusBadge.badge"
+                        >
+                          {{ currentModeExecutionMeta.statusBadge.label }}
+                        </span>
+                      </div>
+                      <div class="text-xs leading-5" :class="currentModeExecutionMeta.noteClass">
+                        {{ currentModeExecutionMeta.note }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Account Mode Selection Panel -->
+                <div class="grid grid-cols-1 mb-4 gap-3 md:grid-cols-3">
+                  <!-- 主号模式 -->
+                  <div
+                    class="settings-mode-card settings-mode-card-brand cursor-pointer rounded-lg p-3 transition-all duration-200"
+                    :class="{ 'settings-mode-card-active': localSettings.accountMode === 'main' }"
+                    @click="localSettings.accountMode = 'main'"
+                  >
+                    <div class="mb-1 flex items-center justify-between">
+                      <div class="settings-mode-card-title flex items-center gap-1 font-bold">
+                        <div class="i-carbon-user-avatar items-center" /> 主号模式
+                      </div>
+                      <div v-show="localSettings.accountMode === 'main'" class="settings-mode-card-check i-carbon-checkmark-filled" />
+                    </div>
+                    <div class="settings-mode-card-copy text-xs leading-tight">
+                      当前区服内的核心运营号；仅在同区且互为游戏好友时，才具备主号协同意义
+                    </div>
+                  </div>
+                  <!-- 小号模式 -->
+                  <div
+                    class="settings-mode-card settings-mode-card-warning cursor-pointer rounded-lg p-3 transition-all duration-200"
+                    :class="{ 'settings-mode-card-active': localSettings.accountMode === 'alt' }"
+                    @click="localSettings.accountMode = 'alt'"
+                  >
+                    <div class="mb-1 flex items-center justify-between">
+                      <div class="settings-mode-card-title flex items-center gap-1 font-bold">
+                        <div class="i-carbon-user-multiple items-center" /> 小号模式
+                      </div>
+                      <div v-show="localSettings.accountMode === 'alt'" class="settings-mode-card-check i-carbon-checkmark-filled" />
+                    </div>
+                    <div class="settings-mode-card-copy text-xs leading-tight">
+                      当前区服内的辅助号；默认延迟收获并抑制高仇恨动作，跨区或非好友时仅保留本号策略
+                    </div>
+                  </div>
+                  <!-- 风险规避模式 -->
+                  <div
+                    class="settings-mode-card settings-mode-card-success cursor-pointer rounded-lg p-3 transition-all duration-200"
+                    :class="{ 'settings-mode-card-active': localSettings.accountMode === 'safe' }"
+                    @click="localSettings.accountMode = 'safe'"
+                  >
+                    <div class="mb-1 flex items-center justify-between">
+                      <div class="settings-mode-card-title flex items-center gap-1 font-bold">
+                        <div class="i-carbon-security items-center" /> 风险规避
+                      </div>
+                      <div v-show="localSettings.accountMode === 'safe'" class="settings-mode-card-check i-carbon-checkmark-filled" />
+                    </div>
+                    <div class="settings-mode-card-copy text-xs leading-tight">
+                      敏感期防守号；压低高风险互动，不参与主小号协同，优先保证账号生存
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 风险规避特供区：一键分析拦截 -->
+                <div v-if="localSettings.accountMode === 'safe'" class="settings-mode-banner settings-mode-banner-success mb-4 flex flex-col items-start gap-2 rounded-md p-3">
+                  <h4 class="settings-mode-banner-title flex items-center gap-1 text-sm font-semibold">
+                    <div class="i-carbon-ibm-cloud-security-compliance-center" /> 风险规避专属护盾
+                  </h4>
+                  <span v-if="localSettings.riskPromptEnabled" class="settings-mode-banner-copy text-xs">此模式除自动关闭捣乱接口外，可进一步针对历史出现被封警告的号外置强阻断。</span>
+                  <BaseButton
+                    variant="outline"
+                    size="sm"
+                    class="settings-mode-inline-action mt-1"
+                    :loading="safeChecking"
+                    @click="handleSafeCheck"
+                  >
+                    <div class="i-carbon-search mr-1" /> 分析并加入防御名单
+                  </BaseButton>
+                </div>
+              </div>
+            </div>
+
+            <!-- 小号模式特供区：假延迟 -->
+            <div v-if="localSettings.accountMode === 'alt' && isSettingsCategoryVisible(['common', 'plant', 'security']) && securityCrossPanelsVisible" class="settings-mode-banner settings-mode-banner-warning mb-4 flex flex-col gap-2 rounded-md p-3">
+              <h4 class="settings-mode-banner-title flex items-center gap-1 text-sm font-semibold">
+                <div class="i-carbon-time" /> 小号专属：收获延迟保护
+              </h4>
+              <span v-if="localSettings.riskPromptEnabled" class="settings-mode-banner-copy text-xs">当农作物成熟时，主动随机延后再收，降低被风控或与主号形成同秒轨迹的概率。</span>
+              <div class="grid grid-cols-2 mt-2 gap-3 md:grid-cols-4">
+                <BaseInput
+                  v-model.number="localSettings.harvestDelay.min"
+                  label="随机延迟下限 (秒)"
+                  type="number"
+                  min="0"
+                />
+                <BaseInput
+                  v-model.number="localSettings.harvestDelay.max"
+                  label="随机延迟上限 (秒)"
+                  type="number"
+                  min="10"
+                />
+              </div>
+            </div>
+
+            <!-- 极值警告 -->
+            <div v-if="farmIntervalHardBlockVisible && !isAdmin && isSettingsCategoryVisible(['common', 'plant', 'security']) && securityCrossPanelsVisible" class="settings-risk-alert mb-3 flex items-start gap-2 rounded-md p-3 text-sm">
+              <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-lg" />
+              <div>
+                <strong>农场轮询过低，无法保存。</strong><br>
+                普通用户农田循环下限仍为 15 秒；低于该值会被后端直接拦截。
+              </div>
+            </div>
+
+            <div v-if="timeWarningVisible && !isAdmin && isSettingsCategoryVisible(['common', 'plant', 'security']) && securityCrossPanelsVisible" class="settings-risk-alert mb-3 flex items-start gap-2 rounded-md p-3 text-sm">
+              <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-lg" />
+              <div>
+                <strong>好友相关巡查低于 60 秒，风险极高。</strong><br>
+                保存时会要求你再次确认；确认后仍可保存，但更容易触发腾讯风控或出现 1002003。
+              </div>
+            </div>
+
+            <div v-show="isSettingsCategoryVisible(['plant'])" class="space-y-3">
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <BaseSelect
+                  v-model="localSettings.plantingStrategy"
+                  label="种植策略"
+                  :options="plantingStrategyOptions"
+                />
+                <BaseSelect
+                  v-if="localSettings.plantingStrategy === 'bag_priority'"
+                  v-model="localSettings.bagSeedFallbackStrategy"
+                  label="第二优先策略"
+                  :options="bagSeedFallbackStrategyOptions"
+                />
+                <BaseSelect
+                  v-else
+                  v-model="localSettings.plantingFallbackStrategy"
+                  label="失配回退"
+                  :options="plantingFallbackStrategyOptions"
+                />
+                <BaseSelect
+                  v-if="localSettings.plantingStrategy === 'preferred'"
+                  v-model="localSettings.preferredSeedId"
+                  label="优先种植种子"
+                  :options="preferredSeedOptions"
+                />
+                <div v-else class="flex flex-col gap-1">
+                  <span class="glass-text-muted text-xs">策略选种预览</span>
+                  <div class="settings-strategy-preview h-9 flex items-center rounded-md px-3 text-sm font-bold">
+                    <div class="i-carbon-checkmark-filled mr-1.5 text-primary-500" />
+                    {{ localSettings.plantingStrategy === 'bag_priority' ? bagPriorityPreviewLabel : (strategyPreviewLabel ?? '加载中...') }}
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="localSettings.plantingStrategy === 'bag_priority'" class="settings-bag-panel rounded-xl p-4">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="settings-bag-title text-sm font-semibold">
+                      背包种子优先顺序
+                    </div>
+                    <div class="settings-bag-copy mt-1 text-xs leading-5">
+                      会先按下面的顺序尝试消耗背包中的种子。1x1 和 2x2 都参与排序；未解锁或可用数量为 0 的种子只展示，不会参与实际种植。
+                    </div>
+                  </div>
+                  <div class="settings-bag-summary rounded-full px-3 py-1 text-[11px] font-semibold">
+                    共 {{ bagPrioritySeeds.length }} 种
+                  </div>
+                </div>
+
+                <div class="mb-3 flex flex-wrap items-center gap-2">
+                  <BaseButton
+                    size="sm"
+                    variant="outline"
+                    @click="resetBagSeedPriorityRecommended"
+                  >
+                    推荐重排
+                  </BaseButton>
+                  <BaseButton
+                    size="sm"
+                    variant="outline"
+                    @click="sortBagSeedPriorityByLevel"
+                  >
+                    按等级重排
+                  </BaseButton>
+                  <BaseButton
+                    size="sm"
+                    variant="outline"
+                    :loading="bagPrioritySorting"
+                    @click="sortBagSeedPriorityByFallbackStrategy"
+                  >
+                    按第二优先策略重排
+                  </BaseButton>
+                  <BaseButton
+                    v-if="unconfiguredBagPrioritySeeds.length"
+                    size="sm"
+                    variant="ghost"
+                    @click="appendNewBagSeedsToPriority"
+                  >
+                    新种子追加到末尾 ({{ unconfiguredBagPrioritySeeds.length }})
+                  </BaseButton>
+                </div>
+
+                <div v-if="unconfiguredBagPrioritySeeds.length" class="settings-bag-notice mb-3 rounded-lg px-3 py-2 text-xs leading-5">
+                  检测到 {{ unconfiguredBagPrioritySeeds.length }} 个新种子尚未固化到你的优先列表中。当前会先临时显示在列表末尾；你可以直接点“新种子追加到末尾”或“推荐重排”固定顺序。
+                </div>
+
+                <div v-if="bagPrioritySeeds.length > 0" class="space-y-3">
+                  <div
+                    v-for="(seed, index) in bagPrioritySeeds"
+                    :key="`bag-priority-${seed.seedId}`"
+                    class="settings-bag-seed-card flex flex-col gap-3 rounded-xl p-3 md:flex-row md:items-center"
+                    :class="{ 'settings-bag-seed-card-muted': !seed.unlocked || seed.usableCount <= 0 }"
+                    draggable="true"
+                    @dragstart="handleBagSeedDragStart(seed.seedId)"
+                    @dragover="handleBagSeedDragOver"
+                    @drop="handleBagSeedDrop(seed.seedId)"
+                    @dragend="handleBagSeedDragEnd"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="settings-bag-drag h-9 w-9 flex items-center justify-center rounded-full text-sm">
+                        <div class="i-carbon-draggable" />
+                      </div>
+                      <div class="settings-bag-index h-9 w-9 flex items-center justify-center rounded-full text-sm font-bold">
+                        {{ index + 1 }}
+                      </div>
+                      <img
+                        :src="seed.image"
+                        :alt="seed.name"
+                        class="h-12 w-12 rounded-xl object-cover"
+                      >
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-sm font-semibold">
+                        {{ seed.name }}
+                      </div>
+                      <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Seed ID: {{ seed.seedId }} · Lv.{{ seed.requiredLevel }} · 占地 {{ seed.plantSize }}x{{ seed.plantSize }}
+                      </div>
+                      <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        背包 {{ seed.count }} · 可用 {{ seed.usableCount }} · 保留 {{ seed.reservedCount }}
+                        <span v-if="!seed.unlocked"> · 当前等级未解锁</span>
+                        <span v-else-if="seed.usableCount <= 0"> · 已被保留规则拦截</span>
+                        <span v-else-if="!configuredBagPriorityIdSet.has(seed.seedId)"> · 新发现，待确认顺序</span>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                      <BaseBadge surface="glass-soft" tone="warning">
+                        {{ seed.plantSize }}x{{ seed.plantSize }}
+                      </BaseBadge>
+                      <BaseButton
+                        size="sm"
+                        variant="ghost"
+                        :disabled="index === 0"
+                        @click="moveBagSeedPriority(seed.seedId, -1)"
+                      >
+                        上移
+                      </BaseButton>
+                      <BaseButton
+                        size="sm"
+                        variant="ghost"
+                        :disabled="index === bagPrioritySeeds.length - 1"
+                        @click="moveBagSeedPriority(seed.seedId, 1)"
+                      >
+                        下移
+                      </BaseButton>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="settings-bag-empty rounded-lg border-dashed px-3 py-4 text-xs">
+                  当前背包中没有种子，或该账号尚未完成背包数据刷新。
+                </div>
+              </div>
+
+              <div class="settings-inventory-panel rounded-xl p-4">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="settings-inventory-title text-sm font-semibold">
+                      库存优先种植
+                    </div>
+                    <div class="settings-inventory-copy mt-1 text-xs leading-5">
+                      优先消耗背包现有种子。可按“全局保留数量 + 指定种子保留规则”决定哪些库存不参与自动种植。
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSelect
+                    v-model="localSettings.inventoryPlanting.mode"
+                    label="库存种植模式"
+                    :options="inventoryPlantingModeOptions"
+                  />
+                  <BaseInput
+                    v-model.number="localSettings.inventoryPlanting.globalKeepCount"
+                    label="全局保留数量"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+
+                <div v-if="localSettings.inventoryPlanting.mode !== 'disabled'" class="mt-4">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="text-xs text-teal-700/80 dark:text-teal-200/70">
+                      指定种子保留规则会覆盖全局保留数量。留空时仅使用上面的全局值。
+                    </div>
+                    <BaseButton
+                      size="sm"
+                      variant="outline"
+                      class="settings-inventory-action"
+                      @click="addInventoryReserveRule"
+                    >
+                      <div class="i-carbon-add mr-1" /> 添加保留规则
+                    </BaseButton>
+                  </div>
+
+                  <div v-if="localSettings.inventoryPlanting.reserveRules.length > 0" class="space-y-2">
+                    <div
+                      v-for="(rule, index) in localSettings.inventoryPlanting.reserveRules"
+                      :key="`inventory-rule-${index}`"
+                      class="settings-inventory-rule grid grid-cols-1 gap-2 rounded-lg p-3 md:grid-cols-[minmax(0,1fr)_140px_auto]"
+                    >
+                      <BaseSelect
+                        v-model="rule.seedId"
+                        label="种子"
+                        :options="inventoryReserveSeedOptions"
+                      />
+                      <BaseInput
+                        v-model.number="rule.keepCount"
+                        label="至少保留"
+                        type="number"
+                        min="0"
+                      />
+                      <div class="flex items-end">
+                        <BaseButton
+                          size="sm"
+                          variant="ghost"
+                          class="settings-inventory-remove"
+                          @click="removeInventoryReserveRule(index)"
+                        >
+                          <div class="i-carbon-trash-can mr-1" /> 删除
+                        </BaseButton>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="settings-inventory-empty rounded-lg border-dashed px-3 py-4 text-xs">
+                    当前没有指定种子保留规则，系统只使用“全局保留数量”。
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 items-end gap-3 md:grid-cols-4 xl:grid-cols-6">
+                <BaseInput
+                  v-model.number="localSettings.intervals.farmMin"
+                  label="农场巡查最小 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.farmMax"
+                  label="农场巡查最大 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.friendMin"
+                  label="好友巡查最小 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.friendMax"
+                  label="好友巡查最大 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.helpMin"
+                  label="帮忙最小 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.helpMax"
+                  label="帮忙最大 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.stealMin"
+                  label="偷菜最小 (秒)"
+                  type="number"
+                  min="1"
+                />
+                <BaseInput
+                  v-model.number="localSettings.intervals.stealMax"
+                  label="偷菜最大 (秒)"
+                  type="number"
+                  min="1"
+                />
+              </div>
+              <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                好友巡查用于综合好友扫描节拍；若帮忙/偷菜仍保持默认值 60~180 秒，会自动跟随好友巡查区间。单次扫描耗时超过设定值时，下一轮会在完成后尽快补跑。
+              </p>
+
+              <div class="settings-section-divider mt-4 flex flex-wrap items-center gap-4 pt-3">
+                <BaseSwitch
+                  v-model="localSettings.friendQuietHours.enabled"
+                  label="启用静默时段"
+                />
+                <div class="flex items-center gap-2">
+                  <BaseInput
+                    v-model="localSettings.friendQuietHours.start"
+                    type="time"
+                    class="w-24"
+                    :disabled="!localSettings.friendQuietHours.enabled"
+                  />
+                  <span class="glass-text-muted">-</span>
+                  <BaseInput
+                    v-model="localSettings.friendQuietHours.end"
+                    type="time"
+                    class="w-24"
+                    :disabled="!localSettings.friendQuietHours.enabled"
+                  />
+                </div>
+              </div>
+
+              <div class="settings-section-divider mt-4 pt-4">
+                <div class="mb-3">
+                  <h4 class="text-sm font-semibold">
+                    出售策略
+                  </h4>
+                  <p class="settings-mode-card-copy mt-1 text-xs">
+                    当前自动出售仅作用于果实类物品。可配置基础保留数量、强制保留清单以及稀有果实保留规则。
+                  </p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <BaseInput
+                    v-model.number="localSettings.tradeConfig.sell.keepMinEachFruit"
+                    label="每种果实至少保留"
+                    type="number"
+                    min="0"
+                    max="999999"
+                  />
+                  <BaseInput
+                    v-model.number="localSettings.tradeConfig.sell.batchSize"
+                    label="出售批大小"
+                    type="number"
+                    min="1"
+                    max="50"
+                  />
+                  <BaseSelect
+                    v-model="localSettings.tradeConfig.sell.rareKeep.judgeBy"
+                    label="稀有判定方式"
+                    :options="[
+                      { label: '任一条件命中', value: 'either' },
+                      { label: '按作物等级', value: 'plant_level' },
+                      { label: '按果实单价', value: 'unit_price' },
+                    ]"
+                  />
+                </div>
+
+                <div class="mt-3">
+                  <label class="settings-mode-card-copy mb-1 block text-xs font-semibold">
+                    强制保留果实 ID（逗号或空格分隔）
+                  </label>
+                  <textarea
+                    v-model="tradeKeepFruitIdsText"
+                    rows="2"
+                    class="settings-trade-textarea w-full rounded-lg px-3 py-2 text-sm"
+                    placeholder="例如：2001, 2002, 2003"
+                  />
+                </div>
+
+                <div class="grid grid-cols-1 mt-4 gap-3 md:grid-cols-2">
+                  <div class="settings-mode-panel rounded-xl p-4">
+                    <BaseSwitch
+                      v-model="localSettings.tradeConfig.sell.rareKeep.enabled"
+                      label="启用稀有果实保留"
+                    />
+                    <div class="grid grid-cols-2 mt-3 gap-3">
+                      <BaseInput
+                        v-model.number="localSettings.tradeConfig.sell.rareKeep.minPlantLevel"
+                        label="最低作物等级"
+                        type="number"
+                        min="0"
+                        max="999"
+                        :disabled="!localSettings.tradeConfig.sell.rareKeep.enabled"
+                      />
+                      <BaseInput
+                        v-model.number="localSettings.tradeConfig.sell.rareKeep.minUnitPrice"
+                        label="最低单价"
+                        type="number"
+                        min="0"
+                        max="999999999"
+                        :disabled="!localSettings.tradeConfig.sell.rareKeep.enabled"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="settings-mode-panel rounded-xl p-4">
+                    <BaseSwitch
+                      v-model="localSettings.tradeConfig.sell.previewBeforeManualSell"
+                      label="手动出售前先刷新预览"
+                    />
+                    <p class="settings-mode-card-copy mt-2 text-xs">
+                      背包页手动出售时会先刷新出售计划，避免在你改动保留策略后直接误卖。
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div v-if="systemHealthError" class="settings-health-alert flex items-start gap-2 rounded-xl p-4 text-sm">
-            <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
-            <div>{{ systemHealthError }}</div>
+          <div v-show="isSettingsCategoryVisible(['auto'])">
+            <!-- Auto Control Header -->
+            <div class="settings-section-divider border-t bg-transparent px-4 py-3">
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <div class="i-fas-toggle-on" />
+                自动控制
+              </h3>
+            </div>
+
+            <!-- Auto Control Content -->
+            <div class="flex-1 p-6 space-y-8">
+              <!-- 分组网格 -->
+              <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 md:grid-cols-2">
+                <!-- 分组 1: 农场基础操作 -->
+                <div class="settings-automation-card rounded-2xl p-5 transition-all">
+                  <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                    <div class="i-carbon-agriculture-analytics mr-2" /> 农场基础操作
+                    <BaseTooltip text="农场自动化的核心控制区，包含种植收获、好友互动、升级土地等基础功能" />
+                  </h4>
+                  <div class="space-y-4">
+                    <BaseSwitch v-model="localSettings.automation.farm" label="自动种植收获" hint="核心总开关。自动巡查农场：成熟即收、空地即种、异常即处理（浇水/除草/除虫/铲除枯死）。关闭后所有农场自动化停止。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.friend" label="自动好友互动" hint="好友巡查总开关。开启后按下方子策略遍历好友农场执行操作（偷菜/帮忙/捣乱）。关闭则所有好友互动停止。" recommend="on" />
+                    <div class="flex flex-col gap-2">
+                      <BaseSwitch v-model="localSettings.automation.land_upgrade" label="自动升级土地" hint="金币充足且满足条件时自动升级土地等级，可提高产量。升级花费较大，金币紧张时建议关闭。" recommend="conditional" />
+                      <div v-show="localSettings.automation.land_upgrade" class="ml-7 space-y-1">
+                        <div class="flex items-center gap-2">
+                          <span class="glass-text-muted shrink-0 text-[11px] font-bold tracking-widest uppercase">
+                            最高升级到：
+                          </span>
+                          <BaseInput
+                            v-model.number="localSettings.automation.landUpgradeTarget"
+                            type="number"
+                            min="0"
+                            max="6"
+                            class="w-16 shrink-0 text-sm shadow-inner !py-1"
+                          />
+                        </div>
+                        <p class="settings-automation-note text-[10px]">
+                          0=普通，6=蓝宝石
+                        </p>
+                      </div>
+                    </div>
+                    <BaseSwitch v-model="localSettings.automation.sell" label="自动卖果实" hint="收获后自动将仓库中的果实出售换取金币。关闭则果实堆积在仓库不处理。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.farm_push" label="推送触发巡田" hint="收到外部事件（如消息推送）时立即触发一次农场巡查，而非等待定时轮询，提高响应灵敏度。" recommend="on" />
+                  </div>
+                </div>
+
+                <!-- 分组 2: 每日收益领取 -->
+                <div class="settings-automation-card rounded-2xl p-5 transition-all">
+                  <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                    <div class="i-carbon-gift mr-2" /> 每日收益领取
+                    <BaseTooltip text="每日可领取的免费奖励，建议全部开启以最大化日常收益" />
+                  </h4>
+                  <div class="space-y-4">
+                    <BaseSwitch v-model="localSettings.automation.free_gifts" label="自动商城礼包" hint="每日自动领取商城中的免费礼包（种子/化肥/装饰等），错过后次日才能再领。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.task" label="自动任务领奖" hint="自动领取每日任务、成长任务、活跃奖励；任务进度会随着种植、收菜、好友互动、分享等自动化行为自然推进。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.share_reward" label="自动分享奖励" hint="自动触发分享操作并领取分享奖励，某些活动需分享才能获取额外收益。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.email" label="自动领取邮件" hint="自动领取系统邮件中的附件奖励（活动奖励/补偿/系统礼品等）。" recommend="on" />
+                    <div class="grid grid-cols-1 gap-4 pt-1">
+                      <BaseSwitch v-model="localSettings.automation.vip_gift" label="自动VIP礼包" hint="VIP 用户专属，自动领取每日 VIP 礼包。非 VIP 用户开启无效但不会报错。" recommend="conditional" />
+                      <BaseSwitch v-model="localSettings.automation.month_card" label="自动月卡奖励" hint="月卡用户专属，自动领取月卡每日奖励。无月卡开启无效但不会报错。" recommend="conditional" />
+                      <BaseSwitch v-model="localSettings.automation.open_server_gift" label="自动开服红包" hint="自动领取开服活动红包奖励。活动期间有效，非活动期开启无影响。" recommend="on" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 分组 3: 化肥与杂项控制 -->
+                <div class="settings-automation-card rounded-2xl p-5 transition-all">
+                  <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                    <div class="i-carbon-tool-box mr-2" /> 化肥与精细控制
+                    <BaseTooltip text="化肥管理和高级防盗功能的精细控制区" />
+                  </h4>
+                  <div class="space-y-4">
+                    <BaseSwitch v-model="localSettings.automation.fertilizer_gift" label="自动填充化肥" hint="有免费化肥领取机会时自动领取，保证化肥库存不断档。" recommend="on" />
+                    <div class="flex flex-col gap-2">
+                      <BaseSwitch v-model="localSettings.automation.fertilizer_buy" label="自动购买化肥" hint="通过商城点券礼包自动补普通肥/有机肥容器，可按余量阈值触发，也可持续补满。" recommend="conditional" />
+                      <div v-show="localSettings.automation.fertilizer_buy" class="ml-7 space-y-3">
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <BaseSelect
+                            v-model="localSettings.automation.fertilizer_buy_type"
+                            label="购肥类型"
+                            :options="fertilizerBuyTypeOptions"
+                          />
+                          <BaseSelect
+                            v-model="localSettings.automation.fertilizer_buy_mode"
+                            label="触发模式"
+                            :options="fertilizerBuyModeOptions"
+                          />
+                        </div>
+                        <div v-if="localSettings.automation.fertilizer_buy_mode === 'threshold'" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <BaseInput
+                            v-model.number="localSettings.automation.fertilizer_buy_threshold_normal"
+                            label="普通肥阈值 (小时)"
+                            type="number"
+                            min="0"
+                          />
+                          <BaseInput
+                            v-model.number="localSettings.automation.fertilizer_buy_threshold_organic"
+                            label="有机肥阈值 (小时)"
+                            type="number"
+                            min="0"
+                          />
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">
+                            - 单日最大购买上限 (包)：
+                          </span>
+                          <BaseInput
+                            v-model.number="localSettings.automation.fertilizer_buy_limit"
+                            type="number"
+                            min="1"
+                            class="w-24 text-sm shadow-inner !py-1"
+                          />
+                        </div>
+                        <p class="settings-automation-note text-[10px]">
+                          优先使用点券礼包。若选择“双容器”，系统会先补剩余时长更低的一侧。
+                        </p>
+                      </div>
+                    </div>
+                    <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
+                    <BaseSwitch v-model="localSettings.automation.fastHarvest" label="成熟秒收取" hint="在作物进入成熟前预设定时任务，约提前 200ms 发起收获请求，尽量压缩被偷窗口。和 60 秒施肥防偷可并存。" recommend="conditional" />
+                    <BaseSwitch v-model="localSettings.automation.fertilizer_smart_phase" label="智能二季施肥" hint="开启后，二季作物刚种植时不会马上浪费化肥，而是等到耗时最长的黄金阶段再自动进行延期施肥，实现单果经验/金钱收益最大化。" recommend="conditional" />
+                    <div class="settings-section-divider pt-2">
+                      <div class="settings-automation-scope mb-2 rounded-md px-2.5 py-1.5 text-xs">
+                        {{ fertilizerScopeText }}
+                      </div>
+                      <BaseSelect
+                        v-model="localSettings.automation.fertilizer"
+                        label="内容选择：施肥策略"
+                        class="!w-full"
+                        :options="fertilizerOptions"
+                        title="种植后自动施肥的方式。普通肥加速生长、有机肥改善土壤（可循环施直到耗尽）、两者兼用效果最佳。推荐：普通+有机"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 好友互动详细控制 (始终显示，关闭时灰化) -->
+              <div class="settings-friend-panel relative rounded-2xl p-5 transition-all" :class="localSettings.automation.friend ? 'settings-friend-panel-active' : 'settings-friend-panel-inactive'">
+                <!-- 灰化遮罩：总开关关闭时覆盖内容区 -->
+                <div v-if="!localSettings.automation.friend" class="settings-friend-overlay absolute inset-0 z-10 flex items-center justify-center rounded-2xl">
+                  <span class="settings-friend-overlay-badge ui-glass-chip rounded-lg px-4 py-2 text-sm font-bold shadow-lg">
+                    🔒 请先开启上方「自动好友互动」总开关
+                  </span>
+                </div>
+                <h4 class="mb-4 flex items-center text-xs font-bold tracking-widest uppercase" :class="localSettings.automation.friend ? 'settings-friend-title-active' : 'settings-friend-title-inactive'">
+                  <div class="i-carbon-user-multiple mr-2" /> 社交互动详细策略
+                  <BaseTooltip text="只有在主开关【自动好友互动】开启时此策略组才会生效，控制在好友农场的具体行为。" />
+                </h4>
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2" :class="{ 'opacity-40 pointer-events-none select-none': !localSettings.automation.friend }">
+                  <!-- 蹲守开关：独立占一格 -->
+                  <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间，到点精准出击偷取高价值果实。" recommend="conditional" />
+                  <!-- 蹲守延迟设置：独立占一格，仅在开启后显示内容 -->
+                  <div class="inline-flex flex-col gap-1">
+                    <template v-if="localSettings.stakeoutSteal.enabled">
+                      <label class="inline-flex items-center gap-2">
+                        <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
+                        <div class="settings-stakeout-delay flex items-center gap-1.5 rounded-md px-2 py-1">
+                          <input
+                            v-model.number="localSettings.stakeoutSteal.delaySec"
+                            type="number"
+                            min="0"
+                            max="60"
+                            class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
+                          >
+                          <span class="glass-text-muted text-xs font-bold">秒</span>
+                        </div>
+                      </label>
+                      <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                        成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
+                        <BaseBadge surface="meta" tone="warning" class="recommend-badge">
+                          推荐 3 秒
+                        </BaseBadge>
+                      </p>
+                    </template>
+                    <template v-else>
+                      <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
+                      <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                        请先开启左侧「精准蹲守偷菜」开关。
+                      </p>
+                    </template>
+                  </div>
+
+                  <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。" recommend="on" />
+                  <BaseSwitch v-model="localSettings.automation.friend_help" label="自动帮忙" hint="访问好友农场时自动帮忙浇水/除草/除虫，可获得经验奖励。" recommend="on" />
+                  <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />
+                  <BaseSwitch v-model="localSettings.automation.friend_auto_accept" label="自动同意好友" hint="自动同意所有好友申请。好友越多偷菜机会越多，但也增加被偷风险。" recommend="conditional" />
+                  <BaseSwitch v-model="localSettings.automation.friend_help_exp_limit" label="经验上限停止帮忙" hint="当日帮忙经验达到系统上限后自动停止，避免做无用功浪费请求配额。" recommend="on" />
+                  <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="如果发现好友列表一直为空（多见于微信最新环境），请开启此项强制尝试 GetAll 拉取。" recommend="conditional" />
+                </div>
+              </div>
+
+              <!-- 偷菜与好友过滤 (已迁移) -->
+              <div class="border-2 border-primary-200 rounded-2xl border-dashed bg-primary-50/50 p-6 text-center dark:border-primary-800/30 dark:bg-primary-900/10">
+                <div class="mx-auto mb-3 h-12 w-12 flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-800/50">
+                  <div class="i-carbon-sprout text-2xl text-primary-600 dark:text-primary-400" />
+                </div>
+                <h4 class="glass-text-main text-sm font-bold">
+                  偷菜白名单与作物过滤已迁移
+                </h4>
+                <p class="glass-text-muted dark:glass-text-muted mx-auto mt-2 max-w-md text-xs">
+                  为了提供更加流畅与精细的控制体验，我们设计了全新的独立管理面板。包含可视化图标、等级检视以及便捷的模糊搜索。
+                </p>
+                <BaseButton
+                  to="/steal-settings"
+                  variant="success"
+                  class="mt-4"
+                >
+                  前往偷菜控制台 <div class="i-carbon-arrow-right ml-2" />
+                </BaseButton>
+              </div>
+            </div>
           </div>
 
-          <div v-if="qqFriendDiagnosticsError" class="settings-health-alert flex items-start gap-2 rounded-xl p-4 text-sm">
-            <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
-            <div>{{ qqFriendDiagnosticsError }}</div>
+          <!-- Save Button -->
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
+            <p class="settings-sticky-save-note md:hidden">
+              保存后会立即应用到当前账号。
+            </p>
+            <BaseButton
+              variant="primary"
+              size="sm"
+              :loading="saving"
+              class="settings-footer-button"
+              @click="saveAccountSettings"
+            >
+              保存当前账号设置
+            </BaseButton>
+          </div>
+        </div>
+
+        <div
+          v-else
+          v-show="isSettingsCategoryVisible(['common', 'plant', 'auto', 'security'])"
+          class="card glass-panel flex flex-col items-center justify-center gap-4 rounded-lg p-12 text-center shadow"
+          :class="strategyPanelFullWidth ? 'lg:col-span-2' : ''"
+        >
+          <div class="settings-empty-icon rounded-full p-4">
+            <div class="i-carbon-settings-adjust glass-text-muted text-4xl" />
+          </div>
+          <div class="max-w-xs">
+            <h3 class="glass-text-main text-lg font-medium">
+              需要登录账号
+            </h3>
+            <p class="glass-text-muted mt-1 text-sm">
+              请先登录账号以配置策略和自动化选项。
+            </p>
+          </div>
+        </div>
+
+        <!-- Card 2: System Settings (Password & Offline) -->
+        <div
+          v-show="isSettingsCategoryVisible(['common', 'notice', 'security'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow"
+          :class="accountPanelFullWidth ? 'lg:col-span-2' : ''"
+        >
+          <!-- Password Header -->
+          <div v-show="!isNoticeSettingsCategory" class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-password" />
+              账号密码
+              <span v-if="currentUsername" class="settings-mode-badge ui-meta-chip--brand text-xs font-normal">
+                {{ currentUsername }}
+              </span>
+            </h3>
+          </div>
+          <div v-show="isNoticeSettingsCategory" class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-notification" />
+              通知提醒
+            </h3>
           </div>
 
-          <template v-if="webAssetsSnapshot">
-            <div class="settings-health-primary-card rounded-xl p-4">
+          <!-- Password Content -->
+          <form v-show="!isNoticeSettingsCategory" class="p-4 space-y-3" @submit.prevent="handleChangePassword">
+            <input
+              :value="currentUsername || ''"
+              type="text"
+              name="username"
+              autocomplete="username"
+              class="hidden"
+              readonly
+              tabindex="-1"
+              aria-hidden="true"
+            >
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <BaseInput
+                v-model="passwordForm.old"
+                label="当前密码"
+                type="password"
+                autocomplete="current-password"
+                placeholder="当前登录密码"
+              />
+              <BaseInput
+                v-model="passwordForm.new"
+                label="新密码"
+                type="password"
+                autocomplete="new-password"
+                :placeholder="isAdmin ? '至少 4 位' : '至少 6 位，需含字母和数字'"
+              />
+              <BaseInput
+                v-model="passwordForm.confirm"
+                label="确认新密码"
+                type="password"
+                autocomplete="new-password"
+                placeholder="再次输入新密码"
+              />
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <p class="glass-text-muted text-xs">
+                修改当前登录账号 <strong>{{ currentUsername }}</strong> 的密码
+              </p>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                type="submit"
+                :loading="passwordSaving"
+              >
+                修改密码
+              </BaseButton>
+            </div>
+          </form>
+
+          <div v-show="showNoticeQuickPanel" class="settings-notice-quick px-4 py-4">
+            <div class="settings-notice-quick-head flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="settings-notice-quick-title text-sm font-semibold">
+                  通知快捷配置
+                </div>
+                <p class="settings-notice-quick-copy mt-1 text-xs">
+                  首屏只显示高频项，详细字段可按需展开。
+                </p>
+              </div>
+              <span class="settings-notice-quick-chip px-2.5 py-1 text-[11px]">
+                {{ noticeDetailExpanded ? '详细模式' : '快捷模式' }}
+              </span>
+            </div>
+
+            <div class="settings-notice-quick-metrics grid grid-cols-1 mt-3 gap-3 md:grid-cols-2">
+              <div
+                v-for="item in noticeQuickOverviewItems"
+                :key="item.key"
+                class="settings-notice-quick-metric rounded-xl p-3"
+              >
+                <div class="settings-notice-quick-metric-label text-[11px] font-semibold tracking-wide uppercase">
+                  {{ item.label }}
+                </div>
+                <div class="settings-notice-quick-metric-value mt-1 text-sm font-semibold">
+                  {{ item.value }}
+                </div>
+                <div class="settings-notice-quick-metric-note mt-1 text-[11px] leading-5">
+                  {{ item.note }}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-2">
+              <template v-if="isAdmin">
+                <BaseSelect
+                  v-model="localOffline.channel"
+                  label="下线提醒渠道"
+                  :options="channelOptions"
+                />
+                <BaseInput
+                  v-model="localOffline.title"
+                  label="下线提醒标题"
+                  type="text"
+                  placeholder="提醒标题"
+                />
+                <BaseSwitch
+                  v-model="localOffline.offlineDeleteEnabled"
+                  label="离线自动删号"
+                  hint="仅在管理员模式下生效。"
+                  recommend="off"
+                />
+              </template>
+
+              <template v-if="currentAccountId">
+                <BaseSwitch
+                  v-model="localSettings.reportConfig.enabled"
+                  label="启用经营汇报"
+                  hint="当前账号的日报/小时汇报总开关。"
+                  recommend="conditional"
+                />
+                <BaseSelect
+                  v-model="localSettings.reportConfig.channel"
+                  label="汇报渠道"
+                  :options="reportChannelOptions"
+                />
+                <div class="settings-notice-quick-card rounded-xl p-3 md:col-span-2">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <BaseSwitch
+                      v-model="localSettings.reportConfig.dailyEnabled"
+                      label="每日汇报"
+                      hint="建议在固定复盘时间发送。"
+                      recommend="on"
+                    />
+                    <span class="glass-text-muted text-xs">发送时间</span>
+                    <BaseInput
+                      v-model.number="localSettings.reportConfig.dailyHour"
+                      type="number"
+                      min="0"
+                      max="23"
+                      class="w-24 text-sm shadow-inner !py-1"
+                      :disabled="!localSettings.reportConfig.dailyEnabled"
+                    />
+                    <span class="glass-text-muted text-xs">时</span>
+                    <BaseInput
+                      v-model.number="localSettings.reportConfig.dailyMinute"
+                      type="number"
+                      min="0"
+                      max="59"
+                      class="w-24 text-sm shadow-inner !py-1"
+                      :disabled="!localSettings.reportConfig.dailyEnabled"
+                    />
+                    <span class="glass-text-muted text-xs">分</span>
+                  </div>
+                </div>
+              </template>
+
+              <div v-if="!isAdmin && !currentAccountId" class="settings-notice-quick-empty rounded-xl px-3 py-4 text-xs md:col-span-2">
+                当前账号暂无可配置通知项。管理员可配置下线提醒，登录账号后可配置经营汇报。
+              </div>
+            </div>
+
+            <div class="settings-notice-quick-actions mt-4 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-2">
+                <BaseButton
+                  v-if="isAdmin"
+                  variant="primary"
+                  size="sm"
+                  :loading="offlineSaving"
+                  @click="handleSaveOffline"
+                >
+                  保存下线提醒
+                </BaseButton>
+                <BaseButton
+                  v-if="currentAccountId"
+                  variant="primary"
+                  size="sm"
+                  :loading="saving"
+                  @click="saveAccountSettings"
+                >
+                  保存当前账号设置
+                </BaseButton>
+                <BaseButton
+                  v-if="currentAccountId"
+                  variant="secondary"
+                  size="sm"
+                  :loading="reportTesting"
+                  @click="handleSendReportTest"
+                >
+                  发送测试汇报
+                </BaseButton>
+              </div>
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                :disabled="!noticeHasDetailPanels"
+                @click="noticeDetailExpanded = !noticeDetailExpanded"
+              >
+                {{ noticeDetailExpanded ? '收起详细配置' : '展开详细配置' }}
+              </BaseButton>
+            </div>
+          </div>
+
+          <template v-if="isAdmin && showNoticeQuickPanel && noticeDetailExpanded">
+            <!-- Offline Header -->
+            <div class="settings-card-divider settings-card-divider-top px-4 py-3">
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <div class="i-carbon-notification" />
+                下线提醒
+                <span class="settings-mode-badge ui-meta-chip--info text-[11px]">
+                  全局 / 仅管理员
+                </span>
+              </h3>
+              <p class="settings-system-note mt-2 text-xs">
+                这是系统级的统一提醒配置，所有账号共用一套渠道和文案，仅管理员可以修改。
+              </p>
+            </div>
+
+            <!-- Offline Content -->
+            <div class="flex-1 p-4 space-y-3">
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
-                    当前服务目录
-                  </div>
-                  <code class="settings-health-primary-code mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.activeDir }}</code>
-                  <div class="settings-health-primary-note mt-1 text-xs">
-                    来源：{{ webAssetsSnapshot.activeSource }}
-                  </div>
+                <div class="flex items-center gap-2">
+                  <BaseSelect
+                    v-model="localOffline.channel"
+                    label="推送渠道"
+                    :options="channelOptions"
+                    class="flex-1"
+                  />
+                  <a
+                    v-if="channelDocUrl"
+                    :href="channelDocUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="settings-system-doc-link settings-system-doc-link-info mt-5 inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium"
+                    title="查看官方文档"
+                  >
+                    <span class="i-carbon-launch text-xs" />
+                    官网
+                  </a>
                 </div>
-                <div>
-                  <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
-                    当前构建目标
-                  </div>
-                  <code class="settings-health-primary-code mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.buildTargetDir }}</code>
-                  <div class="settings-health-primary-note mt-1 text-xs">
-                    输出来源：{{ webAssetsSnapshot.buildTargetSource }}
-                  </div>
-                </div>
+                <BaseSelect
+                  v-model="localOffline.reloginUrlMode"
+                  label="重登录链接"
+                  :options="reloginUrlModeOptions"
+                />
+              </div>
+
+              <BaseInput
+                v-model="localOffline.endpoint"
+                label="接口地址"
+                type="text"
+                :disabled="localOffline.channel !== 'webhook'"
+              />
+
+              <BaseInput
+                v-model="localOffline.token"
+                label="Token"
+                type="text"
+                placeholder="接收端 token"
+              />
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model="localOffline.title"
+                  label="标题"
+                  type="text"
+                  placeholder="提醒标题"
+                />
+                <BaseSwitch
+                  v-model="localOffline.offlineDeleteEnabled"
+                  label="离线自动删号"
+                  hint="默认关闭。开启后按下面秒数，账号持续离线超时会自动删除。"
+                  recommend="off"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <BaseInput
+                  v-model.number="localOffline.offlineDeleteSec"
+                  label="离线删除账号 (秒)"
+                  type="number"
+                  min="1"
+                  :disabled="!localOffline.offlineDeleteEnabled"
+                  placeholder="默认 1"
+                />
+              </div>
+
+              <BaseInput
+                v-model="localOffline.msg"
+                label="内容"
+                type="text"
+                placeholder="提醒内容"
+              />
+
+              <div v-if="localOffline.channel === 'webhook'" class="settings-system-panel rounded-lg p-3 space-y-2">
+                <BaseSwitch
+                  v-model="localOffline.webhookCustomJsonEnabled"
+                  label="Webhook 自定义 JSON"
+                  hint="开启后将按下方 JSON 模板作为请求体发送。可用变量：{{title}} {{content}} {{accountId}} {{accountName}} {{reason}} {{timestamp}} {{isoTime}}"
+                  recommend="conditional"
+                />
+                <textarea
+                  v-model="localOffline.webhookCustomJsonTemplate"
+                  :disabled="!localOffline.webhookCustomJsonEnabled"
+                  class="settings-system-editor min-h-[120px] w-full p-2 text-xs font-mono"
+                  placeholder="{&quot;title&quot;:&quot;{{title}}&quot;,&quot;content&quot;:&quot;{{content}}&quot;,&quot;accountId&quot;:&quot;{{accountId}}&quot;,&quot;accountName&quot;:&quot;{{accountName}}&quot;,&quot;timestamp&quot;:&quot;{{timestamp}}&quot;}"
+                />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div class="settings-health-card rounded-xl p-4">
-                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                  默认目录
-                </div>
-                <code class="settings-health-card-value mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.defaultDir }}</code>
-                <div class="settings-health-card-note mt-2 text-xs">
-                  {{ describeWebAssetDir(webAssetsSnapshot.defaultDir, webAssetsSnapshot.defaultHasAssets, webAssetsSnapshot.defaultWritable) }}
-                </div>
-              </div>
+            <!-- Save Offline Button -->
+            <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel flex items-center justify-end gap-3 px-4 py-3">
+              <p class="settings-sticky-save-note hidden max-w-xs text-right md:block">
+                这里只保存右侧的全局下线提醒，不会保存左侧巡查时间、静默时段和自动控制。
+              </p>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                :loading="offlineSaving"
+                class="settings-footer-button"
+                @click="handleSaveOffline"
+              >
+                只保存下线提醒（不保存账号设置）
+              </BaseButton>
+            </div>
+          </template>
 
-              <div class="settings-health-card rounded-xl p-4">
-                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                  回退目录
+          <template v-if="currentAccountId && showNoticeQuickPanel && noticeDetailExpanded">
+            <div class="settings-card-divider settings-card-divider-top px-4 py-3">
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <div class="i-carbon-report-data" />
+                经营汇报
+                <span class="settings-mode-badge ui-meta-chip--success text-[11px]">
+                  账号级 / 当前账号
+                </span>
+              </h3>
+              <p class="settings-system-note mt-2 text-xs">
+                这是当前选中账号的独立汇报配置。不同账号可以分别设置不同的推送渠道、发送时段和邮件收件人。
+              </p>
+            </div>
+
+            <div class="p-4">
+              <div class="settings-report-hero rounded-2xl p-5">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                  <h4 class="settings-report-hero-title flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
+                    <div class="i-carbon-report-data mr-1" /> {{ currentAccountName || '当前账号' }} · 经营汇报
+                  </h4>
+                  <div class="flex flex-wrap gap-2">
+                    <BaseButton
+                      variant="secondary"
+                      size="sm"
+                      :loading="reportSendingMode === 'hourly'"
+                      @click="handleSendReport('hourly')"
+                    >
+                      立即发小时汇报
+                    </BaseButton>
+                    <BaseButton
+                      variant="secondary"
+                      size="sm"
+                      :loading="reportSendingMode === 'daily'"
+                      @click="handleSendReport('daily')"
+                    >
+                      立即发日报
+                    </BaseButton>
+                    <BaseButton
+                      variant="secondary"
+                      size="sm"
+                      :loading="reportTesting"
+                      @click="handleSendReportTest"
+                    >
+                      发送测试汇报
+                    </BaseButton>
+                  </div>
                 </div>
-                <code class="settings-health-card-value mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.fallbackDir }}</code>
-                <div class="settings-health-card-note mt-2 text-xs">
-                  {{ describeWebAssetDir(webAssetsSnapshot.fallbackDir, webAssetsSnapshot.fallbackHasAssets, webAssetsSnapshot.fallbackWritable) }}
+
+                <div class="space-y-4">
+                  <BaseSwitch
+                    v-model="localSettings.reportConfig.enabled"
+                    label="启用经营汇报"
+                    hint="按设定周期向当前账号的专属渠道发送经营摘要。这里的设置只影响当前账号，不会改动上方的全局下线提醒；改完后要点“保存当前账号设置”才会真正持久化。"
+                    recommend="conditional"
+                  />
+
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="flex items-center gap-2">
+                      <BaseSelect
+                        v-model="localSettings.reportConfig.channel"
+                        label="推送渠道"
+                        :options="reportChannelOptions"
+                        class="flex-1"
+                      />
+                      <a
+                        v-if="reportChannelDocUrl"
+                        :href="reportChannelDocUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="settings-system-doc-link settings-system-doc-link-success mt-5 inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium"
+                        title="查看官方文档"
+                      >
+                        <span class="i-carbon-launch text-xs" />
+                        官网
+                      </a>
+                    </div>
+                    <BaseInput
+                      v-model="localSettings.reportConfig.title"
+                      label="汇报标题"
+                      type="text"
+                      placeholder="经营汇报"
+                    />
+                  </div>
+
+                  <div v-if="!isReportEmailChannel" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <BaseInput
+                      v-model="localSettings.reportConfig.endpoint"
+                      label="接口地址"
+                      type="text"
+                      :disabled="localSettings.reportConfig.channel !== 'webhook'"
+                      placeholder="Webhook 渠道必填"
+                    />
+                    <BaseInput
+                      v-model="localSettings.reportConfig.token"
+                      label="Token"
+                      type="text"
+                      placeholder="非 Webhook 渠道通常必填"
+                    />
+                  </div>
+
+                  <div v-else class="settings-report-mail-panel rounded-2xl p-4 space-y-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <BaseInput
+                        v-model="localSettings.reportConfig.smtpHost"
+                        label="SMTP 服务器"
+                        type="text"
+                        placeholder="例如 smtp.qq.com"
+                      />
+                      <BaseInput
+                        v-model.number="localSettings.reportConfig.smtpPort"
+                        label="SMTP 端口"
+                        type="number"
+                        placeholder="465 / 587"
+                      />
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <BaseInput
+                        v-model="localSettings.reportConfig.smtpUser"
+                        label="SMTP 用户名"
+                        type="text"
+                        placeholder="通常填完整邮箱，如 123456@qq.com"
+                      />
+                      <BaseInput
+                        v-model="localSettings.reportConfig.smtpPass"
+                        label="SMTP 密码 / 授权码"
+                        type="password"
+                        placeholder="邮箱 SMTP 授权码"
+                      />
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <BaseInput
+                        v-model="localSettings.reportConfig.emailFrom"
+                        label="发件邮箱"
+                        type="text"
+                        placeholder="只填纯邮箱地址；留空则默认取 SMTP 用户名"
+                      />
+                      <BaseInput
+                        v-model="localSettings.reportConfig.emailTo"
+                        label="收件邮箱"
+                        type="text"
+                        placeholder="支持多个，逗号分隔"
+                      />
+                    </div>
+
+                    <div class="settings-report-meta text-xs leading-5">
+                      QQ 邮箱建议使用 <code>smtp.qq.com</code> + <code>465</code> 并开启“直连 TLS”；SMTP 用户名和发件邮箱都尽量填写完整邮箱地址，不要写成“昵称 &lt;邮箱&gt;”。
+                    </div>
+
+                    <BaseSwitch
+                      v-model="localSettings.reportConfig.smtpSecure"
+                      label="直连 TLS"
+                      hint="465 端口通常开启；587 端口会自动尝试 STARTTLS。"
+                      recommend="on"
+                    />
+                  </div>
+
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
+                      <BaseSwitch
+                        v-model="localSettings.reportConfig.hourlyEnabled"
+                        label="小时汇报"
+                        hint="到达指定分钟后，发送最近 1 小时的收益与动作摘要。"
+                        recommend="conditional"
+                      />
+                      <div class="mt-3 flex items-center gap-3">
+                        <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">每小时第</span>
+                        <BaseInput
+                          v-model.number="localSettings.reportConfig.hourlyMinute"
+                          type="number"
+                          min="0"
+                          max="59"
+                          class="w-24 text-sm shadow-inner !py-1"
+                          :disabled="!localSettings.reportConfig.hourlyEnabled"
+                        />
+                        <span class="settings-inline-unit text-xs">分钟发送</span>
+                      </div>
+                    </div>
+
+                    <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
+                      <BaseSwitch
+                        v-model="localSettings.reportConfig.dailyEnabled"
+                        label="每日汇报"
+                        hint="按设定时刻发送今日累计经营摘要，适合晚间复盘。"
+                        recommend="on"
+                      />
+                      <div class="mt-3 flex items-center gap-3">
+                        <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">每天</span>
+                        <BaseInput
+                          v-model.number="localSettings.reportConfig.dailyHour"
+                          type="number"
+                          min="0"
+                          max="23"
+                          class="w-24 text-sm shadow-inner !py-1"
+                          :disabled="!localSettings.reportConfig.dailyEnabled"
+                        />
+                        <span class="settings-inline-unit text-xs">时</span>
+                        <BaseInput
+                          v-model.number="localSettings.reportConfig.dailyMinute"
+                          type="number"
+                          min="0"
+                          max="59"
+                          class="w-24 text-sm shadow-inner !py-1"
+                          :disabled="!localSettings.reportConfig.dailyEnabled"
+                        />
+                        <span class="settings-inline-unit text-xs">分发送</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
+                    <div class="settings-report-panel-title mb-2 flex items-center gap-2 text-xs font-bold tracking-widest uppercase">
+                      <div class="i-carbon-data-base mr-1" /> 历史保留策略
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="glass-text-muted text-[11px] font-bold tracking-widest uppercase">自动保留</span>
+                      <BaseInput
+                        v-model.number="localSettings.reportConfig.retentionDays"
+                        type="number"
+                        min="0"
+                        max="365"
+                        class="w-24 text-sm shadow-inner !py-1"
+                      />
+                      <span class="settings-inline-unit text-xs">天</span>
+                    </div>
+                    <p class="settings-report-meta mt-2 text-xs leading-relaxed">
+                      填 <span class="font-bold">0</span> 表示不自动清理；填 1~365 表示系统每天自动清理一次过期汇报，并在每次发送后顺手回收当前账号的旧记录。
+                    </p>
+                  </div>
+
+                  <div class="settings-report-divider pt-4">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                      <h5 class="settings-report-panel-title text-xs font-bold tracking-widest uppercase">
+                        最近汇报记录
+                      </h5>
+                      <div class="flex flex-wrap gap-2">
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :disabled="selectedReportLogCount === 0"
+                          :loading="reportHistoryBatchDeleting"
+                          @click="handleDeleteReportLogs(selectedReportLogIds)"
+                        >
+                          删除选中
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :loading="reportHistoryExporting"
+                          @click="handleExportReportLogs"
+                        >
+                          导出当前筛选
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :loading="reportHistoryLoading"
+                          @click="() => refreshReportLogs()"
+                        >
+                          刷新记录
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :loading="reportHistoryClearing"
+                          @click="handleClearReportLogs"
+                        >
+                          清空记录
+                        </BaseButton>
+                      </div>
+                    </div>
+
+                    <div class="settings-info-banner mb-3 rounded-xl px-3 py-2 text-xs leading-5">
+                      {{ REPORT_HISTORY_BROWSER_PREF_NOTE }}
+                    </div>
+
+                    <div class="grid grid-cols-1 mb-3 gap-3 md:grid-cols-3">
+                      <BaseSelect
+                        v-model="reportFilters.mode"
+                        label="筛选类型"
+                        :options="reportModeOptions"
+                      />
+                      <BaseSelect
+                        v-model="reportFilters.status"
+                        label="筛选结果"
+                        :options="reportStatusOptions"
+                      />
+                      <BaseInput
+                        v-model="reportKeyword"
+                        label="关键字搜索"
+                        type="text"
+                        placeholder="标题 / 正文 / 失败原因"
+                        @keydown.enter="handleApplyReportSearch"
+                      />
+                    </div>
+
+                    <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+                      <div class="settings-report-meta text-xs">
+                        <span v-if="reportKeyword.trim()">当前关键字：{{ reportKeyword.trim() }}</span>
+                        <span v-else>未启用关键字搜索</span>
+                        <span class="mx-2">·</span>
+                        <span>固定 3 条/页</span>
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          @click="handleApplyReportSearch"
+                        >
+                          搜索
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          @click="handleShowLatestFailed"
+                        >
+                          最新失败
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          @click="handleResetReportHistoryView"
+                        >
+                          恢复默认视图
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :disabled="!reportKeyword"
+                          @click="reportKeyword = ''; handleApplyReportSearch()"
+                        >
+                          清空搜索
+                        </BaseButton>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 mb-3 gap-3 md:grid-cols-2">
+                      <BaseSelect
+                        v-model="reportSortOrder"
+                        label="时间排序"
+                        :options="reportSortOrderOptions"
+                      />
+                    </div>
+
+                    <div class="grid grid-cols-2 mb-3 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                      <button
+                        v-for="item in reportHistoryStatsCards"
+                        :key="item.key"
+                        type="button"
+                        class="settings-report-stat-card rounded-xl px-3 py-3 text-left transition-all duration-150"
+                        :class="[
+                          item.bg,
+                          item.active
+                            ? 'settings-report-stat-card-active shadow-md'
+                            : 'hover:-translate-y-0.5 hover:shadow-sm',
+                        ]"
+                        :title="`点击筛选${item.label}`"
+                        @click="handleReportStatsCardClick(item.key)"
+                      >
+                        <div class="settings-report-stat-label flex items-center justify-between gap-2 text-[11px] font-bold tracking-widest uppercase">
+                          <span>{{ item.label }}</span>
+                          <span v-if="item.active" class="settings-report-active">已筛选</span>
+                        </div>
+                        <div class="mt-2 text-2xl font-black" :class="item.tone">
+                          {{ item.value }}
+                        </div>
+                        <div class="settings-report-stat-hint mt-1 text-[11px]">
+                          点击快速筛选
+                        </div>
+                      </button>
+                    </div>
+
+                    <div class="settings-report-selection mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div class="flex flex-wrap items-center gap-3">
+                        <span>
+                          共 {{ reportLogPagination.total }} 条记录，当前第 {{ reportLogPagination.page }} / {{ reportLogPagination.totalPages }} 页
+                        </span>
+                        <label class="inline-flex select-none items-center gap-2">
+                          <input
+                            type="checkbox"
+                            class="settings-report-checkbox h-4 w-4 rounded"
+                            :checked="allVisibleReportLogsSelected"
+                            @change="toggleSelectAllVisibleReportLogs"
+                          >
+                          <span>全选当前页</span>
+                        </label>
+                        <span v-if="selectedReportLogCount > 0" class="settings-report-active font-semibold">
+                          已选 {{ selectedReportLogCount }} 条
+                        </span>
+                      </div>
+                      <div class="flex gap-2">
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :disabled="reportHistoryLoading || reportLogPagination.page <= 1"
+                          @click="goToReportLogPage(reportLogPagination.page - 1)"
+                        >
+                          上一页
+                        </BaseButton>
+                        <BaseButton
+                          variant="secondary"
+                          size="sm"
+                          :disabled="reportHistoryLoading || reportLogPagination.page >= reportLogPagination.totalPages"
+                          @click="goToReportLogPage(reportLogPagination.page + 1)"
+                        >
+                          下一页
+                        </BaseButton>
+                      </div>
+                    </div>
+
+                    <div v-if="reportHistoryLoading" class="settings-report-empty rounded-xl px-4 py-5 text-center text-xs">
+                      正在加载汇报历史...
+                    </div>
+
+                    <div v-else-if="reportLogs.length === 0" class="settings-report-empty rounded-xl px-4 py-5 text-center text-xs">
+                      还没有经营汇报历史记录
+                    </div>
+
+                    <div v-else class="space-y-3">
+                      <div
+                        v-for="item in reportLogs"
+                        :key="item.id"
+                        class="settings-report-log-card rounded-xl p-4"
+                      >
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                          <div class="min-w-0 flex flex-1 items-start gap-3">
+                            <label class="mt-0.5 inline-flex items-center">
+                              <input
+                                type="checkbox"
+                                class="settings-report-checkbox h-4 w-4 rounded"
+                                :checked="isReportLogSelected(item.id)"
+                                @change="toggleReportLogSelected(item.id)"
+                              >
+                            </label>
+                            <div class="min-w-0 flex-1">
+                              <div class="settings-report-log-title truncate text-sm font-semibold">
+                                {{ item.title || '经营汇报' }}
+                              </div>
+                              <div class="settings-report-log-meta mt-1 text-[11px]">
+                                {{ formatReportMode(item.mode) }} · {{ formatReportLogTime(item.createdAt) }} · {{ item.channel || 'unknown' }}
+                              </div>
+                            </div>
+                          </div>
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span
+                              class="settings-result-badge rounded-full px-2 py-0.5 text-[11px] font-bold"
+                              :class="item.ok ? 'ui-meta-chip--success' : 'ui-meta-chip--danger'"
+                            >
+                              {{ item.ok ? '成功' : '失败' }}
+                            </span>
+                            <BaseButton
+                              variant="secondary"
+                              size="sm"
+                              :loading="reportHistoryDeletingIds.includes(item.id)"
+                              @click="handleDeleteReportLogs([item.id], { single: true, title: `「${item.title || '经营汇报'}」` })"
+                            >
+                              删除
+                            </BaseButton>
+                          </div>
+                        </div>
+
+                        <div
+                          class="settings-report-log-body mt-3 overflow-auto whitespace-pre-line rounded-lg px-3 py-2 text-xs leading-5"
+                          :class="isReportLogExpanded(item.id) ? 'max-h-64' : 'max-h-24'"
+                        >
+                          {{ isReportLogExpanded(item.id) ? (item.content || '无正文') : getReportLogPreview(item.content) }}
+                        </div>
+
+                        <div
+                          v-if="item.errorMessage"
+                          class="settings-report-error mt-2 text-xs"
+                        >
+                          失败原因：{{ item.errorMessage }}
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <span class="settings-report-state-note text-[11px]">
+                            {{ isReportLogExpanded(item.id) ? '已展开完整正文' : '当前显示正文预览' }}
+                          </span>
+                          <div class="flex flex-wrap gap-2">
+                            <BaseButton
+                              variant="secondary"
+                              size="sm"
+                              @click="toggleReportLogExpanded(item.id)"
+                            >
+                              {{ isReportLogExpanded(item.id) ? '收起正文' : '展开正文' }}
+                            </BaseButton>
+                            <BaseButton
+                              variant="secondary"
+                              size="sm"
+                              @click="openReportLogDetail(item)"
+                            >
+                              查看详情
+                            </BaseButton>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </template>
+        </div>
 
-          <div class="settings-health-primary-card rounded-xl p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
-                  QQ 好友协议诊断
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-settings-check" />
+              高级设置快捷总览
+            </h3>
+            <p class="settings-advanced-quick-copy mt-2 text-xs">
+              默认仅展示关键状态与常用操作，避免高级页首屏过载。需要深度调整时可展开详细配置。
+            </p>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="settings-advanced-quick-card rounded-xl p-3">
+                <div class="settings-advanced-quick-label text-xs font-semibold tracking-wide uppercase">
+                  系统自检
                 </div>
-                <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" :class="qqFriendDiagnosticsStatusClass">
-                    {{ qqFriendDiagnosticsStatusLabel }}
-                  </span>
-                  <span class="settings-health-primary-note text-xs">
-                    AppID：{{ QQ_FRIEND_DIAGNOSTICS_APPID }}
-                  </span>
+                <div class="settings-advanced-quick-value mt-2 text-sm font-semibold">
+                  {{ systemHealthStatusLabel }}
+                </div>
+                <div class="settings-advanced-quick-note mt-1 text-xs">
+                  最近检查：{{ systemHealthCheckedAtLabel }}
                 </div>
               </div>
-              <div class="settings-health-primary-note text-xs md:text-right">
-                最近快照：{{ qqFriendDiagnosticsCheckedAtLabel }}
+
+              <div class="settings-advanced-quick-card rounded-xl p-3">
+                <div class="settings-advanced-quick-label text-xs font-semibold tracking-wide uppercase">
+                  时间引擎
+                </div>
+                <div class="settings-advanced-quick-value mt-2 text-sm font-semibold">
+                  {{ localTiming.schedulerEngine || 'default' }}
+                </div>
+                <div class="settings-advanced-quick-note mt-1 text-xs">
+                  心跳 {{ localTiming.heartbeatIntervalMs }}ms
+                </div>
+              </div>
+
+              <div class="settings-advanced-quick-card rounded-xl p-3">
+                <div class="settings-advanced-quick-label text-xs font-semibold tracking-wide uppercase">
+                  系统更新
+                </div>
+                <div class="settings-advanced-quick-value mt-2 text-sm font-semibold">
+                  {{ systemUpdateStatusLabel }}
+                </div>
+                <div class="settings-advanced-quick-note mt-1 text-xs">
+                  当前 {{ systemUpdateCurrentVersionLabel }} / 最新 {{ systemUpdateLatestVersionLabel }}
+                </div>
+              </div>
+
+              <div class="settings-advanced-quick-card rounded-xl p-3">
+                <div class="settings-advanced-quick-label text-xs font-semibold tracking-wide uppercase">
+                  集群派发
+                </div>
+                <div class="settings-advanced-quick-value mt-2 text-sm font-semibold">
+                  {{ clusterConfig.dispatcherStrategy || 'load_balance_sticky' }}
+                </div>
+                <div class="settings-advanced-quick-note mt-1 text-xs">
+                  当前节点：{{ systemUpdateClusterNodes.length }} 个
+                </div>
               </div>
             </div>
 
-            <template v-if="qqFriendDiagnosticsSnapshot">
-              <div class="grid grid-cols-1 mt-4 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    QQ 版本
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.qqVersion || '未获取' }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    小游戏运行时
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.miniProject?.projectname || '未获取' }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    openDataContext
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ formatQqFriendBoolean(qqFriendDiagnosticsSnapshot.miniProject?.openDataContext, '已启用', '未启用') }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    最新 onlineInfoCount
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.summary?.latestOnlineInfoCount || 0 }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    授权已同步
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ formatQqFriendBoolean(qqFriendDiagnosticsSnapshot.authBridge?.authoritySynchronized) }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    好友授权 Scope
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.authBridge?.shareFriendshipScope ?? '未获取' }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    Redis 缓存摘要
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsRedisSummaryLabel }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    历史快照数
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.availableFiles?.length || 0 }}
-                  </div>
-                </div>
+            <div class="settings-advanced-quick-actions flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-2">
+                <BaseButton
+                  variant="secondary"
+                  size="sm"
+                  :loading="systemHealthLoading || qqFriendDiagnosticsLoading"
+                  @click="refreshAdminHealthPanels(true)"
+                >
+                  刷新自检
+                </BaseButton>
+                <BaseButton
+                  variant="secondary"
+                  size="sm"
+                  :loading="systemUpdateChecking"
+                  @click="checkSystemUpdateNow"
+                >
+                  检查更新
+                </BaseButton>
               </div>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                @click="advancedDetailExpanded = !advancedDetailExpanded"
+              >
+                {{ advancedDetailExpanded ? '收起详细配置' : '展开详细配置' }}
+              </BaseButton>
+            </div>
 
-              <div class="grid grid-cols-1 mt-3 gap-3 xl:grid-cols-2">
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    最新诊断文件
-                  </div>
-                  <div class="settings-health-card-value mt-2 break-all text-sm font-medium">
-                    {{ qqFriendDiagnosticsSnapshot.source?.name || qqFriendDiagnosticsSnapshot.fileName || '未获取' }}
-                  </div>
-                  <div class="settings-health-card-note mt-2 text-xs">
-                    {{ qqFriendDiagnosticsSnapshot.source?.path || qqFriendDiagnosticsSnapshot.file || '未获取路径' }}
-                  </div>
-                </div>
-
-                <div class="settings-health-card rounded-xl p-4">
-                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                    最新 NTKernel 请求样本
-                  </div>
-                  <div class="settings-health-card-value mt-2 text-sm font-medium">
-                    {{ formatQqFriendLatestRequest(qqFriendDiagnosticsSnapshot) }}
-                  </div>
-                  <div class="settings-health-card-note mt-2 text-xs">
-                    已观测请求 {{ qqFriendDiagnosticsSnapshot.hostFriendProtocol?.reqCount || 0 }} 次 / 响应 {{ qqFriendDiagnosticsSnapshot.hostFriendProtocol?.rspCount || 0 }} 次
-                  </div>
-                </div>
+            <div v-if="advancedDetailExpanded" class="settings-advanced-detail-nav-wrap space-y-2">
+              <div class="settings-advanced-detail-nav">
+                <button
+                  v-for="tab in advancedDetailSectionTabs"
+                  :key="tab.key"
+                  type="button"
+                  class="settings-advanced-detail-tab"
+                  :class="tab.key === activeAdvancedDetailSection ? 'settings-advanced-detail-tab-active' : ''"
+                  @click="switchAdvancedDetailSection(tab.key)"
+                >
+                  <div class="text-sm" :class="tab.icon" />
+                  <span>{{ tab.label }}</span>
+                </button>
               </div>
+              <p class="settings-advanced-detail-nav-copy text-xs leading-5">
+                {{ activeAdvancedDetailSectionMeta.hint }}
+              </p>
+            </div>
+          </div>
+        </div>
 
-              <div v-if="qqFriendDiagnosticsSnapshot.redisCaches?.length" class="mt-3">
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['health'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-section-divider flex items-center justify-between bg-transparent px-4 py-3">
+            <div>
+              <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+                <div class="i-carbon-data-check" />
+                系统自检与前端产物状态
+              </h3>
+              <p class="settings-health-note mt-1 text-xs">
+                展示 `system_settings` 自检结果，以及当前面板实际使用的前端静态目录。
+              </p>
+            </div>
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              :loading="systemHealthLoading || qqFriendDiagnosticsLoading"
+              @click="refreshAdminHealthPanels(true)"
+            >
+              <div class="i-carbon-renew mr-1" /> 刷新状态
+            </BaseButton>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div class="settings-health-card rounded-xl p-4">
                 <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                  Redis 好友缓存预览
+                  system_settings
                 </div>
-                <div class="grid grid-cols-1 mt-3 gap-3 xl:grid-cols-3">
-                  <div
-                    v-for="cache in qqFriendDiagnosticsSnapshot.redisCaches"
-                    :key="cache.key"
-                    class="settings-health-card rounded-xl p-4"
-                  >
-                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
-                      {{ cache.key.replace(/^account:(.+):friends_cache$/, '账号 $1') }}
+                <div class="mt-2">
+                  <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" :class="systemHealthStatusClass">
+                    {{ systemHealthStatusLabel }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  最近检查时间
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ systemHealthCheckedAtLabel }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  当前选路原因
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ webAssetsSnapshot?.selectionReasonLabel || '未获取' }}
+                </div>
+              </div>
+            </div>
+
+            <div v-if="systemHealthError" class="settings-health-alert flex items-start gap-2 rounded-xl p-4 text-sm">
+              <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
+              <div>{{ systemHealthError }}</div>
+            </div>
+
+            <div v-if="qqFriendDiagnosticsError" class="settings-health-alert flex items-start gap-2 rounded-xl p-4 text-sm">
+              <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
+              <div>{{ qqFriendDiagnosticsError }}</div>
+            </div>
+
+            <template v-if="webAssetsSnapshot">
+              <div class="settings-health-primary-card rounded-xl p-4">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
+                      当前服务目录
                     </div>
-                    <div class="settings-health-card-value mt-2 text-sm font-medium">
-                      {{ cache.count }} 个好友
+                    <code class="settings-health-primary-code mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.activeDir }}</code>
+                    <div class="settings-health-primary-note mt-1 text-xs">
+                      来源：{{ webAssetsSnapshot.activeSource }}
                     </div>
-                    <div class="settings-health-card-note mt-2 break-all text-xs">
-                      {{ cache.key }}
+                  </div>
+                  <div>
+                    <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
+                      当前构建目标
                     </div>
-                    <div class="settings-health-card-value mt-3 text-sm leading-6">
-                      {{ formatQqFriendCachePreview(cache) }}
+                    <code class="settings-health-primary-code mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.buildTargetDir }}</code>
+                    <div class="settings-health-primary-note mt-1 text-xs">
+                      输出来源：{{ webAssetsSnapshot.buildTargetSource }}
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div class="settings-health-card rounded-xl p-4">
+                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                    默认目录
+                  </div>
+                  <code class="settings-health-card-value mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.defaultDir }}</code>
+                  <div class="settings-health-card-note mt-2 text-xs">
+                    {{ describeWebAssetDir(webAssetsSnapshot.defaultDir, webAssetsSnapshot.defaultHasAssets, webAssetsSnapshot.defaultWritable) }}
+                  </div>
+                </div>
+
+                <div class="settings-health-card rounded-xl p-4">
+                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                    回退目录
+                  </div>
+                  <code class="settings-health-card-value mt-2 block text-sm font-semibold">{{ webAssetsSnapshot.fallbackDir }}</code>
+                  <div class="settings-health-card-note mt-2 text-xs">
+                    {{ describeWebAssetDir(webAssetsSnapshot.fallbackDir, webAssetsSnapshot.fallbackHasAssets, webAssetsSnapshot.fallbackWritable) }}
                   </div>
                 </div>
               </div>
             </template>
 
-            <div v-else-if="!qqFriendDiagnosticsLoading" class="settings-health-card mt-4 rounded-xl p-4">
-              <div class="settings-health-card-value text-sm font-medium">
-                暂无 QQ 好友诊断快照
-              </div>
-              <div class="settings-health-card-note mt-2 text-xs">
-                可先运行 `scripts/utils/collect-qq-friend-signals.sh`，然后刷新本页查看最新宿主桥接状态。
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div class="settings-health-status-card rounded-xl p-4" :class="(systemHealthSnapshot?.missingRequiredKeys?.length || 0) > 0 ? 'settings-health-status-card-warning' : 'settings-health-status-card-success'">
-              <div class="settings-health-status-label text-xs font-semibold tracking-wide uppercase">
-                必需键缺失
-              </div>
-              <div class="settings-health-status-value mt-2 text-sm font-medium">
-                {{ systemHealthSnapshot?.missingRequiredKeys?.length ? systemHealthSnapshot.missingRequiredKeys.join('、') : '无' }}
-              </div>
-            </div>
-
-            <div class="settings-health-status-card rounded-xl p-4" :class="(systemHealthSnapshot?.fallbackWouldActivateKeys?.length || 0) > 0 ? 'settings-health-status-card-info' : 'settings-health-status-card-neutral'">
-              <div class="settings-health-status-label text-xs font-semibold tracking-wide uppercase">
-                仍依赖旧回退文件的键
-              </div>
-              <div class="settings-health-status-value mt-2 text-sm font-medium">
-                {{ systemHealthSnapshot?.fallbackWouldActivateKeys?.length ? systemHealthSnapshot.fallbackWouldActivateKeys.join('、') : '无' }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card Time Parameters: 系统级时间参数调优（仅管理员可见） -->
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-card-divider flex items-center justify-between px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-time" />
-            ⏱ 时间参数调优 (System Timing)
-          </h3>
-          <BaseButton
-            variant="secondary"
-            size="sm"
-            @click="restoreTimingDefaults"
-          >
-            <div class="i-carbon-reset mr-1" /> 恢复默认推荐值
-          </BaseButton>
-        </div>
-
-        <div class="p-4 space-y-6">
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-            <!-- Group 1: Network & Heartbeat -->
-            <div class="space-y-4">
-              <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-network-4 mr-2" /> 网络与心跳
-              </h4>
-              <BaseInput
-                v-model.number="localTiming.heartbeatIntervalMs"
-                label="WebSocket 心跳间隔 (ms)"
-                type="number"
-                min="5000"
-                step="1000"
-                hint="维持长连接的频率，推荐 25000ms"
-              />
-              <BaseInput
-                v-model.number="localTiming.rateLimitIntervalMs"
-                label="API 发送限流间隔 (ms)"
-                type="number"
-                min="100"
-                step="1"
-                hint="请求指纹匀速器。3QPS = 334ms"
-              />
-            </div>
-
-            <!-- Group 2: Ghosting (Anti-Detection) -->
-            <div class="space-y-4">
-              <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-asleep mr-2" /> Ghosting 打盹行为
-              </h4>
-              <div class="grid grid-cols-2 gap-3">
-                <BaseInput
-                  v-model.number="localTiming.ghostingProbability"
-                  label="打盹触发概率"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                />
-                <BaseInput
-                  v-model.number="localTiming.ghostingCooldownMin"
-                  label="冷却期 (分钟)"
-                  type="number"
-                  min="1"
-                />
-                <BaseInput
-                  v-model.number="localTiming.ghostingMinMin"
-                  label="最短休眠 (分)"
-                  type="number"
-                  min="1"
-                />
-                <BaseInput
-                  v-model.number="localTiming.ghostingMaxMin"
-                  label="最长休眠 (分)"
-                  type="number"
-                  min="1"
-                />
-              </div>
-              <p class="settings-system-warning-note text-[10px] italic">
-                模拟真人疲劳休眠，随机下线避开长时间挂机检测。
-              </p>
-            </div>
-
-            <!-- Group 3: Operation Intervals -->
-            <div class="space-y-4">
-              <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-keyboard mr-2" /> 邀请与微延迟 (只读预览)
-              </h4>
-              <BaseInput
-                v-model.number="localTiming.inviteRequestDelay"
-                label="邀请请求延迟 (ms)"
-                type="number"
-                min="500"
-                step="100"
-              />
-              <div class="settings-system-readonly-box rounded-lg p-2">
-                <div v-for="p in settingStore.settings.readonlyTimingParams" :key="p.key" class="flex justify-between py-1 text-[11px]">
-                  <span class="glass-text-muted">{{ p.label }}</span>
-                  <span class="settings-system-inline-value font-mono">{{ p.value }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
-                <div class="i-carbon-flow-stream mr-2" /> 调度器引擎
-              </h4>
-              <BaseSelect
-                v-model="localTiming.schedulerEngine"
-                label="默认调度引擎"
-                :options="[
-                  { label: '默认 setTimeout', value: 'default' },
-                  { label: '全量时间轮', value: 'optimized' },
-                  { label: '混合模式', value: 'hybrid' },
-                ]"
-              />
-              <BaseInput
-                v-model="localTiming.optimizedSchedulerNamespaces"
-                label="时间轮命名空间"
-                type="text"
-                hint="逗号分隔，例如：system-jobs,account-report-service,worker_manager"
-              />
-              <div class="grid grid-cols-2 gap-3">
-                <BaseInput
-                  v-model.number="localTiming.optimizedSchedulerTickMs"
-                  label="时间轮 Tick (ms)"
-                  type="number"
-                  min="10"
-                />
-                <BaseInput
-                  v-model.number="localTiming.optimizedSchedulerWheelSize"
-                  label="槽位数量"
-                  type="number"
-                  min="10"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="timingSaving"
-            class="settings-footer-button"
-            @click="handleSaveTiming"
-          >
-            保存时间参数设置
-          </BaseButton>
-        </div>
-      </div>
-
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-card-divider px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-upgrade" />
-            系统更新中心
-          </h3>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
-              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
-                当前版本
-              </div>
-              <div class="glass-text-main mt-1 text-sm font-bold font-mono">
-                {{ systemUpdateCurrentVersionLabel }}
-              </div>
-            </div>
-            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
-              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
-                最新版本
-              </div>
-              <div class="glass-text-main mt-1 text-sm font-bold font-mono">
-                {{ systemUpdateLatestVersionLabel }}
-              </div>
-            </div>
-            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
-              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
-                最近检查
-              </div>
-              <div class="glass-text-main mt-1 text-sm font-bold">
-                {{ systemUpdateLastCheckLabel }}
-              </div>
-            </div>
-            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
-              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
-                当前状态
-              </div>
-              <div class="glass-text-main mt-1 text-sm font-bold">
-                {{ systemUpdateStatusLabel }}
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-system-info-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
-            <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
-            <div class="space-y-1">
-              <p><strong>版本来源：</strong>{{ systemUpdateSourceLabel }}</p>
-              <p v-if="systemUpdateOverview?.runtime?.lastError">
-                <strong>最近错误：</strong>{{ systemUpdateOverview.runtime.lastError }}
-              </p>
-              <p>当前已经接上宿主机更新代理链路，现阶段可实际执行 <strong>scope=app / worker / cluster</strong>，以及 <strong>strategy=in_place / rolling / drain_and_cutover</strong>。</p>
-              <p>集群节点已经支持 <strong>排空 / 恢复接流</strong>，调度器会避开排空节点并把账号迁移到可用节点。</p>
-              <p>Worker / Cluster 任务建议明确选择目标代理；若启用排空且未手填节点，会优先使用该代理上报的托管节点列表。</p>
-              <p>当存在活跃任务或代理心跳时，此页会每 15 秒自动刷新一次状态。</p>
-            </div>
-          </div>
-
-          <div
-            class="border rounded-lg p-3 space-y-2"
-            :class="systemUpdateDrainCutoverReadiness?.canDrainCutover ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-amber-500/20 bg-amber-500/10'"
-          >
-            <div class="glass-text-main flex items-center gap-2 text-sm font-bold">
-              <div class="i-carbon-arrows-vertical" />
-              排空切换预检
-            </div>
-            <div class="glass-text-muted text-sm">
-              {{ describeSystemUpdateDrainCutoverReadiness(systemUpdateDrainCutoverReadiness) }}
-            </div>
-            <div v-if="systemUpdateDrainCutoverReadiness && !systemUpdateDrainCutoverReadiness.canDrainCutover" class="glass-text-muted text-[11px]">
-              当前版本已经验证过：集群调度可用，但尚未实现账号运行态热迁移；若账号只剩一次性登录凭据，切换后通常需要重新登录。
-            </div>
-            <div v-if="systemUpdateDrainCutoverBlockers.length" class="space-y-2">
-              <div
-                v-for="blocker in systemUpdateDrainCutoverBlockers"
-                :key="`${blocker.nodeId}:${blocker.accountId}`"
-                class="border border-white/8 rounded-lg bg-black/10 p-2"
-              >
-                <div class="glass-text-main text-xs font-semibold">
-                  {{ blocker.accountName || blocker.accountId }} · {{ blocker.nodeId || '未分配节点' }}
-                </div>
-                <div class="glass-text-muted mt-1 text-[11px]">
-                  {{ blocker.platform || '-' }} · {{ blocker.credentialKind || '-' }} · {{ blocker.message }}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BaseSelect
-              v-model="systemUpdateConfig.provider"
-              label="版本源类型"
-              :options="systemUpdateProviderOptions"
-            />
-            <BaseInput
-              v-model="systemUpdateConfig.manifestUrl"
-              label="Manifest URL"
-              type="text"
-              placeholder="https://example.com/update-manifest.json"
-            />
-            <BaseInput
-              v-model="systemUpdateConfig.releaseApiUrl"
-              label="自定义 Release API"
-              type="text"
-              placeholder="https://api.github.com/repos/owner/repo/releases/latest"
-            />
-            <BaseInput
-              v-model="systemUpdateConfig.githubOwner"
-              label="GitHub Owner"
-              type="text"
-              placeholder="owner"
-            />
-            <BaseInput
-              v-model="systemUpdateConfig.githubRepo"
-              label="GitHub Repo"
-              type="text"
-              placeholder="repo"
-            />
-            <BaseSelect
-              v-model="systemUpdateConfig.preferredScope"
-              label="默认更新范围"
-              :options="systemUpdateScopeOptions"
-            />
-            <BaseSelect
-              v-model="systemUpdateConfig.preferredStrategy"
-              label="默认更新策略"
-              :options="systemUpdateStrategyOptions"
-            />
-            <div class="grid grid-cols-2 gap-3">
-              <BaseSwitch v-model="systemUpdateConfig.allowPreRelease" label="允许预发布版本" />
-              <BaseSwitch v-model="systemUpdateConfig.requireDrain" label="默认要求排空" />
-            </div>
-          </div>
-
-          <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
-            <div class="glass-text-main text-sm font-bold">
-              创建更新任务
-            </div>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <BaseInput
-                v-model="systemUpdateDraft.targetVersion"
-                label="目标版本"
-                type="text"
-                placeholder="v4.5.19"
-              />
-              <BaseSelect
-                v-model="systemUpdateDraft.scope"
-                label="任务范围"
-                :options="systemUpdateScopeOptions"
-              />
-              <BaseSelect
-                v-model="systemUpdateDraft.strategy"
-                label="执行策略"
-                :options="systemUpdateStrategyOptions"
-              />
-              <BaseInput
-                v-model="systemUpdateDraft.targetAgentIdsText"
-                label="目标代理"
-                type="text"
-                placeholder="agent-a,agent-b"
-              />
-              <BaseInput
-                v-model="systemUpdateDraft.drainNodeIdsText"
-                label="排空节点"
-                type="text"
-                placeholder="worker-a,worker-b"
-              />
-              <BaseInput
-                v-model="systemUpdateDraft.note"
-                label="任务备注"
-                type="text"
-                placeholder="例如：夜间滚动更新"
-              />
-              <div class="grid grid-cols-2 gap-3">
-                <BaseSwitch v-model="systemUpdateDraft.preserveCurrent" label="保留旧版本目录" />
-                <BaseSwitch v-model="systemUpdateDraft.requireDrain" label="执行前先排空" />
-              </div>
-            </div>
-          </div>
-
-          <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
-            <div class="flex items-center justify-between gap-3">
-              <div class="glass-text-main text-sm font-bold">
-                当前活跃任务
-              </div>
-              <BaseButton
-                v-if="canCancelSystemUpdateJob(activeSystemUpdateJob)"
-                size="sm"
-                variant="outline"
-                :loading="systemUpdateCancellingKey === `job:${activeSystemUpdateJob?.id}`"
-                @click="activeSystemUpdateJob && cancelSystemUpdateJobNow(activeSystemUpdateJob)"
-              >
-                取消任务
-              </BaseButton>
-            </div>
-            <div class="glass-text-muted text-sm">
-              {{ describeSystemUpdateJob(activeSystemUpdateJob) }}
-            </div>
-            <div v-if="activeSystemUpdateJob" class="glass-text-muted text-xs">
-              任务号 {{ activeSystemUpdateJob.jobKey }} · 创建于 {{ formatTimestamp(activeSystemUpdateJob.createdAt) }} · 目标 {{ activeSystemUpdateJob.targetVersion || '-' }} · 目标代理 {{ activeSystemUpdateJob.targetAgentId || '-' }} · 执行代理 {{ activeSystemUpdateJob.claimAgentId || '-' }}
-            </div>
-            <div v-if="activeSystemUpdateJob?.errorMessage" class="glass-text-muted text-[11px]">
-              失败原因：{{ activeSystemUpdateJob.errorMessage }}
-            </div>
-            <div v-if="activeSystemUpdateJob?.result?.logFile" class="glass-text-muted break-all text-[11px] font-mono">
-              代理日志：{{ activeSystemUpdateJob.result.logFile }}
-            </div>
-          </div>
-
-          <div v-if="activeSystemUpdateBatch" class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
-            <div class="flex items-center justify-between gap-3">
-              <div class="glass-text-main text-sm font-bold">
-                当前批次进度
-              </div>
-              <div class="flex flex-wrap justify-end gap-2">
-                <BaseButton
-                  v-if="getBatchCancelableCount(activeSystemUpdateBatch) > 0"
-                  size="sm"
-                  variant="outline"
-                  :loading="systemUpdateCancellingKey === `batch:${activeSystemUpdateBatch.batchKey}`"
-                  @click="cancelSystemUpdateBatchNow(activeSystemUpdateBatch)"
-                >
-                  取消剩余子任务
-                </BaseButton>
-                <BaseButton
-                  v-if="activeSystemUpdateBatch.failedCount > 0"
-                  size="sm"
-                  variant="outline"
-                  :loading="systemUpdateRetryingKey === `batch:${activeSystemUpdateBatch.batchKey}`"
-                  @click="retrySystemUpdateBatchNow(activeSystemUpdateBatch)"
-                >
-                  重试失败子任务
-                </BaseButton>
-              </div>
-            </div>
-            <div class="glass-text-muted text-sm">
-              {{ describeSystemUpdateBatch(activeSystemUpdateBatch) }}
-            </div>
-            <div class="glass-text-muted text-[11px]">
-              批次号 {{ activeSystemUpdateBatch.batchKey || '-' }} · 目标版本 {{ activeSystemUpdateBatch.targetVersion || '-' }} · 目标代理 {{ activeSystemUpdateBatch.targetAgentIds.join(', ') || '-' }}
-            </div>
-            <div class="glass-text-muted text-[11px]">
-              待执行 {{ activeSystemUpdateBatch.pendingCount }} · 已认领 {{ activeSystemUpdateBatch.claimedCount }} · 运行中 {{ activeSystemUpdateBatch.runningCount }} · 成功 {{ activeSystemUpdateBatch.succeededCount }} · 失败 {{ activeSystemUpdateBatch.failedCount }}
-            </div>
-            <div v-if="activeSystemUpdateBatch.drainNodeIds?.length" class="glass-text-muted text-[11px]">
-              默认排空节点：{{ activeSystemUpdateBatch.drainNodeIds.join(', ') }}
-            </div>
-            <div v-if="activeSystemUpdateBatch.latestSummaryMessage" class="glass-text-muted text-[11px]">
-              最近进度：{{ activeSystemUpdateBatch.latestSummaryMessage }}
-            </div>
-            <div v-if="activeSystemUpdateBatch.latestErrorMessage" class="glass-text-muted text-[11px]">
-              最近错误：{{ activeSystemUpdateBatch.latestErrorMessage }}
-            </div>
-          </div>
-
-          <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
-            <div class="glass-text-main text-sm font-bold">
-              更新代理状态
-            </div>
-            <div v-if="!systemUpdateOverview?.runtime?.agentSummary?.length" class="glass-text-muted text-sm">
-              暂无代理心跳
-            </div>
-            <div
-              v-for="agent in systemUpdateAgents"
-              :key="agent.nodeId"
-              class="border border-white/8 rounded-lg bg-black/10 p-3"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="glass-text-main flex items-center gap-2 text-sm font-semibold">
-                    <span class="truncate">{{ agent.nodeId }}</span>
-                    <BaseBadge :tone="agent.status === 'error' ? 'danger' : 'success'">
-                      {{ agent.status || 'idle' }}
-                    </BaseBadge>
-                  </div>
-                  <div class="glass-text-muted mt-1 text-xs">
-                    {{ describeSystemUpdateAgent(agent) }}
-                  </div>
-                  <div v-if="agent.targetVersion" class="glass-text-muted mt-1 text-[11px]">
-                    当前目标版本 {{ agent.targetVersion }} {{ agent.jobStatus ? `· ${agent.jobStatus}` : '' }}
-                  </div>
-                </div>
-                <div class="shrink-0">
-                  <BaseButton
-                    size="sm"
-                    :variant="isSystemUpdateTargetAgentSelected(agent.nodeId) ? 'secondary' : 'outline'"
-                    @click="toggleSystemUpdateTargetAgent(agent.nodeId)"
-                  >
-                    {{ isSystemUpdateTargetAgentSelected(agent.nodeId) ? '取消目标' : '设为目标' }}
-                  </BaseButton>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
-            <div class="glass-text-main text-sm font-bold">
-              集群节点排空
-            </div>
-            <div v-if="!systemUpdateClusterNodes.length" class="glass-text-muted text-sm">
-              暂无 Worker 节点心跳
-            </div>
-            <div
-              v-for="node in systemUpdateClusterNodes"
-              :key="node.nodeId"
-              class="border border-white/8 rounded-lg bg-black/10 p-3"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="glass-text-main flex items-center gap-2 text-sm font-semibold">
-                    <span class="truncate">{{ node.nodeId }}</span>
-                    <BaseBadge
-                      :tone="node.draining ? 'warning' : (node.connected ? 'success' : 'neutral')"
-                    >
-                      {{ node.draining ? '排空中' : (node.connected ? '在线' : '离线') }}
-                    </BaseBadge>
-                  </div>
-                  <div class="glass-text-muted mt-1 text-xs">
-                    {{ node.role || 'worker' }} · {{ node.version || '-' }} · {{ formatTimestamp(node.updatedAt) }}
-                  </div>
-                  <div class="glass-text-muted mt-1 text-[11px]">
-                    {{ describeSystemUpdateNode(node) }}
-                  </div>
-                  <div v-if="node.assignedAccountIds?.length" class="glass-text-muted mt-1 break-all text-[11px] font-mono">
-                    账号: {{ node.assignedAccountIds.join(', ') }}
-                  </div>
-                </div>
-                <div class="shrink-0">
-                  <BaseButton
-                    size="sm"
-                    :variant="node.draining ? 'secondary' : 'outline'"
-                    :loading="systemUpdateNodeMutatingId === node.nodeId"
-                    :loading-label="node.draining ? '恢复中' : '排空中'"
-                    @click="toggleSystemUpdateNodeDrain(node, !node.draining)"
-                  >
-                    {{ node.draining ? '恢复接流' : '执行排空' }}
-                  </BaseButton>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
-            <div class="glass-text-main text-sm font-bold">
-              最近更新任务
-            </div>
-            <div v-if="systemUpdateJobs.length === 0" class="glass-text-muted text-sm">
-              暂无更新任务
-            </div>
-            <div
-              v-for="job in systemUpdateJobs"
-              :key="job.id"
-              class="border border-white/8 rounded-lg bg-black/10 p-3"
-            >
-              <div class="glass-text-main flex items-center justify-between gap-2 text-sm font-semibold">
-                <span>{{ job.targetVersion || '-' }}</span>
-                <span class="text-xs font-mono uppercase">{{ job.status }}</span>
-              </div>
-              <div class="glass-text-muted mt-1 text-xs">
-                {{ describeSystemUpdateJob(job) }}
-              </div>
-              <div class="glass-text-muted mt-1 text-[11px]">
-                {{ formatTimestamp(job.createdAt) }} · {{ job.createdBy || 'system' }} · 目标 {{ job.targetAgentId || '-' }} · 执行 {{ job.claimAgentId || '-' }}
-              </div>
-              <div v-if="job.batchKey" class="glass-text-muted mt-1 text-[11px]">
-                批次：{{ job.batchKey }}
-              </div>
-              <div v-if="job.drainNodeIds?.length" class="glass-text-muted mt-1 text-[11px]">
-                排空节点：{{ job.drainNodeIds.join(', ') }}
-              </div>
-              <div v-if="job.errorMessage" class="glass-text-muted mt-1 text-[11px]">
-                失败原因：{{ job.errorMessage }}
-              </div>
-              <div v-if="job.result?.logFile" class="glass-text-muted mt-1 break-all text-[11px] font-mono">
-                代理日志：{{ job.result.logFile }}
-              </div>
-              <div v-if="canCancelSystemUpdateJob(job) || job.status === 'failed' || job.status === 'cancelled'" class="mt-2 flex flex-wrap gap-2">
-                <BaseButton
-                  v-if="canCancelSystemUpdateJob(job)"
-                  size="sm"
-                  variant="outline"
-                  :loading="systemUpdateCancellingKey === `job:${job.id}`"
-                  @click="cancelSystemUpdateJobNow(job)"
-                >
-                  取消任务
-                </BaseButton>
-                <BaseButton
-                  v-if="job.status === 'failed' || job.status === 'cancelled'"
-                  size="sm"
-                  variant="outline"
-                  :loading="systemUpdateRetryingKey === `job:${job.id}`"
-                  @click="retrySystemUpdateJobNow(job)"
-                >
-                  重试此任务
-                </BaseButton>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex flex-wrap justify-end gap-2 px-4 py-3">
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            :loading="systemUpdateRefreshing"
-            class="settings-footer-button"
-            @click="refreshSystemUpdateStatus()"
-          >
-            刷新状态
-          </BaseButton>
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            :loading="systemUpdateChecking"
-            class="settings-footer-button"
-            @click="checkSystemUpdateNow"
-          >
-            检查更新
-          </BaseButton>
-          <BaseButton
-            variant="secondary"
-            size="sm"
-            :loading="systemUpdateSaving"
-            class="settings-footer-button"
-            @click="saveSystemUpdateConfigForm"
-          >
-            保存更新配置
-          </BaseButton>
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="systemUpdateLaunching"
-            class="settings-footer-button"
-            @click="createSystemUpdateTask"
-          >
-            创建更新任务
-          </BaseButton>
-        </div>
-      </div>
-
-      <!-- Card New: 分布式与集群流控（仅管理员可见） -->
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-card-divider px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-flow-stream" />
-            分布式与集群流控 (Cluster Routing)
-          </h3>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BaseSelect
-              v-model="clusterConfig.dispatcherStrategy"
-              label="集群派发器路由策略"
-              :options="clusterStrategyOptions"
-            />
-          </div>
-          <div class="settings-system-info-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
-            <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
-            <div>
-              <p class="font-bold">
-                策略说明：
-              </p>
-              <ul class="ml-4 mt-1 list-disc opacity-90 space-y-1">
-                <li><strong>轮询洗牌：</strong> 早期默认逻辑。新增账号或节点变动时，把所有存活账号抽出来均分给所有存活 Worker。(易引发大面积账号离线闪断)</li>
-                <li><strong>最小负荷与粘性推流：</strong> 企业级商用逻辑。账号被精准分发到当前活跃数最少的离散节点上。并保持<strong>粘性心跳</strong>。只有老节点死亡或是新用户扫码登入时，才会触发推流动作，完全不影响已经在工作的进程丛集！</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="clusterSaving"
-            class="settings-footer-button"
-            @click="saveClusterConfig"
-          >
-            保存集群路由策略
-          </BaseButton>
-        </div>
-      </div>
-
-      <!-- Card 3: 体验卡配置（仅管理员可见） -->
-      <div v-if="isAdmin" class="card glass-panel relative z-10 h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-card-divider px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-chemistry" />
-            体验卡配置
-          </h3>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <BaseSwitch v-model="trialConfig.enabled" label="功能开关" />
-            <BaseSwitch v-model="trialConfig.adminRenewEnabled" label="管理员一键续费" />
-            <BaseSwitch v-model="trialConfig.userRenewEnabled" label="用户自助续费" />
-          </div>
-
-          <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <BaseSelect
-              v-model="trialConfig.days"
-              label="体验卡时长"
-              :options="trialDaysOptions"
-            />
-            <BaseInput
-              v-model.number="trialConfig.maxAccounts"
-              label="绑定账号数"
-              type="number"
-              min="1"
-              max="10"
-            />
-            <BaseInput
-              v-model.number="trialConfig.dailyLimit"
-              label="每日上限"
-              type="number"
-              min="1"
-            />
-            <BaseSelect
-              v-model="trialConfig.cooldownMs"
-              label="IP 冷却时间"
-              :options="trialCooldownOptions"
-            />
-          </div>
-        </div>
-
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="trialSaving"
-            class="settings-footer-button"
-            @click="saveTrialConfig"
-          >
-            保存体验卡设置
-          </BaseButton>
-        </div>
-      </div>
-
-      <!-- Card 4: 第三方 API 配置（仅管理员可见） -->
-      <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-        <div class="settings-card-divider px-4 py-3">
-          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-            <div class="i-carbon-api-1" />
-            第三方 API 配置
-          </h3>
-        </div>
-
-        <div class="p-4 space-y-4">
-          <div class="grid grid-cols-1 gap-3 lg:grid-cols-3 md:grid-cols-2">
-            <BaseInput
-              v-model="thirdPartyApiConfig.wxApiKey"
-              label="微信登录 API Key (wxApiKey)"
-              type="password"
-              autocomplete="off"
-              placeholder="请输入与第三方授权约定的 ApiKey"
-            />
-            <BaseInput
-              v-model="thirdPartyApiConfig.wxAppId"
-              label="QQ农场 AppId (wxAppId)"
-              type="text"
-              placeholder="默认从接口获取，可覆盖定制"
-            />
-            <BaseInput
-              v-model="thirdPartyApiConfig.wxApiUrl"
-              label="微信登录请求网关 (wxApiUrl)"
-              type="text"
-              placeholder="一般为内部或三方中转代理服务地址"
-            />
-            <BaseInput
-              v-model="thirdPartyApiConfig.ipad860Url"
-              label="Ipad860 服务地址"
-              type="text"
-              placeholder="如 http://127.0.0.1:8058 或 http://ipad860:8058"
-            />
-            <BaseInput
-              v-model="thirdPartyApiConfig.aineisheKey"
-              label="码雨云 API Token (QQ扫码)"
-              type="password"
-              autocomplete="off"
-              placeholder="请输入 aineishe.com 获取的 Token"
-            />
-          </div>
-          <div class="settings-system-warning-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
-            <div class="i-carbon-warning-alt mt-0.5 mt-0.5 shrink-0 text-base" />
-            <p>更改此项配置会立即刷新扫码中转服务器参数。如果改错导致扫码无反应，请重新设置正确的值，原环境变量已不再具有覆写能力。</p>
-          </div>
-        </div>
-
-        <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
-          <BaseButton
-            variant="primary"
-            size="sm"
-            :loading="thirdPartyApiSaving"
-            class="settings-footer-button"
-            @click="saveThirdPartyApiConfig"
-          >
-            保存第三方 API 设置
-          </BaseButton>
-        </div>
-      </div>
-    </div>
-
-    <!-- Card 4: 系统主题与背景（仅管理员可见） -->
-    <div v-if="isAdmin" class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2">
-      <div class="settings-card-divider px-4 py-3">
-        <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
-          <div class="i-carbon-paint-brush" />
-          系统外观与自定义背景
-        </h3>
-      </div>
-
-      <div class="p-4 space-y-5">
-        <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <div class="space-y-4">
-            <BaseInput
-              v-model="appStore.loginBackground"
-              label="登录页背景图片 URL"
-              placeholder="请输入图片链接 (如: https://example.com/bg.jpg)"
-            />
-
-            <div class="settings-theme-highlight rounded-2xl p-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="settings-health-primary-card rounded-xl p-4">
+              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <div class="glass-text-main text-sm font-bold">
-                    当前主题联动
+                  <div class="settings-health-primary-label text-xs font-semibold tracking-wide uppercase">
+                    QQ 好友协议诊断
                   </div>
-                  <p class="glass-text-muted mt-1 text-xs leading-5">
-                    当前主题为「{{ currentThemeOption.name }}」，可一键套用对应的专属背景预设。
-                  </p>
-                </div>
-                <BaseButton
-                  variant="primary"
-                  size="sm"
-                  @click="applyCurrentThemeBackgroundPreset"
-                >
-                  套用 {{ currentThemeBackgroundPreset.title }}
-                </BaseButton>
-              </div>
-            </div>
-
-            <div class="settings-theme-surface rounded-2xl p-4">
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <div class="glass-text-main text-sm font-bold">
-                    主题锁定背景
-                  </div>
-                  <p class="glass-text-muted mt-1 text-xs leading-5">
-                    开启后，只要切换这 5 套主题，就会自动同步对应的内置背景、遮罩和模糊参数。
-                  </p>
-                </div>
-                <BaseSwitch
-                  :model-value="appStore.themeBackgroundLinked"
-                  @update:model-value="toggleThemeBackgroundLinked(!!$event)"
-                />
-              </div>
-              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <span
-                  class="settings-theme-chip px-3 py-1 text-[11px] font-bold"
-                  :class="appStore.themeBackgroundLinked
-                    ? 'ui-meta-chip--brand'
-                    : 'ui-meta-chip--neutral'"
-                >
-                  {{ appStore.themeBackgroundLinked ? '已开启自动联动' : '当前为手动搭配模式' }}
-                </span>
-                <BaseButton
-                  variant="secondary"
-                  size="sm"
-                  @click="applyThemeBundle(appStore.colorTheme)"
-                >
-                  立即按当前主题对齐
-                </BaseButton>
-              </div>
-            </div>
-
-            <div class="settings-theme-surface rounded-2xl p-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div class="glass-text-main text-sm font-bold">
-                    5 套主题联动方案
-                  </div>
-                  <p class="glass-text-muted mt-1 text-xs leading-5">
-                    每套方案都会同步主题色、背景图、登录页参数、主界面参数和业务页卡片风格，并默认启用“登录页 + 主界面”。
-                  </p>
-                </div>
-                <div class="settings-theme-chip ui-meta-chip--brand px-3 py-1 text-[11px]">
-                  一键套用整套皮肤
-                </div>
-              </div>
-
-              <div class="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] mt-4 gap-4">
-                <button
-                  v-for="bundle in themePresetBundles"
-                  :key="bundle.theme.key"
-                  type="button"
-                  class="settings-theme-bundle-card settings-theme-surface group overflow-hidden rounded-2xl text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-                  :class="isThemeBundleApplied(bundle.theme.key) ? 'settings-theme-surface-active' : ''"
-                  @click="applyThemeBundle(bundle.theme.key)"
-                >
-                  <div
-                    class="settings-theme-bundle-cover relative h-28 overflow-hidden"
-                    :style="{
-                      backgroundImage: `url(${bundle.preset.url})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }"
-                  >
-                    <div
-                      class="absolute inset-0"
-                      :style="{
-                        backgroundColor: `color-mix(in srgb, var(--ui-overlay-backdrop) ${bundle.preset.overlayOpacity}%, transparent)`,
-                        backdropFilter: `blur(${bundle.preset.blur}px)`,
-                        WebkitBackdropFilter: `blur(${bundle.preset.blur}px)`,
-                      }"
-                    />
-                    <div class="absolute left-3 top-3 flex items-center gap-2">
-                      <span
-                        class="h-2.5 w-2.5 rounded-full"
-                        :style="{
-                          backgroundColor: bundle.theme.color,
-                          boxShadow: `0 0 0 4px ${bundle.theme.color}22`,
-                        }"
-                      />
-                      <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge rounded-full px-2.5 py-1 text-[10px]">
-                        {{ bundle.theme.name }}
-                      </BaseBadge>
-                    </div>
-                    <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
-                      {{ bundle.preset.title }}
-                    </BaseBadge>
-                  </div>
-
-                  <div class="settings-theme-bundle-body p-3 space-y-2">
-                    <div class="settings-theme-bundle-head flex items-start justify-between gap-3">
-                      <span class="settings-theme-bundle-title glass-text-main text-sm font-semibold">{{ bundle.preset.title }}</span>
-                      <span
-                        class="settings-theme-bundle-action settings-theme-chip px-2 py-0.5 text-[10px] font-bold"
-                        :class="isThemeBundleApplied(bundle.theme.key)
-                          ? 'ui-meta-chip--brand'
-                          : 'ui-meta-chip--neutral'"
-                      >
-                        {{ isThemeBundleApplied(bundle.theme.key) ? '当前整套' : '点击套用' }}
-                      </span>
-                    </div>
-                    <p class="settings-theme-bundle-desc glass-text-muted text-xs leading-5">
-                      {{ bundle.preset.description }}
-                    </p>
-                    <div class="settings-theme-bundle-metrics glass-text-muted flex items-center justify-between text-[11px]">
-                      <span>登录 {{ bundle.preset.overlayOpacity }}% / {{ bundle.preset.blur }}px</span>
-                      <span>主界面 {{ bundle.preset.appOverlayOpacity }}% / {{ bundle.preset.appBlur }}px</span>
-                    </div>
-                    <div class="settings-theme-bundle-foot glass-text-muted text-[11px]">
-                      业务页风格 {{ bundle.workspacePreset.name }}
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div class="settings-theme-surface rounded-2xl p-4">
-              <div class="glass-text-main text-sm font-medium">
-                背景作用范围
-              </div>
-              <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-3">
-                <button
-                  v-for="option in UI_BACKGROUND_SCOPE_OPTIONS"
-                  :key="option.value"
-                  type="button"
-                  class="settings-theme-scope-card rounded-2xl px-3 py-3 text-left transition-all"
-                  :class="appStore.backgroundScope === option.value
-                    ? 'settings-theme-scope-card-active'
-                    : 'settings-theme-scope-card-inactive'"
-                  @click="appStore.backgroundScope = option.value"
-                >
-                  <div class="glass-text-main text-sm font-semibold">
-                    {{ option.label }}
-                  </div>
-                  <p class="glass-text-muted mt-1 text-[11px] leading-5">
-                    {{ option.description }}
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            <div class="settings-theme-surface rounded-2xl p-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div class="glass-text-main text-sm font-bold">
-                    主界面视觉预设
-                  </div>
-                  <p class="glass-text-muted mt-1 text-xs leading-5">
-                    {{ currentWorkspaceVisualSummary.description }}
-                  </p>
-                </div>
-                <div class="settings-theme-chip ui-meta-chip--brand px-3 py-1 text-[11px]">
-                  {{ currentWorkspaceVisualSummary.badge }}
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 mt-4 gap-4 md:grid-cols-3">
-                <button
-                  v-for="preset in workspaceVisualPresets"
-                  :key="preset.key"
-                  type="button"
-                  class="settings-theme-visual-card group overflow-hidden rounded-2xl p-3 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                  :class="isWorkspaceVisualPresetApplied(preset.key) ? 'settings-theme-surface-active' : ''"
-                  @click="applyWorkspaceVisualPreset(preset.key)"
-                >
-                  <div
-                    class="settings-theme-visual-preview relative h-24 overflow-hidden rounded-2xl p-3"
-                    :style="{ background: 'radial-gradient(circle at top, color-mix(in srgb, var(--ui-text-on-brand) 14%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--ui-text-on-brand) 8%, transparent), color-mix(in srgb, var(--ui-bg-canvas) 22%, transparent))' }"
-                  >
-                    <div class="settings-theme-visual-overlay absolute inset-0" />
-                    <div class="relative z-10 h-full flex gap-3">
-                      <div class="w-12 border rounded-xl p-2" :style="getWorkspacePreviewCardStyle(preset.key)">
-                        <div class="settings-theme-visual-bar-strong h-2.5 w-5 rounded" />
-                        <div class="settings-theme-visual-bar-mid mt-2 h-1.5 rounded" />
-                        <div class="settings-theme-visual-bar-faint mt-1.5 h-1.5 rounded" />
-                      </div>
-                      <div class="flex flex-1 flex-col gap-2">
-                        <div class="border rounded-xl px-3 py-2" :style="getWorkspacePreviewCardStyle(preset.key)">
-                          <div class="settings-theme-visual-bar-strong h-2.5 w-16 rounded" />
-                        </div>
-                        <div class="grid grid-cols-2 flex-1 gap-2">
-                          <div class="border rounded-xl" :style="getWorkspacePreviewCardStyle(preset.key)" />
-                          <div class="border rounded-xl" :style="getWorkspacePreviewCardStyle(preset.key)" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="mt-3 flex items-center justify-between gap-3">
-                    <div class="glass-text-main text-sm font-semibold">
-                      {{ preset.name }}
-                    </div>
-                    <span
-                      class="settings-theme-chip px-2.5 py-0.5 text-[10px] font-bold"
-                      :class="isWorkspaceVisualPresetApplied(preset.key)
-                        ? 'ui-meta-chip--brand'
-                        : 'ui-meta-chip--neutral'"
-                    >
-                      {{ isWorkspaceVisualPresetApplied(preset.key) ? '当前方案' : preset.badge }}
+                  <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" :class="qqFriendDiagnosticsStatusClass">
+                      {{ qqFriendDiagnosticsStatusLabel }}
+                    </span>
+                    <span class="settings-health-primary-note text-xs">
+                      AppID：{{ QQ_FRIEND_DIAGNOSTICS_APPID }}
                     </span>
                   </div>
-                  <p class="glass-text-muted mt-2 text-xs leading-5">
-                    {{ preset.description }}
-                  </p>
-                  <div class="glass-text-muted mt-3 flex items-center justify-between text-[11px]">
-                    <span>遮罩 {{ preset.appOverlayOpacity }}%</span>
-                    <span>模糊 {{ preset.appBlur }}px</span>
+                </div>
+                <div class="settings-health-primary-note text-xs md:text-right">
+                  最近快照：{{ qqFriendDiagnosticsCheckedAtLabel }}
+                </div>
+              </div>
+
+              <template v-if="qqFriendDiagnosticsSnapshot">
+                <div class="grid grid-cols-1 mt-4 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      QQ 版本
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.qqVersion || '未获取' }}
+                    </div>
                   </div>
-                </button>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      小游戏运行时
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.miniProject?.projectname || '未获取' }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      openDataContext
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ formatQqFriendBoolean(qqFriendDiagnosticsSnapshot.miniProject?.openDataContext, '已启用', '未启用') }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      最新 onlineInfoCount
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.summary?.latestOnlineInfoCount || 0 }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      授权已同步
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ formatQqFriendBoolean(qqFriendDiagnosticsSnapshot.authBridge?.authoritySynchronized) }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      好友授权 Scope
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.authBridge?.shareFriendshipScope ?? '未获取' }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      Redis 缓存摘要
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsRedisSummaryLabel }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      历史快照数
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.availableFiles?.length || 0 }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 mt-3 gap-3 xl:grid-cols-2">
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      最新诊断文件
+                    </div>
+                    <div class="settings-health-card-value mt-2 break-all text-sm font-medium">
+                      {{ qqFriendDiagnosticsSnapshot.source?.name || qqFriendDiagnosticsSnapshot.fileName || '未获取' }}
+                    </div>
+                    <div class="settings-health-card-note mt-2 text-xs">
+                      {{ qqFriendDiagnosticsSnapshot.source?.path || qqFriendDiagnosticsSnapshot.file || '未获取路径' }}
+                    </div>
+                  </div>
+
+                  <div class="settings-health-card rounded-xl p-4">
+                    <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                      最新 NTKernel 请求样本
+                    </div>
+                    <div class="settings-health-card-value mt-2 text-sm font-medium">
+                      {{ formatQqFriendLatestRequest(qqFriendDiagnosticsSnapshot) }}
+                    </div>
+                    <div class="settings-health-card-note mt-2 text-xs">
+                      已观测请求 {{ qqFriendDiagnosticsSnapshot.hostFriendProtocol?.reqCount || 0 }} 次 / 响应 {{ qqFriendDiagnosticsSnapshot.hostFriendProtocol?.rspCount || 0 }} 次
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="qqFriendDiagnosticsSnapshot.redisCaches?.length" class="mt-3">
+                  <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                    Redis 好友缓存预览
+                  </div>
+                  <div class="grid grid-cols-1 mt-3 gap-3 xl:grid-cols-3">
+                    <div
+                      v-for="cache in qqFriendDiagnosticsSnapshot.redisCaches"
+                      :key="cache.key"
+                      class="settings-health-card rounded-xl p-4"
+                    >
+                      <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                        {{ cache.key.replace(/^account:(.+):friends_cache$/, '账号 $1') }}
+                      </div>
+                      <div class="settings-health-card-value mt-2 text-sm font-medium">
+                        {{ cache.count }} 个好友
+                      </div>
+                      <div class="settings-health-card-note mt-2 break-all text-xs">
+                        {{ cache.key }}
+                      </div>
+                      <div class="settings-health-card-value mt-3 text-sm leading-6">
+                        {{ formatQqFriendCachePreview(cache) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <div v-else-if="!qqFriendDiagnosticsLoading" class="settings-health-card mt-4 rounded-xl p-4">
+                <div class="settings-health-card-value text-sm font-medium">
+                  暂无 QQ 好友诊断快照
+                </div>
+                <div class="settings-health-card-note mt-2 text-xs">
+                  可先运行 `scripts/utils/collect-qq-friend-signals.sh`，然后刷新本页查看最新宿主桥接状态。
+                </div>
               </div>
             </div>
-
-            <input
-              ref="backgroundFileInput"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              class="hidden"
-              @change="handleBackgroundFileChange"
-            >
 
             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div class="settings-theme-range-card rounded-2xl p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="glass-text-main text-sm font-medium">登录页遮罩强度</span>
-                  <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
-                    {{ appStore.loginBackgroundOverlayOpacity }}%
-                  </span>
+              <div class="settings-health-status-card rounded-xl p-4" :class="(systemHealthSnapshot?.missingRequiredKeys?.length || 0) > 0 ? 'settings-health-status-card-warning' : 'settings-health-status-card-success'">
+                <div class="settings-health-status-label text-xs font-semibold tracking-wide uppercase">
+                  必需键缺失
                 </div>
-                <input
-                  v-model.number="appStore.loginBackgroundOverlayOpacity"
-                  type="range"
-                  min="0"
-                  max="80"
-                  step="1"
-                  class="mt-4 w-full cursor-pointer accent-primary-500"
-                >
-                <p class="glass-text-muted mt-2 text-[11px] leading-5">
-                  数值越高，图片越暗，登录卡片和标题文字更容易稳住。
-                </p>
+                <div class="settings-health-status-value mt-2 text-sm font-medium">
+                  {{ systemHealthSnapshot?.missingRequiredKeys?.length ? systemHealthSnapshot.missingRequiredKeys.join('、') : '无' }}
+                </div>
               </div>
 
-              <div class="settings-theme-range-card rounded-2xl p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="glass-text-main text-sm font-medium">登录页模糊度</span>
-                  <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
-                    {{ appStore.loginBackgroundBlur }}px
-                  </span>
+              <div class="settings-health-status-card rounded-xl p-4" :class="(systemHealthSnapshot?.fallbackWouldActivateKeys?.length || 0) > 0 ? 'settings-health-status-card-info' : 'settings-health-status-card-neutral'">
+                <div class="settings-health-status-label text-xs font-semibold tracking-wide uppercase">
+                  仍依赖旧回退文件的键
                 </div>
-                <input
-                  v-model.number="appStore.loginBackgroundBlur"
-                  type="range"
-                  min="0"
-                  max="12"
-                  step="1"
-                  class="mt-4 w-full cursor-pointer accent-primary-500"
-                >
-                <p class="glass-text-muted mt-2 text-[11px] leading-5">
-                  轻微模糊可以削弱杂乱背景，避免图片主体抢走登录焦点。
-                </p>
+                <div class="settings-health-status-value mt-2 text-sm font-medium">
+                  {{ systemHealthSnapshot?.fallbackWouldActivateKeys?.length ? systemHealthSnapshot.fallbackWouldActivateKeys.join('、') : '无' }}
+                </div>
               </div>
             </div>
-
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div class="settings-theme-range-card rounded-2xl p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="glass-text-main text-sm font-medium">主界面遮罩强度</span>
-                  <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
-                    {{ appStore.appBackgroundOverlayOpacity }}%
-                  </span>
-                </div>
-                <input
-                  v-model.number="appStore.appBackgroundOverlayOpacity"
-                  type="range"
-                  min="20"
-                  max="90"
-                  step="1"
-                  class="mt-4 w-full cursor-pointer accent-primary-500"
-                >
-                <p class="glass-text-muted mt-2 text-[11px] leading-5">
-                  业务页推荐更重一点，让日志、表格、卡片始终保持高可读性。
-                </p>
-              </div>
-
-              <div class="settings-theme-range-card rounded-2xl p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="glass-text-main text-sm font-medium">主界面模糊度</span>
-                  <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
-                    {{ appStore.appBackgroundBlur }}px
-                  </span>
-                </div>
-                <input
-                  v-model.number="appStore.appBackgroundBlur"
-                  type="range"
-                  min="0"
-                  max="18"
-                  step="1"
-                  class="mt-4 w-full cursor-pointer accent-primary-500"
-                >
-                <p class="glass-text-muted mt-2 text-[11px] leading-5">
-                  主界面模糊通常比登录页更高，这样背景存在感还在，但不会干扰操作。
-                </p>
-              </div>
-            </div>
-
-            <div class="settings-theme-action-panel rounded-2xl p-4">
-              <div class="flex flex-wrap items-center gap-3">
-                <BaseButton
-                  variant="secondary"
-                  size="sm"
-                  :loading="backgroundUploading"
-                  @click="triggerBackgroundUpload"
-                >
-                  本地上传背景图
-                </BaseButton>
-                <BaseButton
-                  variant="primary"
-                  size="sm"
-                  :loading="backgroundSaving"
-                  @click="saveLoginAppearance"
-                >
-                  保存主题与背景
-                </BaseButton>
-                <BaseButton
-                  variant="secondary"
-                  size="sm"
-                  :disabled="backgroundSaving || backgroundUploading"
-                  @click="restoreDefaultLoginAppearance"
-                >
-                  恢复默认
-                </BaseButton>
-              </div>
-              <p class="glass-text-muted mt-3 text-xs leading-5">
-                支持 JPG / PNG / WebP。本地上传会先在浏览器压缩，再保存到服务端静态目录，避免把图片直接塞进配置里。
-              </p>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between gap-3">
-              <span class="glass-text-muted text-xs font-medium">预览 (效果参考)</span>
-              <button
-                type="button"
-                class="settings-preview-trigger glass-text-main rounded-full px-3 py-1 text-[11px] transition-all"
-                @click="openLoginPreview"
-              >
-                打开全屏预览
-              </button>
-            </div>
-
-            <button
-              type="button"
-              class="settings-preview-card group relative h-40 w-full overflow-hidden rounded-2xl text-left shadow-sm transition-all duration-300 hover:shadow-lg"
-              :style="loginPreviewBackgroundStyle"
-              @click="openLoginPreview"
-            >
-              <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="loginPreviewMaskStyle" />
-              <div class="settings-preview-login-sheen absolute inset-0 opacity-80" />
-              <div class="absolute inset-0 flex items-center justify-center">
-                <div class="settings-preview-glass glass-text-main rounded-xl px-4 py-2 text-xs font-medium shadow-lg transition-transform duration-300 group-hover:scale-105">
-                  玻璃拟态预览
-                </div>
-              </div>
-              <div class="settings-preview-chip ui-glass-chip absolute bottom-3 left-3 rounded-full px-2.5 py-1 text-[10px]">
-                遮罩 {{ appStore.loginBackgroundOverlayOpacity }}%
-              </div>
-              <div class="settings-preview-chip ui-glass-chip absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
-                模糊 {{ appStore.loginBackgroundBlur }}px
-              </div>
-            </button>
-
-            <div
-              class="settings-preview-card relative h-36 overflow-hidden rounded-2xl"
-              :style="loginPreviewBackgroundStyle"
-            >
-              <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="appScenePreviewMaskStyle" />
-              <div class="settings-preview-overlay-soft absolute inset-0" />
-              <div class="settings-preview-chip ui-glass-chip absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px]">
-                主界面氛围预览
-              </div>
-              <div class="absolute inset-0 flex gap-3 p-4">
-                <div class="settings-preview-sidebar w-20 rounded-2xl p-3">
-                  <div class="settings-preview-block-strong mb-3 h-6 w-6 rounded-lg" />
-                  <div class="space-y-2">
-                    <div class="settings-preview-block-mid h-2 rounded" />
-                    <div class="settings-preview-block-faint h-2 rounded" />
-                    <div class="settings-preview-block-faint h-2 rounded" />
-                  </div>
-                </div>
-                <div class="flex flex-1 flex-col gap-3">
-                  <div class="settings-preview-panel rounded-2xl p-3">
-                    <div class="settings-preview-block-strong h-3 w-36 rounded" />
-                  </div>
-                  <div class="grid grid-cols-2 flex-1 gap-3">
-                    <div class="settings-preview-panel rounded-2xl p-3" />
-                    <div class="settings-preview-panel rounded-2xl p-3" />
-                  </div>
-                </div>
-              </div>
-              <div class="settings-preview-chip ui-glass-chip absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
-                {{ appStore.backgroundScope === 'login_only' ? '当前未对主界面启用' : `遮罩 ${appStore.appBackgroundOverlayOpacity}% / 模糊 ${appStore.appBackgroundBlur}px` }}
-              </div>
-            </div>
-
-            <p v-if="loginPreviewLoading" class="settings-theme-preview-note settings-theme-preview-note-warning text-xs">
-              正在验证图片链接，加载完成后会自动应用到预览。
-            </p>
-            <p v-else-if="loginPreviewLoadFailed" class="settings-theme-preview-note settings-theme-preview-note-danger text-xs">
-              当前图片链接加载失败，预览已回退到默认渐变。建议使用可直接访问的 JPG / PNG / WebP 地址。
-            </p>
-            <p v-else class="glass-text-muted text-xs">
-              缩略图和全屏弹窗都会按登录页的玻璃拟态结构渲染，便于判断背景是否压字。
-            </p>
           </div>
         </div>
 
-        <div class="settings-card-footer pt-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div class="glass-text-main text-sm font-bold">
-                背景预设图库
-              </div>
-              <p class="glass-text-muted mt-1 text-xs">
-                点击预设会先套用到当前表单，确认效果后再点“应用背景设置”。
-              </p>
-            </div>
-            <div class="glass-text-muted text-[11px]">
-              当前参数：遮罩 {{ appStore.loginBackgroundOverlayOpacity }}% / 模糊 {{ appStore.loginBackgroundBlur }}px
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 mt-4 gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <button
-              v-for="preset in orderedLoginBackgroundPresets"
-              :key="preset.key"
-              type="button"
-              class="settings-theme-gallery-card group overflow-hidden rounded-2xl text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-              :class="isSelectedLoginBackgroundPreset(preset) ? 'settings-theme-surface-active' : ''"
-              @click="applyBackgroundPreset(preset)"
-            >
-              <div
-                class="relative h-32 overflow-hidden"
-                :style="preset.url
-                  ? { backgroundImage: `url(${preset.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                  : { background: 'linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-100) 72%, var(--ui-bg-surface) 28%) 0%, color-mix(in srgb, var(--ui-brand-200) 58%, var(--ui-bg-surface) 42%) 100%)' }"
-              >
-                <div
-                  v-if="preset.url"
-                  class="absolute inset-0"
-                  :style="{
-                    backgroundColor: `color-mix(in srgb, var(--ui-overlay-backdrop) ${preset.overlayOpacity}%, transparent)`,
-                    backdropFilter: `blur(${preset.blur}px)`,
-                    WebkitBackdropFilter: `blur(${preset.blur}px)`,
-                  }"
-                />
-                <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px]">
-                  {{ preset.themeKey === appStore.colorTheme ? '当前主题推荐' : (preset.badge || '预设') }}
-                </BaseBadge>
-                <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
-                  {{ preset.overlayOpacity }}% / {{ preset.blur }}px
-                </BaseBadge>
-              </div>
-
-              <div class="p-3 space-y-2">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="glass-text-main text-sm font-semibold">{{ preset.title }}</span>
-                  <span
-                    v-if="isSelectedLoginBackgroundPreset(preset)"
-                    class="settings-theme-chip ui-meta-chip--brand px-2 py-0.5 text-[10px]"
-                  >
-                    当前
-                  </span>
-                </div>
-                <div v-if="preset.themeKey" class="glass-text-muted text-[11px]">
-                  对应主题：{{ getThemeOption(preset.themeKey).name }}
-                </div>
-                <p class="glass-text-muted text-xs leading-5">
-                  {{ preset.description }}
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <Teleport to="body">
-      <div v-if="loginPreviewVisible" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Card Time Parameters: 系统级时间参数调优（仅管理员可见） -->
         <div
-          class="settings-preview-overlay absolute inset-0 backdrop-blur-md"
-          @click="loginPreviewVisible = false"
-        />
-
-        <div class="settings-preview-modal relative z-10 max-h-[90vh] max-w-6xl w-full overflow-hidden rounded-[28px] shadow-2xl">
-          <div
-            class="relative min-h-[78vh] overflow-hidden"
-            :style="loginPreviewBackgroundStyle"
-          >
-            <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="loginPreviewMaskStyle" />
-            <div v-else class="settings-preview-modal-sheen absolute inset-0" />
-
-            <div class="settings-preview-chip ui-glass-chip absolute left-5 top-5 z-20 rounded-full px-4 py-1.5 text-xs">
-              登录页玻璃拟态预览
-            </div>
-            <div class="settings-preview-chip ui-glass-chip absolute left-5 top-16 z-20 rounded-full px-4 py-1.5 text-xs">
-              遮罩 {{ appStore.loginBackgroundOverlayOpacity }}% · 模糊 {{ appStore.loginBackgroundBlur }}px
-            </div>
-
-            <button
-              type="button"
-              class="settings-preview-close absolute right-5 top-5 z-20 h-10 w-10 flex items-center justify-center rounded-full transition-colors"
-              @click="loginPreviewVisible = false"
-            >
-              <div class="i-carbon-close text-lg" />
-            </button>
-
-            <div class="relative z-10 min-h-[78vh] flex items-center justify-center px-5 py-12 lg:px-10">
-              <div class="grid max-w-5xl w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <div class="settings-preview-brand-panel hidden rounded-[28px] p-8 shadow-2xl lg:flex lg:flex-col lg:justify-between">
-                  <div>
-                    <div class="settings-preview-brand-icon mb-6 h-16 w-16 flex items-center justify-center rounded-3xl shadow-xl">
-                      <div class="i-carbon-sprout text-3xl" />
-                    </div>
-                    <h3 class="text-3xl font-black tracking-tight">
-                      御农·QQ 农场智能助手
-                    </h3>
-                    <p class="settings-preview-brand-copy mt-3 max-w-md text-sm leading-6">
-                      这里模拟的是登录页左侧品牌区和右侧表单卡片的叠层效果，主要用来判断背景图是否会干扰按钮、标题和输入区可读性。
-                    </p>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-3">
-                    <div class="settings-preview-brand-card rounded-2xl p-4">
-                      <div class="i-carbon-flash mb-2 text-xl" />
-                      <div class="text-sm font-semibold">
-                        极速自动化
-                      </div>
-                    </div>
-                    <div class="settings-preview-brand-card rounded-2xl p-4">
-                      <div class="i-carbon-security mb-2 text-xl" />
-                      <div class="text-sm font-semibold">
-                        安全隔离
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="settings-preview-form-panel rounded-[28px] p-5 shadow-2xl lg:p-8">
-                  <div class="mx-auto max-w-md">
-                    <div class="settings-preview-form-header mb-6 flex items-center gap-3">
-                      <div class="settings-preview-form-icon h-11 w-11 flex items-center justify-center rounded-2xl shadow-lg">
-                        <div class="i-carbon-sprout text-xl" />
-                      </div>
-                      <div>
-                        <div class="text-lg font-bold">
-                          欢迎回来
-                        </div>
-                        <div class="settings-preview-form-copy text-xs">
-                          预览背景图在真实登录页中的玻璃卡片表现
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="space-y-4">
-                      <div class="settings-preview-input rounded-2xl px-4 py-3 text-sm">
-                        用户名 / 账号
-                      </div>
-                      <div class="settings-preview-input rounded-2xl px-4 py-3 text-sm">
-                        密码
-                      </div>
-                      <div class="settings-preview-submit rounded-2xl px-4 py-3 text-center text-sm font-bold shadow-lg">
-                        登录按钮预览
-                      </div>
-                      <div class="settings-preview-form-grid grid grid-cols-2 gap-3 text-center text-xs">
-                        <BaseBadge as="div" surface="glass-soft" class="settings-preview-form-chip rounded-2xl px-4 py-3">
-                          自动化
-                        </BaseBadge>
-                        <BaseBadge as="div" surface="glass-soft" class="settings-preview-form-chip rounded-2xl px-4 py-3">
-                          多账号
-                        </BaseBadge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-if="loginPreviewLoadFailed"
-              class="settings-preview-fail absolute bottom-5 left-5 right-5 z-20 rounded-2xl px-4 py-3 text-sm"
-            >
-              当前图片链接无法直接加载，预览已自动回退为默认渐变背景。正式保存前建议先换成可直链图片。
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="reportDetailVisible && reportDetailItem" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          class="settings-report-detail-overlay absolute inset-0 backdrop-blur-sm"
-          @click="closeReportLogDetail"
-        />
-        <div class="settings-report-detail-modal glass-panel relative z-10 max-h-[85vh] max-w-3xl w-full overflow-hidden border rounded-2xl shadow-2xl">
-          <div class="settings-report-detail-header flex items-center justify-between px-6 py-4">
-            <div class="min-w-0">
-              <h3 class="settings-report-detail-title truncate text-base font-bold">
-                {{ reportDetailItem.title || '经营汇报详情' }}
-              </h3>
-              <div class="settings-report-detail-meta mt-1 text-xs">
-                {{ formatReportMode(reportDetailItem.mode) }} · {{ formatReportLogTime(reportDetailItem.createdAt) }} · {{ reportDetailItem.channel || 'unknown' }}
-              </div>
-            </div>
-            <button
-              class="settings-report-detail-close rounded-full p-2 transition-colors"
-              @click="closeReportLogDetail"
-            >
-              <div class="i-carbon-close text-xl" />
-            </button>
-          </div>
-
-          <div class="max-h-[calc(85vh-8rem)] overflow-auto px-6 py-5 space-y-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="settings-result-badge rounded-full px-2.5 py-1 text-[11px] font-bold"
-                :class="reportDetailItem.ok ? 'ui-meta-chip--success' : 'ui-meta-chip--danger'"
-              >
-                {{ reportDetailItem.ok ? '发送成功' : '发送失败' }}
-              </span>
-              <span class="settings-report-detail-chip ui-meta-chip--neutral rounded-full px-2.5 py-1 text-[11px]">
-                账号：{{ reportDetailItem.accountName || reportDetailItem.accountId || '-' }}
-              </span>
-              <span class="settings-report-detail-chip ui-meta-chip--neutral rounded-full px-2.5 py-1 text-[11px]">
-                ID：{{ reportDetailItem.accountId || '-' }}
-              </span>
-            </div>
-
-            <div v-if="reportDetailItem.errorMessage" class="settings-health-alert rounded-xl px-4 py-3 text-sm">
-              失败原因：{{ reportDetailItem.errorMessage }}
-            </div>
-
-            <div class="settings-report-detail-body rounded-xl px-4 py-4">
-              <div class="settings-report-detail-body-label mb-2 text-xs font-bold tracking-widest uppercase">
-                完整正文
-              </div>
-              <div class="settings-report-detail-body-content whitespace-pre-line break-words text-sm leading-6">
-                {{ reportDetailItem.content || '无正文' }}
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-report-detail-footer flex justify-end px-6 py-4">
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['timing'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider flex items-center justify-between px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-time" />
+              ⏱ 时间参数调优 (System Timing)
+            </h3>
             <BaseButton
               variant="secondary"
               size="sm"
-              @click="closeReportLogDetail"
+              @click="restoreTimingDefaults"
             >
-              关闭
+              <div class="i-carbon-reset mr-1" /> 恢复默认推荐值
+            </BaseButton>
+          </div>
+
+          <div class="p-4 space-y-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+              <!-- Group 1: Network & Heartbeat -->
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-network-4 mr-2" /> 网络与心跳
+                </h4>
+                <BaseInput
+                  v-model.number="localTiming.heartbeatIntervalMs"
+                  label="WebSocket 心跳间隔 (ms)"
+                  type="number"
+                  min="5000"
+                  step="1000"
+                  hint="维持长连接的频率，推荐 25000ms"
+                />
+                <BaseInput
+                  v-model.number="localTiming.rateLimitIntervalMs"
+                  label="API 发送限流间隔 (ms)"
+                  type="number"
+                  min="100"
+                  step="1"
+                  hint="请求指纹匀速器。3QPS = 334ms"
+                />
+              </div>
+
+              <!-- Group 2: Ghosting (Anti-Detection) -->
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-asleep mr-2" /> Ghosting 打盹行为
+                </h4>
+                <div class="grid grid-cols-2 gap-3">
+                  <BaseInput
+                    v-model.number="localTiming.ghostingProbability"
+                    label="打盹触发概率"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.ghostingCooldownMin"
+                    label="冷却期 (分钟)"
+                    type="number"
+                    min="1"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.ghostingMinMin"
+                    label="最短休眠 (分)"
+                    type="number"
+                    min="1"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.ghostingMaxMin"
+                    label="最长休眠 (分)"
+                    type="number"
+                    min="1"
+                  />
+                </div>
+                <p class="settings-system-warning-note text-[10px] italic">
+                  模拟真人疲劳休眠，随机下线避开长时间挂机检测。
+                </p>
+              </div>
+
+              <!-- Group 3: Operation Intervals -->
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-keyboard mr-2" /> 邀请与微延迟 (只读预览)
+                </h4>
+                <BaseInput
+                  v-model.number="localTiming.inviteRequestDelay"
+                  label="邀请请求延迟 (ms)"
+                  type="number"
+                  min="500"
+                  step="100"
+                />
+                <div class="settings-system-readonly-box rounded-lg p-2">
+                  <div v-for="p in settingStore.settings.readonlyTimingParams" :key="p.key" class="flex justify-between py-1 text-[11px]">
+                    <span class="glass-text-muted">{{ p.label }}</span>
+                    <span class="settings-system-inline-value font-mono">{{ p.value }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-flow-stream mr-2" /> 调度器引擎
+                </h4>
+                <BaseSelect
+                  v-model="localTiming.schedulerEngine"
+                  label="默认调度引擎"
+                  :options="[
+                    { label: '默认 setTimeout', value: 'default' },
+                    { label: '全量时间轮', value: 'optimized' },
+                    { label: '混合模式', value: 'hybrid' },
+                  ]"
+                />
+                <BaseInput
+                  v-model="localTiming.optimizedSchedulerNamespaces"
+                  label="时间轮命名空间"
+                  type="text"
+                  hint="逗号分隔，例如：system-jobs,account-report-service,worker_manager"
+                />
+                <div class="grid grid-cols-2 gap-3">
+                  <BaseInput
+                    v-model.number="localTiming.optimizedSchedulerTickMs"
+                    label="时间轮 Tick (ms)"
+                    type="number"
+                    min="10"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.optimizedSchedulerWheelSize"
+                    label="槽位数量"
+                    type="number"
+                    min="10"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
+            <BaseButton
+              variant="primary"
+              size="sm"
+              :loading="timingSaving"
+              class="settings-footer-button"
+              @click="handleSaveTiming"
+            >
+              保存时间参数设置
             </BaseButton>
           </div>
         </div>
-      </div>
-    </Teleport>
 
-    <div
-      v-if="currentAccountId && hasUnsavedAccountSettings"
-      class="settings-account-save-dock hidden lg:flex"
-    >
-      <div class="min-w-0 flex-1">
-        <p class="settings-account-save-dock-title">
-          当前账号有 {{ accountSettingsDirtyCount }} 项设置未保存
-        </p>
-        <p class="settings-account-save-dock-copy">
-          巡查时间、静默时段、策略和自动控制都属于账号级设置；右侧“仅保存全局下线提醒”不会保存这些改动。
-        </p>
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['update'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-upgrade" />
+              系统更新中心
+            </h3>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="settings-update-detail-nav-wrap space-y-2">
+              <div class="settings-update-detail-nav">
+                <button
+                  v-for="tab in systemUpdateDetailTabs"
+                  :key="tab.key"
+                  type="button"
+                  class="settings-update-detail-tab"
+                  :class="tab.key === activeSystemUpdateDetailTab ? 'settings-update-detail-tab-active' : ''"
+                  @click="switchSystemUpdateDetailTab(tab.key)"
+                >
+                  <div class="text-sm" :class="tab.icon" />
+                  <span>{{ tab.label }}</span>
+                </button>
+              </div>
+              <p class="settings-update-detail-nav-copy text-xs leading-5">
+                {{ activeSystemUpdateDetailTabMeta.hint }}
+              </p>
+            </div>
+
+            <div v-show="isSystemUpdateDetailTabVisible(['overview'])" class="grid grid-cols-1 gap-3 xl:grid-cols-[0.95fr_1.05fr]">
+              <div class="space-y-3">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      当前版本
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-bold font-mono">
+                      {{ systemUpdateCurrentVersionLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      最新版本
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-bold font-mono">
+                      {{ systemUpdateLatestVersionLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      最近检查
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-bold">
+                      {{ systemUpdateLastCheckLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      当前状态
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-bold">
+                      {{ systemUpdateStatusLabel }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-system-info-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
+                  <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
+                  <div class="space-y-1">
+                    <p><strong>版本来源：</strong>{{ systemUpdateSourceLabel }}</p>
+                    <p v-if="systemUpdateOverview?.runtime?.lastError">
+                      <strong>最近错误：</strong>{{ systemUpdateOverview.runtime.lastError }}
+                    </p>
+                    <p>当前已经接上宿主机更新代理链路，现阶段可实际执行 <strong>scope=app / worker / cluster</strong>，以及 <strong>strategy=in_place / rolling / drain_and_cutover</strong>。</p>
+                    <p>集群节点已经支持 <strong>排空 / 恢复接流</strong>，调度器会避开排空节点并把账号迁移到可用节点。</p>
+                    <p>Worker / Cluster 任务建议明确选择目标代理；若启用排空且未手填节点，会优先使用该代理上报的托管节点列表。</p>
+                    <p>当存在活跃任务或代理心跳时，此页会每 15 秒自动刷新一次状态。</p>
+                  </div>
+                </div>
+
+                <div
+                  class="border rounded-lg p-3 space-y-2"
+                  :class="systemUpdateDrainCutoverReadiness?.canDrainCutover ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-amber-500/20 bg-amber-500/10'"
+                >
+                  <div class="glass-text-main flex items-center gap-2 text-sm font-bold">
+                    <div class="i-carbon-arrows-vertical" />
+                    排空切换预检
+                  </div>
+                  <div class="glass-text-muted text-sm">
+                    {{ describeSystemUpdateDrainCutoverReadiness(systemUpdateDrainCutoverReadiness) }}
+                  </div>
+                  <div v-if="systemUpdateDrainCutoverReadiness && !systemUpdateDrainCutoverReadiness.canDrainCutover" class="glass-text-muted text-[11px]">
+                    当前版本已经验证过：集群调度可用，但尚未实现账号运行态热迁移；若账号只剩一次性登录凭据，切换后通常需要重新登录。
+                  </div>
+                  <div v-if="systemUpdateDrainCutoverBlockers.length" class="space-y-2">
+                    <div
+                      v-for="blocker in systemUpdateDrainCutoverBlockers"
+                      :key="`${blocker.nodeId}:${blocker.accountId}`"
+                      class="border border-white/8 rounded-lg bg-black/10 p-2"
+                    >
+                      <div class="glass-text-main text-xs font-semibold">
+                        {{ blocker.accountName || blocker.accountId }} · {{ blocker.nodeId || '未分配节点' }}
+                      </div>
+                      <div class="glass-text-muted mt-1 text-[11px]">
+                        {{ blocker.platform || '-' }} · {{ blocker.credentialKind || '-' }} · {{ blocker.message }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                  <div class="glass-text-main text-sm font-bold">
+                    更新中心默认配置
+                  </div>
+                  <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <BaseSelect
+                      v-model="systemUpdateConfig.provider"
+                      label="版本源类型"
+                      :options="systemUpdateProviderOptions"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateConfig.manifestUrl"
+                      label="Manifest URL"
+                      type="text"
+                      placeholder="https://example.com/update-manifest.json"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateConfig.releaseApiUrl"
+                      label="自定义 Release API"
+                      type="text"
+                      placeholder="https://api.github.com/repos/owner/repo/releases/latest"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateConfig.githubOwner"
+                      label="GitHub Owner"
+                      type="text"
+                      placeholder="owner"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateConfig.githubRepo"
+                      label="GitHub Repo"
+                      type="text"
+                      placeholder="repo"
+                    />
+                    <BaseSelect
+                      v-model="systemUpdateConfig.preferredScope"
+                      label="默认更新范围"
+                      :options="systemUpdateScopeOptions"
+                    />
+                    <BaseSelect
+                      v-model="systemUpdateConfig.preferredStrategy"
+                      label="默认更新策略"
+                      :options="systemUpdateStrategyOptions"
+                    />
+                    <div class="grid grid-cols-2 gap-3">
+                      <BaseSwitch v-model="systemUpdateConfig.allowPreRelease" label="允许预发布版本" />
+                      <BaseSwitch v-model="systemUpdateConfig.requireDrain" label="默认要求排空" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                  <div class="glass-text-main text-sm font-bold">
+                    创建更新任务
+                  </div>
+                  <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <BaseInput
+                      v-model="systemUpdateDraft.targetVersion"
+                      label="目标版本"
+                      type="text"
+                      placeholder="v4.5.19"
+                    />
+                    <BaseSelect
+                      v-model="systemUpdateDraft.scope"
+                      label="任务范围"
+                      :options="systemUpdateScopeOptions"
+                    />
+                    <BaseSelect
+                      v-model="systemUpdateDraft.strategy"
+                      label="执行策略"
+                      :options="systemUpdateStrategyOptions"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateDraft.targetAgentIdsText"
+                      label="目标代理"
+                      type="text"
+                      placeholder="agent-a,agent-b"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateDraft.drainNodeIdsText"
+                      label="排空节点"
+                      type="text"
+                      placeholder="worker-a,worker-b"
+                    />
+                    <BaseInput
+                      v-model="systemUpdateDraft.note"
+                      label="任务备注"
+                      type="text"
+                      placeholder="例如：夜间滚动更新"
+                    />
+                    <div class="grid grid-cols-2 gap-3">
+                      <BaseSwitch v-model="systemUpdateDraft.preserveCurrent" label="保留旧版本目录" />
+                      <BaseSwitch v-model="systemUpdateDraft.requireDrain" label="执行前先排空" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="isSystemUpdateDetailTabVisible(['jobs'])" class="space-y-4">
+              <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2" :class="activeSystemUpdateBatch ? '' : 'xl:col-span-2'">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="glass-text-main text-sm font-bold">
+                      当前活跃任务
+                    </div>
+                    <BaseButton
+                      v-if="canCancelSystemUpdateJob(activeSystemUpdateJob)"
+                      size="sm"
+                      variant="outline"
+                      :loading="systemUpdateCancellingKey === `job:${activeSystemUpdateJob?.id}`"
+                      @click="activeSystemUpdateJob && cancelSystemUpdateJobNow(activeSystemUpdateJob)"
+                    >
+                      取消任务
+                    </BaseButton>
+                  </div>
+                  <div class="glass-text-muted text-sm">
+                    {{ describeSystemUpdateJob(activeSystemUpdateJob) }}
+                  </div>
+                  <div v-if="activeSystemUpdateJob" class="glass-text-muted text-xs">
+                    任务号 {{ activeSystemUpdateJob.jobKey }} · 创建于 {{ formatTimestamp(activeSystemUpdateJob.createdAt) }} · 目标 {{ activeSystemUpdateJob.targetVersion || '-' }} · 目标代理 {{ activeSystemUpdateJob.targetAgentId || '-' }} · 执行代理 {{ activeSystemUpdateJob.claimAgentId || '-' }}
+                  </div>
+                  <div v-if="activeSystemUpdateJob?.errorMessage" class="glass-text-muted text-[11px]">
+                    失败原因：{{ activeSystemUpdateJob.errorMessage }}
+                  </div>
+                  <div v-if="activeSystemUpdateJob?.result?.logFile" class="glass-text-muted break-all text-[11px] font-mono">
+                    代理日志：{{ activeSystemUpdateJob.result.logFile }}
+                  </div>
+                </div>
+
+                <div v-if="activeSystemUpdateBatch" class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="glass-text-main text-sm font-bold">
+                      当前批次进度
+                    </div>
+                    <div class="flex flex-wrap justify-end gap-2">
+                      <BaseButton
+                        v-if="getBatchCancelableCount(activeSystemUpdateBatch) > 0"
+                        size="sm"
+                        variant="outline"
+                        :loading="systemUpdateCancellingKey === `batch:${activeSystemUpdateBatch.batchKey}`"
+                        @click="cancelSystemUpdateBatchNow(activeSystemUpdateBatch)"
+                      >
+                        取消剩余子任务
+                      </BaseButton>
+                      <BaseButton
+                        v-if="activeSystemUpdateBatch.failedCount > 0"
+                        size="sm"
+                        variant="outline"
+                        :loading="systemUpdateRetryingKey === `batch:${activeSystemUpdateBatch.batchKey}`"
+                        @click="retrySystemUpdateBatchNow(activeSystemUpdateBatch)"
+                      >
+                        重试失败子任务
+                      </BaseButton>
+                    </div>
+                  </div>
+                  <div class="glass-text-muted text-sm">
+                    {{ describeSystemUpdateBatch(activeSystemUpdateBatch) }}
+                  </div>
+                  <div class="glass-text-muted text-[11px]">
+                    批次号 {{ activeSystemUpdateBatch.batchKey || '-' }} · 目标版本 {{ activeSystemUpdateBatch.targetVersion || '-' }} · 目标代理 {{ activeSystemUpdateBatch.targetAgentIds.join(', ') || '-' }}
+                  </div>
+                  <div class="glass-text-muted text-[11px]">
+                    待执行 {{ activeSystemUpdateBatch.pendingCount }} · 已认领 {{ activeSystemUpdateBatch.claimedCount }} · 运行中 {{ activeSystemUpdateBatch.runningCount }} · 成功 {{ activeSystemUpdateBatch.succeededCount }} · 失败 {{ activeSystemUpdateBatch.failedCount }}
+                  </div>
+                  <div v-if="activeSystemUpdateBatch.drainNodeIds?.length" class="glass-text-muted text-[11px]">
+                    默认排空节点：{{ activeSystemUpdateBatch.drainNodeIds.join(', ') }}
+                  </div>
+                  <div v-if="activeSystemUpdateBatch.latestSummaryMessage" class="glass-text-muted text-[11px]">
+                    最近进度：{{ activeSystemUpdateBatch.latestSummaryMessage }}
+                  </div>
+                  <div v-if="activeSystemUpdateBatch.latestErrorMessage" class="glass-text-muted text-[11px]">
+                    最近错误：{{ activeSystemUpdateBatch.latestErrorMessage }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="glass-text-main text-sm font-bold">
+                  最近更新任务
+                </div>
+                <div v-if="systemUpdateJobs.length === 0" class="glass-text-muted text-sm">
+                  暂无更新任务
+                </div>
+                <div v-else class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <div
+                    v-for="job in systemUpdateJobs"
+                    :key="job.id"
+                    class="border border-white/8 rounded-lg bg-black/10 p-3"
+                  >
+                    <div class="glass-text-main flex items-center justify-between gap-2 text-sm font-semibold">
+                      <span>{{ job.targetVersion || '-' }}</span>
+                      <span class="text-xs font-mono uppercase">{{ job.status }}</span>
+                    </div>
+                    <div class="glass-text-muted mt-1 text-xs">
+                      {{ describeSystemUpdateJob(job) }}
+                    </div>
+                    <div class="glass-text-muted mt-1 text-[11px]">
+                      {{ formatTimestamp(job.createdAt) }} · {{ job.createdBy || 'system' }} · 目标 {{ job.targetAgentId || '-' }} · 执行 {{ job.claimAgentId || '-' }}
+                    </div>
+                    <div v-if="job.batchKey" class="glass-text-muted mt-1 text-[11px]">
+                      批次：{{ job.batchKey }}
+                    </div>
+                    <div v-if="job.drainNodeIds?.length" class="glass-text-muted mt-1 text-[11px]">
+                      排空节点：{{ job.drainNodeIds.join(', ') }}
+                    </div>
+                    <div v-if="job.errorMessage" class="glass-text-muted mt-1 text-[11px]">
+                      失败原因：{{ job.errorMessage }}
+                    </div>
+                    <div v-if="job.result?.logFile" class="glass-text-muted mt-1 break-all text-[11px] font-mono">
+                      代理日志：{{ job.result.logFile }}
+                    </div>
+                    <div v-if="canCancelSystemUpdateJob(job) || job.status === 'failed' || job.status === 'cancelled'" class="mt-2 flex flex-wrap gap-2">
+                      <BaseButton
+                        v-if="canCancelSystemUpdateJob(job)"
+                        size="sm"
+                        variant="outline"
+                        :loading="systemUpdateCancellingKey === `job:${job.id}`"
+                        @click="cancelSystemUpdateJobNow(job)"
+                      >
+                        取消任务
+                      </BaseButton>
+                      <BaseButton
+                        v-if="job.status === 'failed' || job.status === 'cancelled'"
+                        size="sm"
+                        variant="outline"
+                        :loading="systemUpdateRetryingKey === `job:${job.id}`"
+                        @click="retrySystemUpdateJobNow(job)"
+                      >
+                        重试此任务
+                      </BaseButton>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="isSystemUpdateDetailTabVisible(['nodes'])" class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
+                <div class="glass-text-main text-sm font-bold">
+                  更新代理状态
+                </div>
+                <div v-if="!systemUpdateOverview?.runtime?.agentSummary?.length" class="glass-text-muted text-sm">
+                  暂无代理心跳
+                </div>
+                <div v-else class="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+                  <div
+                    v-for="agent in systemUpdateAgents"
+                    :key="agent.nodeId"
+                    class="border border-white/8 rounded-lg bg-black/10 p-3"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="glass-text-main flex items-center gap-2 text-sm font-semibold">
+                          <span class="truncate">{{ agent.nodeId }}</span>
+                          <BaseBadge :tone="agent.status === 'error' ? 'danger' : 'success'">
+                            {{ agent.status || 'idle' }}
+                          </BaseBadge>
+                        </div>
+                        <div class="glass-text-muted mt-1 text-xs">
+                          {{ describeSystemUpdateAgent(agent) }}
+                        </div>
+                        <div v-if="agent.targetVersion" class="glass-text-muted mt-1 text-[11px]">
+                          当前目标版本 {{ agent.targetVersion }} {{ agent.jobStatus ? `· ${agent.jobStatus}` : '' }}
+                        </div>
+                      </div>
+                      <div class="shrink-0">
+                        <BaseButton
+                          size="sm"
+                          :variant="isSystemUpdateTargetAgentSelected(agent.nodeId) ? 'secondary' : 'outline'"
+                          @click="toggleSystemUpdateTargetAgent(agent.nodeId)"
+                        >
+                          {{ isSystemUpdateTargetAgentSelected(agent.nodeId) ? '取消目标' : '设为目标' }}
+                        </BaseButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
+                <div class="glass-text-main text-sm font-bold">
+                  集群节点排空
+                </div>
+                <div v-if="!systemUpdateClusterNodes.length" class="glass-text-muted text-sm">
+                  暂无 Worker 节点心跳
+                </div>
+                <div v-else class="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+                  <div
+                    v-for="node in systemUpdateClusterNodes"
+                    :key="node.nodeId"
+                    class="border border-white/8 rounded-lg bg-black/10 p-3"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="glass-text-main flex items-center gap-2 text-sm font-semibold">
+                          <span class="truncate">{{ node.nodeId }}</span>
+                          <BaseBadge
+                            :tone="node.draining ? 'warning' : (node.connected ? 'success' : 'neutral')"
+                          >
+                            {{ node.draining ? '排空中' : (node.connected ? '在线' : '离线') }}
+                          </BaseBadge>
+                        </div>
+                        <div class="glass-text-muted mt-1 text-xs">
+                          {{ node.role || 'worker' }} · {{ node.version || '-' }} · {{ formatTimestamp(node.updatedAt) }}
+                        </div>
+                        <div class="glass-text-muted mt-1 text-[11px]">
+                          {{ describeSystemUpdateNode(node) }}
+                        </div>
+                        <div v-if="node.assignedAccountIds?.length" class="glass-text-muted mt-1 break-all text-[11px] font-mono">
+                          账号: {{ node.assignedAccountIds.join(', ') }}
+                        </div>
+                      </div>
+                      <div class="shrink-0">
+                        <BaseButton
+                          size="sm"
+                          :variant="node.draining ? 'secondary' : 'outline'"
+                          :loading="systemUpdateNodeMutatingId === node.nodeId"
+                          :loading-label="node.draining ? '恢复中' : '排空中'"
+                          @click="toggleSystemUpdateNodeDrain(node, !node.draining)"
+                        >
+                          {{ node.draining ? '恢复接流' : '执行排空' }}
+                        </BaseButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex flex-wrap justify-end gap-2 px-4 py-3">
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              :loading="systemUpdateRefreshing"
+              class="settings-footer-button"
+              @click="refreshSystemUpdateStatus()"
+            >
+              刷新状态
+            </BaseButton>
+            <BaseButton
+              v-if="isSystemUpdateDetailTabVisible(['overview', 'nodes'])"
+              variant="ghost"
+              size="sm"
+              :loading="systemUpdateChecking"
+              class="settings-footer-button"
+              @click="checkSystemUpdateNow"
+            >
+              检查更新
+            </BaseButton>
+            <BaseButton
+              v-if="isSystemUpdateDetailTabVisible(['overview'])"
+              variant="secondary"
+              size="sm"
+              :loading="systemUpdateSaving"
+              class="settings-footer-button"
+              @click="saveSystemUpdateConfigForm"
+            >
+              保存更新配置
+            </BaseButton>
+            <BaseButton
+              v-if="isSystemUpdateDetailTabVisible(['overview', 'jobs'])"
+              variant="primary"
+              size="sm"
+              :loading="systemUpdateLaunching"
+              class="settings-footer-button"
+              @click="createSystemUpdateTask"
+            >
+              创建更新任务
+            </BaseButton>
+          </div>
+        </div>
+
+        <!-- Card New: 分布式与集群流控（仅管理员可见） -->
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['cluster'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-flow-stream" />
+              分布式与集群流控 (Cluster Routing)
+            </h3>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div class="space-y-3">
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                  <BaseSelect
+                    v-model="clusterConfig.dispatcherStrategy"
+                    label="集群派发器路由策略"
+                    :options="clusterStrategyOptions"
+                  />
+                </div>
+
+                <div class="settings-system-info-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
+                  <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
+                  <div class="space-y-2">
+                    <p class="font-bold">
+                      策略说明
+                    </p>
+                    <p><strong>轮询洗牌：</strong>早期默认逻辑。新增账号或节点变动时，把所有存活账号抽出来均分给所有存活 Worker，容易造成大面积会话闪断。</p>
+                    <p><strong>最小负荷与粘性推流：</strong>企业级路由逻辑。账号会优先分发到活跃数更低的节点，并保持粘性心跳，只有节点异常或新账号接入时才做迁移。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      当前策略
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ clusterActiveStrategyLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      在线节点
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ clusterConnectedNodeCount }} / {{ systemUpdateClusterNodes.length }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      排空节点
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ clusterDrainingNodeCount }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      异常代理
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ clusterAgentErrorCount }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3 text-sm space-y-2">
+                  <div class="glass-text-main text-sm font-semibold">
+                    当前建议
+                  </div>
+                  <p class="glass-text-muted">
+                    {{ clusterConfig.dispatcherStrategy === 'least_load'
+                      ? '当前已使用最小负荷策略，适合多节点长期稳定运行。'
+                      : '如节点规模较大，建议切换到“最小负荷与粘性推流”，降低集中闪断风险。' }}
+                  </p>
+                  <p v-if="clusterDrainingNodeCount > 0" class="glass-text-muted">
+                    当前有 {{ clusterDrainingNodeCount }} 个节点处于排空状态，建议更新完成后及时恢复接流。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
+            <BaseButton
+              variant="primary"
+              size="sm"
+              :loading="clusterSaving"
+              class="settings-footer-button"
+              @click="saveClusterConfig"
+            >
+              保存集群路由策略
+            </BaseButton>
+          </div>
+        </div>
+
+        <!-- Card 3: 体验卡配置（仅管理员可见） -->
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced', 'security']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['trial'])"
+          class="card glass-panel relative z-10 h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-chemistry" />
+              体验卡配置
+            </h3>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div class="space-y-3">
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                  <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <BaseSwitch v-model="trialConfig.enabled" label="功能开关" />
+                    <BaseSwitch v-model="trialConfig.adminRenewEnabled" label="管理员一键续费" />
+                    <BaseSwitch v-model="trialConfig.userRenewEnabled" label="用户自助续费" />
+                  </div>
+                </div>
+
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                  <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <BaseSelect
+                      v-model="trialConfig.days"
+                      label="体验卡时长"
+                      :options="trialDaysOptions"
+                    />
+                    <BaseSelect
+                      v-model="trialConfig.cooldownMs"
+                      label="IP 冷却时间"
+                      :options="trialCooldownOptions"
+                    />
+                    <BaseInput
+                      v-model.number="trialConfig.maxAccounts"
+                      label="绑定账号数"
+                      type="number"
+                      min="1"
+                      max="10"
+                    />
+                    <BaseInput
+                      v-model.number="trialConfig.dailyLimit"
+                      label="每日上限"
+                      type="number"
+                      min="1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      功能状态
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ trialConfig.enabled ? '已开启' : '已关闭' }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      续费模式
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ trialRenewModeLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      卡片时长
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ trialDurationLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      IP 冷却
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ trialCooldownLabel }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border border-white/10 rounded-lg bg-black/10 p-3 text-sm space-y-2">
+                  <div class="glass-text-main text-sm font-semibold">
+                    使用建议
+                  </div>
+                  <p class="glass-text-muted">
+                    当前单卡最多可绑定 {{ trialConfig.maxAccounts }} 个账号，每日续费上限 {{ trialConfig.dailyLimit }} 次。
+                  </p>
+                  <p class="glass-text-muted">
+                    {{ trialConfig.userRenewEnabled
+                      ? '已开放用户自助续费，建议同时保留管理员续费兜底。'
+                      : '当前仅支持后台续费，适合先做灰度验证。' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
+            <BaseButton
+              variant="primary"
+              size="sm"
+              :loading="trialSaving"
+              class="settings-footer-button"
+              @click="saveTrialConfig"
+            >
+              保存体验卡设置
+            </BaseButton>
+          </div>
+        </div>
+
+        <!-- Card 4: 第三方 API 配置（仅管理员可见） -->
+        <div
+          v-if="isAdmin"
+          v-show="isSettingsCategoryVisible(['advanced', 'security']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['api'])"
+          class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
+        >
+          <div class="settings-card-divider px-4 py-3">
+            <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+              <div class="i-carbon-api-1" />
+              第三方 API 配置
+            </h3>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model="thirdPartyApiConfig.wxApiKey"
+                    label="微信登录 API Key (wxApiKey)"
+                    type="password"
+                    autocomplete="off"
+                    placeholder="请输入与第三方授权约定的 ApiKey"
+                  />
+                  <BaseInput
+                    v-model="thirdPartyApiConfig.wxAppId"
+                    label="QQ农场 AppId (wxAppId)"
+                    type="text"
+                    placeholder="默认从接口获取，可覆盖定制"
+                  />
+                  <BaseInput
+                    v-model="thirdPartyApiConfig.wxApiUrl"
+                    label="微信登录请求网关 (wxApiUrl)"
+                    type="text"
+                    placeholder="一般为内部或三方中转代理服务地址"
+                  />
+                  <BaseInput
+                    v-model="thirdPartyApiConfig.ipad860Url"
+                    label="Ipad860 服务地址"
+                    type="text"
+                    placeholder="如 http://127.0.0.1:8058 或 http://ipad860:8058"
+                  />
+                  <BaseInput
+                    v-model="thirdPartyApiConfig.aineisheKey"
+                    label="码雨云 API Token (QQ扫码)"
+                    type="password"
+                    autocomplete="off"
+                    placeholder="请输入 aineishe.com 获取的 Token"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      已配置项
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ thirdPartyApiConfiguredCount }} / 5
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      网关主机
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ thirdPartyApiGatewayHost }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      WxApiKey
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ thirdPartyApiConfig.wxApiKey ? '已配置' : '未配置' }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      码雨云 Token
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ thirdPartyApiConfig.aineisheKey ? '已配置' : '未配置' }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-system-warning-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
+                  <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
+                  <p>更改此项配置会立即刷新扫码中转服务器参数。如果改错导致扫码无反应，请重新设置正确的值，原环境变量已不再具有覆写能力。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card-footer settings-sticky-save ui-mobile-action-panel mt-auto flex justify-end px-4 py-3">
+            <BaseButton
+              variant="primary"
+              size="sm"
+              :loading="thirdPartyApiSaving"
+              class="settings-footer-button"
+              @click="saveThirdPartyApiConfig"
+            >
+              保存第三方 API 设置
+            </BaseButton>
+          </div>
+        </div>
+
+        <div v-if="showSettingsCategoryEmptyState" class="settings-category-empty card glass-panel rounded-lg px-6 py-10 text-center">
+          <div class="settings-category-empty-icon mx-auto mb-3 h-12 w-12 flex items-center justify-center rounded-full">
+            <div class="i-carbon-lock text-xl" />
+          </div>
+          <p class="settings-category-empty-title text-base font-semibold">
+            该分类暂无可操作内容
+          </p>
+          <p class="settings-category-empty-copy mt-2 text-sm">
+            {{ settingsCategoryEmptyHint }}
+          </p>
+        </div>
       </div>
-      <BaseButton
-        variant="primary"
-        size="sm"
-        :loading="saving"
-        class="shrink-0"
-        @click="saveAccountSettings"
+
+      <!-- Card 4: 系统主题与背景（仅管理员可见） -->
+      <div
+        v-if="!loading && isAdmin"
+        v-show="isSettingsCategoryVisible(['common', 'advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['theme'])"
+        class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
       >
-        保存当前账号设置
-      </BaseButton>
-    </div>
+        <div class="settings-card-divider px-4 py-3">
+          <h3 class="glass-text-main flex items-center gap-2 text-base font-bold">
+            <div class="i-carbon-paint-brush" />
+            系统外观与自定义背景
+          </h3>
+        </div>
 
-    <ConfirmModal
-      :show="modalVisible"
-      :title="modalConfig.title"
-      :message="modalConfig.message"
-      :type="modalConfig.type"
-      :is-alert="modalConfig.isAlert"
-      confirm-text="知道了"
-      @confirm="modalVisible = false"
-      @cancel="modalVisible = false"
-    />
+        <div class="p-4 space-y-5">
+          <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                当前主题
+              </div>
+              <div class="glass-text-main mt-1 text-sm font-semibold">
+                {{ currentThemeOption.name }}
+              </div>
+            </div>
+            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                背景范围
+              </div>
+              <div class="glass-text-main mt-1 text-sm font-semibold">
+                {{ currentBackgroundScopeOption?.label || '未配置' }}
+              </div>
+            </div>
+            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                主题联动
+              </div>
+              <div class="glass-text-main mt-1 text-sm font-semibold">
+                {{ appStore.themeBackgroundLinked ? '已开启' : '手动模式' }}
+              </div>
+            </div>
+            <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+              <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                视觉预设
+              </div>
+              <div class="glass-text-main mt-1 text-sm font-semibold">
+                {{ currentWorkspaceVisualSummary.name }}
+              </div>
+            </div>
+          </div>
 
-    <!-- 改动预览 Modal -->
-    <ConfirmModal
-      :show="diffModalVisible"
-      :title="diffModalTitle"
-      :confirm-text="diffModalConfirmText"
-      cancel-text="再检查下"
-      type="primary"
-      @confirm="handleDiffModalConfirm"
-      @cancel="closeDiffModal"
-    >
-      <div class="space-y-4">
-        <p class="glass-text-muted text-sm">
-          检测到以下配置项已变动：
-        </p>
-        <div class="settings-system-diff-panel max-h-60 overflow-y-auto rounded-xl p-2">
-          <div v-for="item in diffItems" :key="item.label" class="settings-system-diff-row flex items-center justify-between p-2 last:border-0">
-            <span class="glass-text-muted text-xs font-medium">{{ item.label }}</span>
-            <div class="flex items-center gap-2 text-xs">
-              <span class="glass-text-muted line-through">{{ item.from }}</span>
-              <div class="i-carbon-arrow-right text-primary-500" />
-              <span class="text-primary-600 font-bold dark:text-primary-400">{{ item.to }}</span>
+          <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div class="space-y-4">
+              <BaseInput
+                v-model="appStore.loginBackground"
+                label="登录页背景图片 URL"
+                placeholder="请输入图片链接 (如: https://example.com/bg.jpg)"
+              />
+
+              <div class="settings-theme-highlight rounded-2xl p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div class="glass-text-main text-sm font-bold">
+                      当前主题联动
+                    </div>
+                    <p class="glass-text-muted mt-1 text-xs leading-5">
+                      当前主题为「{{ currentThemeOption.name }}」，可一键套用对应的专属背景预设。
+                    </p>
+                  </div>
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    @click="applyCurrentThemeBackgroundPreset"
+                  >
+                    套用 {{ currentThemeBackgroundPreset.title }}
+                  </BaseButton>
+                </div>
+              </div>
+
+              <div class="settings-theme-surface rounded-2xl p-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <div class="glass-text-main text-sm font-bold">
+                      主题锁定背景
+                    </div>
+                    <p class="glass-text-muted mt-1 text-xs leading-5">
+                      开启后，只要切换这 5 套主题，就会自动同步对应的内置背景、遮罩和模糊参数。
+                    </p>
+                  </div>
+                  <BaseSwitch
+                    :model-value="appStore.themeBackgroundLinked"
+                    @update:model-value="toggleThemeBackgroundLinked(!!$event)"
+                  />
+                </div>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <span
+                    class="settings-theme-chip px-3 py-1 text-[11px] font-bold"
+                    :class="appStore.themeBackgroundLinked
+                      ? 'ui-meta-chip--brand'
+                      : 'ui-meta-chip--neutral'"
+                  >
+                    {{ appStore.themeBackgroundLinked ? '已开启自动联动' : '当前为手动搭配模式' }}
+                  </span>
+                  <BaseButton
+                    variant="secondary"
+                    size="sm"
+                    @click="applyThemeBundle(appStore.colorTheme)"
+                  >
+                    立即按当前主题对齐
+                  </BaseButton>
+                </div>
+              </div>
+
+              <div class="settings-theme-surface rounded-2xl p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div class="glass-text-main text-sm font-bold">
+                      5 套主题联动方案
+                    </div>
+                    <p class="glass-text-muted mt-1 text-xs leading-5">
+                      每套方案都会同步主题色、背景图、登录页参数、主界面参数和业务页卡片风格，并默认启用“登录页 + 主界面”。
+                    </p>
+                  </div>
+                  <div class="settings-theme-chip ui-meta-chip--brand px-3 py-1 text-[11px]">
+                    一键套用整套皮肤
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] mt-4 gap-4">
+                  <button
+                    v-for="bundle in themePresetBundles"
+                    :key="bundle.theme.key"
+                    type="button"
+                    class="settings-theme-bundle-card settings-theme-surface group overflow-hidden rounded-2xl text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                    :class="isThemeBundleApplied(bundle.theme.key) ? 'settings-theme-surface-active' : ''"
+                    @click="applyThemeBundle(bundle.theme.key)"
+                  >
+                    <div
+                      class="settings-theme-bundle-cover relative h-28 overflow-hidden"
+                      :style="{
+                        backgroundImage: `url(${bundle.preset.url})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }"
+                    >
+                      <div
+                        class="absolute inset-0"
+                        :style="{
+                          backgroundColor: `color-mix(in srgb, var(--ui-overlay-backdrop) ${bundle.preset.overlayOpacity}%, transparent)`,
+                          backdropFilter: `blur(${bundle.preset.blur}px)`,
+                          WebkitBackdropFilter: `blur(${bundle.preset.blur}px)`,
+                        }"
+                      />
+                      <div class="absolute left-3 top-3 flex items-center gap-2">
+                        <span
+                          class="h-2.5 w-2.5 rounded-full"
+                          :style="{
+                            backgroundColor: bundle.theme.color,
+                            boxShadow: `0 0 0 4px ${bundle.theme.color}22`,
+                          }"
+                        />
+                        <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge rounded-full px-2.5 py-1 text-[10px]">
+                          {{ bundle.theme.name }}
+                        </BaseBadge>
+                      </div>
+                      <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
+                        {{ bundle.preset.title }}
+                      </BaseBadge>
+                    </div>
+
+                    <div class="settings-theme-bundle-body p-3 space-y-2">
+                      <div class="settings-theme-bundle-head flex items-start justify-between gap-3">
+                        <span class="settings-theme-bundle-title glass-text-main text-sm font-semibold">{{ bundle.preset.title }}</span>
+                        <span
+                          class="settings-theme-bundle-action settings-theme-chip px-2 py-0.5 text-[10px] font-bold"
+                          :class="isThemeBundleApplied(bundle.theme.key)
+                            ? 'ui-meta-chip--brand'
+                            : 'ui-meta-chip--neutral'"
+                        >
+                          {{ isThemeBundleApplied(bundle.theme.key) ? '当前整套' : '点击套用' }}
+                        </span>
+                      </div>
+                      <p class="settings-theme-bundle-desc glass-text-muted text-xs leading-5">
+                        {{ bundle.preset.description }}
+                      </p>
+                      <div class="settings-theme-bundle-metrics glass-text-muted flex items-center justify-between text-[11px]">
+                        <span>登录 {{ bundle.preset.overlayOpacity }}% / {{ bundle.preset.blur }}px</span>
+                        <span>主界面 {{ bundle.preset.appOverlayOpacity }}% / {{ bundle.preset.appBlur }}px</span>
+                      </div>
+                      <div class="settings-theme-bundle-foot glass-text-muted text-[11px]">
+                        业务页风格 {{ bundle.workspacePreset.name }}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="settings-theme-surface rounded-2xl p-4">
+                <div class="glass-text-main text-sm font-medium">
+                  背景作用范围
+                </div>
+                <div class="grid grid-cols-1 mt-3 gap-3 md:grid-cols-3">
+                  <button
+                    v-for="option in UI_BACKGROUND_SCOPE_OPTIONS"
+                    :key="option.value"
+                    type="button"
+                    class="settings-theme-scope-card rounded-2xl px-3 py-3 text-left transition-all"
+                    :class="appStore.backgroundScope === option.value
+                      ? 'settings-theme-scope-card-active'
+                      : 'settings-theme-scope-card-inactive'"
+                    @click="appStore.backgroundScope = option.value"
+                  >
+                    <div class="glass-text-main text-sm font-semibold">
+                      {{ option.label }}
+                    </div>
+                    <p class="glass-text-muted mt-1 text-[11px] leading-5">
+                      {{ option.description }}
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div class="settings-theme-surface rounded-2xl p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div class="glass-text-main text-sm font-bold">
+                      主界面视觉预设
+                    </div>
+                    <p class="glass-text-muted mt-1 text-xs leading-5">
+                      {{ currentWorkspaceVisualSummary.description }}
+                    </p>
+                  </div>
+                  <div class="settings-theme-chip ui-meta-chip--brand px-3 py-1 text-[11px]">
+                    {{ currentWorkspaceVisualSummary.badge }}
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 mt-4 gap-4 md:grid-cols-3">
+                  <button
+                    v-for="preset in workspaceVisualPresets"
+                    :key="preset.key"
+                    type="button"
+                    class="settings-theme-visual-card group overflow-hidden rounded-2xl p-3 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+                    :class="isWorkspaceVisualPresetApplied(preset.key) ? 'settings-theme-surface-active' : ''"
+                    @click="applyWorkspaceVisualPreset(preset.key)"
+                  >
+                    <div
+                      class="settings-theme-visual-preview relative h-24 overflow-hidden rounded-2xl p-3"
+                      :style="{ background: 'radial-gradient(circle at top, color-mix(in srgb, var(--ui-text-on-brand) 14%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--ui-text-on-brand) 8%, transparent), color-mix(in srgb, var(--ui-bg-canvas) 22%, transparent))' }"
+                    >
+                      <div class="settings-theme-visual-overlay absolute inset-0" />
+                      <div class="relative z-10 h-full flex gap-3">
+                        <div class="w-12 border rounded-xl p-2" :style="getWorkspacePreviewCardStyle(preset.key)">
+                          <div class="settings-theme-visual-bar-strong h-2.5 w-5 rounded" />
+                          <div class="settings-theme-visual-bar-mid mt-2 h-1.5 rounded" />
+                          <div class="settings-theme-visual-bar-faint mt-1.5 h-1.5 rounded" />
+                        </div>
+                        <div class="flex flex-1 flex-col gap-2">
+                          <div class="border rounded-xl px-3 py-2" :style="getWorkspacePreviewCardStyle(preset.key)">
+                            <div class="settings-theme-visual-bar-strong h-2.5 w-16 rounded" />
+                          </div>
+                          <div class="grid grid-cols-2 flex-1 gap-2">
+                            <div class="border rounded-xl" :style="getWorkspacePreviewCardStyle(preset.key)" />
+                            <div class="border rounded-xl" :style="getWorkspacePreviewCardStyle(preset.key)" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-3">
+                      <div class="glass-text-main text-sm font-semibold">
+                        {{ preset.name }}
+                      </div>
+                      <span
+                        class="settings-theme-chip px-2.5 py-0.5 text-[10px] font-bold"
+                        :class="isWorkspaceVisualPresetApplied(preset.key)
+                          ? 'ui-meta-chip--brand'
+                          : 'ui-meta-chip--neutral'"
+                      >
+                        {{ isWorkspaceVisualPresetApplied(preset.key) ? '当前方案' : preset.badge }}
+                      </span>
+                    </div>
+                    <p class="glass-text-muted mt-2 text-xs leading-5">
+                      {{ preset.description }}
+                    </p>
+                    <div class="glass-text-muted mt-3 flex items-center justify-between text-[11px]">
+                      <span>遮罩 {{ preset.appOverlayOpacity }}%</span>
+                      <span>模糊 {{ preset.appBlur }}px</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <input
+                ref="backgroundFileInput"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                class="hidden"
+                @change="handleBackgroundFileChange"
+              >
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div class="settings-theme-range-card rounded-2xl p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="glass-text-main text-sm font-medium">登录页遮罩强度</span>
+                    <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
+                      {{ appStore.loginBackgroundOverlayOpacity }}%
+                    </span>
+                  </div>
+                  <input
+                    v-model.number="appStore.loginBackgroundOverlayOpacity"
+                    type="range"
+                    min="0"
+                    max="80"
+                    step="1"
+                    class="mt-4 w-full cursor-pointer accent-primary-500"
+                  >
+                  <p class="glass-text-muted mt-2 text-[11px] leading-5">
+                    数值越高，图片越暗，登录卡片和标题文字更容易稳住。
+                  </p>
+                </div>
+
+                <div class="settings-theme-range-card rounded-2xl p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="glass-text-main text-sm font-medium">登录页模糊度</span>
+                    <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
+                      {{ appStore.loginBackgroundBlur }}px
+                    </span>
+                  </div>
+                  <input
+                    v-model.number="appStore.loginBackgroundBlur"
+                    type="range"
+                    min="0"
+                    max="12"
+                    step="1"
+                    class="mt-4 w-full cursor-pointer accent-primary-500"
+                  >
+                  <p class="glass-text-muted mt-2 text-[11px] leading-5">
+                    轻微模糊可以削弱杂乱背景，避免图片主体抢走登录焦点。
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div class="settings-theme-range-card rounded-2xl p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="glass-text-main text-sm font-medium">主界面遮罩强度</span>
+                    <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
+                      {{ appStore.appBackgroundOverlayOpacity }}%
+                    </span>
+                  </div>
+                  <input
+                    v-model.number="appStore.appBackgroundOverlayOpacity"
+                    type="range"
+                    min="20"
+                    max="90"
+                    step="1"
+                    class="mt-4 w-full cursor-pointer accent-primary-500"
+                  >
+                  <p class="glass-text-muted mt-2 text-[11px] leading-5">
+                    业务页推荐更重一点，让日志、表格、卡片始终保持高可读性。
+                  </p>
+                </div>
+
+                <div class="settings-theme-range-card rounded-2xl p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="glass-text-main text-sm font-medium">主界面模糊度</span>
+                    <span class="settings-theme-chip ui-meta-chip--brand px-2.5 py-1 text-[11px]">
+                      {{ appStore.appBackgroundBlur }}px
+                    </span>
+                  </div>
+                  <input
+                    v-model.number="appStore.appBackgroundBlur"
+                    type="range"
+                    min="0"
+                    max="18"
+                    step="1"
+                    class="mt-4 w-full cursor-pointer accent-primary-500"
+                  >
+                  <p class="glass-text-muted mt-2 text-[11px] leading-5">
+                    主界面模糊通常比登录页更高，这样背景存在感还在，但不会干扰操作。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-theme-side-panel flex flex-col gap-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="border border-white/10 rounded-2xl bg-black/10 p-3">
+                  <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                    登录页参数
+                  </div>
+                  <div class="glass-text-main mt-1 text-sm font-semibold">
+                    {{ appStore.loginBackgroundOverlayOpacity }}% / {{ appStore.loginBackgroundBlur }}px
+                  </div>
+                </div>
+                <div class="border border-white/10 rounded-2xl bg-black/10 p-3">
+                  <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                    主界面参数
+                  </div>
+                  <div class="glass-text-main mt-1 text-sm font-semibold">
+                    {{ appStore.backgroundScope === 'login_only' ? '未启用' : `${appStore.appBackgroundOverlayOpacity}% / ${appStore.appBackgroundBlur}px` }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-theme-action-panel rounded-2xl p-4">
+                <div class="flex flex-wrap items-center gap-3">
+                  <BaseButton
+                    variant="secondary"
+                    size="sm"
+                    :loading="backgroundUploading"
+                    @click="triggerBackgroundUpload"
+                  >
+                    本地上传背景图
+                  </BaseButton>
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="backgroundSaving"
+                    @click="saveLoginAppearance"
+                  >
+                    保存主题与背景
+                  </BaseButton>
+                  <BaseButton
+                    variant="secondary"
+                    size="sm"
+                    :disabled="backgroundSaving || backgroundUploading"
+                    @click="restoreDefaultLoginAppearance"
+                  >
+                    恢复默认
+                  </BaseButton>
+                </div>
+                <p class="glass-text-muted mt-3 text-xs leading-5">
+                  支持 JPG / PNG / WebP。本地上传会先在浏览器压缩，再保存到服务端静态目录，避免把图片直接塞进配置里。
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                <span class="glass-text-muted text-xs font-medium">预览 (效果参考)</span>
+                <button
+                  type="button"
+                  class="settings-preview-trigger glass-text-main rounded-full px-3 py-1 text-[11px] transition-all"
+                  @click="openLoginPreview"
+                >
+                  打开全屏预览
+                </button>
+              </div>
+
+              <button
+                type="button"
+                class="settings-preview-card group relative h-40 w-full overflow-hidden rounded-2xl text-left shadow-sm transition-all duration-300 hover:shadow-lg"
+                :style="loginPreviewBackgroundStyle"
+                @click="openLoginPreview"
+              >
+                <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="loginPreviewMaskStyle" />
+                <div class="settings-preview-login-sheen absolute inset-0 opacity-80" />
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="settings-preview-glass glass-text-main rounded-xl px-4 py-2 text-xs font-medium shadow-lg transition-transform duration-300 group-hover:scale-105">
+                    玻璃拟态预览
+                  </div>
+                </div>
+                <div class="settings-preview-chip ui-glass-chip absolute bottom-3 left-3 rounded-full px-2.5 py-1 text-[10px]">
+                  遮罩 {{ appStore.loginBackgroundOverlayOpacity }}%
+                </div>
+                <div class="settings-preview-chip ui-glass-chip absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
+                  模糊 {{ appStore.loginBackgroundBlur }}px
+                </div>
+              </button>
+
+              <div
+                class="settings-preview-card relative h-36 overflow-hidden rounded-2xl"
+                :style="loginPreviewBackgroundStyle"
+              >
+                <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="appScenePreviewMaskStyle" />
+                <div class="settings-preview-overlay-soft absolute inset-0" />
+                <div class="settings-preview-chip ui-glass-chip absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px]">
+                  主界面氛围预览
+                </div>
+                <div class="absolute inset-0 flex gap-3 p-4">
+                  <div class="settings-preview-sidebar w-20 rounded-2xl p-3">
+                    <div class="settings-preview-block-strong mb-3 h-6 w-6 rounded-lg" />
+                    <div class="space-y-2">
+                      <div class="settings-preview-block-mid h-2 rounded" />
+                      <div class="settings-preview-block-faint h-2 rounded" />
+                      <div class="settings-preview-block-faint h-2 rounded" />
+                    </div>
+                  </div>
+                  <div class="flex flex-1 flex-col gap-3">
+                    <div class="settings-preview-panel rounded-2xl p-3">
+                      <div class="settings-preview-block-strong h-3 w-36 rounded" />
+                    </div>
+                    <div class="grid grid-cols-2 flex-1 gap-3">
+                      <div class="settings-preview-panel rounded-2xl p-3" />
+                      <div class="settings-preview-panel rounded-2xl p-3" />
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-preview-chip ui-glass-chip absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
+                  {{ appStore.backgroundScope === 'login_only' ? '当前未对主界面启用' : `遮罩 ${appStore.appBackgroundOverlayOpacity}% / 模糊 ${appStore.appBackgroundBlur}px` }}
+                </div>
+              </div>
+
+              <p v-if="loginPreviewLoading" class="settings-theme-preview-note settings-theme-preview-note-warning text-xs">
+                正在验证图片链接，加载完成后会自动应用到预览。
+              </p>
+              <p v-else-if="loginPreviewLoadFailed" class="settings-theme-preview-note settings-theme-preview-note-danger text-xs">
+                当前图片链接加载失败，预览已回退到默认渐变。建议使用可直接访问的 JPG / PNG / WebP 地址。
+              </p>
+              <p v-else class="glass-text-muted text-xs">
+                缩略图和全屏弹窗都会按登录页的玻璃拟态结构渲染，便于判断背景是否压字。
+              </p>
+            </div>
+          </div>
+
+          <div class="settings-card-footer pt-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="glass-text-main text-sm font-bold">
+                  背景预设图库
+                </div>
+                <p class="glass-text-muted mt-1 text-xs">
+                  点击预设会先套用到当前表单，确认效果后再点“应用背景设置”。
+                </p>
+              </div>
+              <div class="glass-text-muted text-[11px]">
+                当前参数：遮罩 {{ appStore.loginBackgroundOverlayOpacity }}% / 模糊 {{ appStore.loginBackgroundBlur }}px
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 mt-4 gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <button
+                v-for="preset in orderedLoginBackgroundPresets"
+                :key="preset.key"
+                type="button"
+                class="settings-theme-gallery-card group overflow-hidden rounded-2xl text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                :class="isSelectedLoginBackgroundPreset(preset) ? 'settings-theme-surface-active' : ''"
+                @click="applyBackgroundPreset(preset)"
+              >
+                <div
+                  class="relative h-32 overflow-hidden"
+                  :style="preset.url
+                    ? { backgroundImage: `url(${preset.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : { background: 'linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-100) 72%, var(--ui-bg-surface) 28%) 0%, color-mix(in srgb, var(--ui-brand-200) 58%, var(--ui-bg-surface) 42%) 100%)' }"
+                >
+                  <div
+                    v-if="preset.url"
+                    class="absolute inset-0"
+                    :style="{
+                      backgroundColor: `color-mix(in srgb, var(--ui-overlay-backdrop) ${preset.overlayOpacity}%, transparent)`,
+                      backdropFilter: `blur(${preset.blur}px)`,
+                      WebkitBackdropFilter: `blur(${preset.blur}px)`,
+                    }"
+                  />
+                  <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px]">
+                    {{ preset.themeKey === appStore.colorTheme ? '当前主题推荐' : (preset.badge || '预设') }}
+                  </BaseBadge>
+                  <BaseBadge as="div" surface="glass-dark" class="settings-theme-bundle-badge absolute bottom-3 right-3 rounded-full px-2.5 py-1 text-[10px]">
+                    {{ preset.overlayOpacity }}% / {{ preset.blur }}px
+                  </BaseBadge>
+                </div>
+
+                <div class="p-3 space-y-2">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="glass-text-main text-sm font-semibold">{{ preset.title }}</span>
+                    <span
+                      v-if="isSelectedLoginBackgroundPreset(preset)"
+                      class="settings-theme-chip ui-meta-chip--brand px-2 py-0.5 text-[10px]"
+                    >
+                      当前
+                    </span>
+                  </div>
+                  <div v-if="preset.themeKey" class="glass-text-muted text-[11px]">
+                    对应主题：{{ getThemeOption(preset.themeKey).name }}
+                  </div>
+                  <p class="glass-text-muted text-xs leading-5">
+                    {{ preset.description }}
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
         </div>
-        <p class="settings-system-warning-note text-[10px] italic">
-          {{ diffModalHint }}
-        </p>
       </div>
-    </ConfirmModal>
+      <Teleport to="body">
+        <div v-if="loginPreviewVisible" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            class="settings-preview-overlay absolute inset-0 backdrop-blur-md"
+            @click="loginPreviewVisible = false"
+          />
 
-    <ConfirmModal
-      :show="shortIntervalRiskModalVisible"
-      title="确认高风险时间配置"
-      confirm-text="确认仍然保存"
-      cancel-text="返回调整"
-      type="danger"
-      @confirm="handleShortIntervalRiskModalConfirm"
-      @cancel="closeShortIntervalRiskModal"
-    >
-      <div class="text-left space-y-4">
-        <p class="glass-text-muted text-sm leading-relaxed">
-          检测到以下好友相关巡查时间低于 60 秒，继续保存会显著提高风控概率：
-        </p>
-        <div class="settings-system-diff-panel max-h-60 overflow-y-auto rounded-xl p-2">
-          <div v-for="item in shortIntervalRiskItems" :key="item" class="settings-system-diff-row p-2 text-xs">
-            <span class="settings-risk-item">{{ item }}</span>
+          <div class="settings-preview-modal relative z-10 max-h-[90vh] max-w-6xl w-full overflow-hidden rounded-[28px] shadow-2xl">
+            <div
+              class="relative min-h-[78vh] overflow-hidden"
+              :style="loginPreviewBackgroundStyle"
+            >
+              <div v-if="loginPreviewUsesCustomBackground" class="absolute inset-0" :style="loginPreviewMaskStyle" />
+              <div v-else class="settings-preview-modal-sheen absolute inset-0" />
+
+              <div class="settings-preview-chip ui-glass-chip absolute left-5 top-5 z-20 rounded-full px-4 py-1.5 text-xs">
+                登录页玻璃拟态预览
+              </div>
+              <div class="settings-preview-chip ui-glass-chip absolute left-5 top-16 z-20 rounded-full px-4 py-1.5 text-xs">
+                遮罩 {{ appStore.loginBackgroundOverlayOpacity }}% · 模糊 {{ appStore.loginBackgroundBlur }}px
+              </div>
+
+              <button
+                type="button"
+                class="settings-preview-close absolute right-5 top-5 z-20 h-10 w-10 flex items-center justify-center rounded-full transition-colors"
+                @click="loginPreviewVisible = false"
+              >
+                <div class="i-carbon-close text-lg" />
+              </button>
+
+              <div class="relative z-10 min-h-[78vh] flex items-center justify-center px-5 py-12 lg:px-10">
+                <div class="grid max-w-5xl w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                  <div class="settings-preview-brand-panel hidden rounded-[28px] p-8 shadow-2xl lg:flex lg:flex-col lg:justify-between">
+                    <div>
+                      <div class="settings-preview-brand-icon mb-6 h-16 w-16 flex items-center justify-center rounded-3xl shadow-xl">
+                        <div class="i-carbon-sprout text-3xl" />
+                      </div>
+                      <h3 class="text-3xl font-black tracking-tight">
+                        御农·QQ 农场智能助手
+                      </h3>
+                      <p class="settings-preview-brand-copy mt-3 max-w-md text-sm leading-6">
+                        这里模拟的是登录页左侧品牌区和右侧表单卡片的叠层效果，主要用来判断背景图是否会干扰按钮、标题和输入区可读性。
+                      </p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="settings-preview-brand-card rounded-2xl p-4">
+                        <div class="i-carbon-flash mb-2 text-xl" />
+                        <div class="text-sm font-semibold">
+                          极速自动化
+                        </div>
+                      </div>
+                      <div class="settings-preview-brand-card rounded-2xl p-4">
+                        <div class="i-carbon-security mb-2 text-xl" />
+                        <div class="text-sm font-semibold">
+                          安全隔离
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-preview-form-panel rounded-[28px] p-5 shadow-2xl lg:p-8">
+                    <div class="mx-auto max-w-md">
+                      <div class="settings-preview-form-header mb-6 flex items-center gap-3">
+                        <div class="settings-preview-form-icon h-11 w-11 flex items-center justify-center rounded-2xl shadow-lg">
+                          <div class="i-carbon-sprout text-xl" />
+                        </div>
+                        <div>
+                          <div class="text-lg font-bold">
+                            欢迎回来
+                          </div>
+                          <div class="settings-preview-form-copy text-xs">
+                            预览背景图在真实登录页中的玻璃卡片表现
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="space-y-4">
+                        <div class="settings-preview-input rounded-2xl px-4 py-3 text-sm">
+                          用户名 / 账号
+                        </div>
+                        <div class="settings-preview-input rounded-2xl px-4 py-3 text-sm">
+                          密码
+                        </div>
+                        <div class="settings-preview-submit rounded-2xl px-4 py-3 text-center text-sm font-bold shadow-lg">
+                          登录按钮预览
+                        </div>
+                        <div class="settings-preview-form-grid grid grid-cols-2 gap-3 text-center text-xs">
+                          <BaseBadge as="div" surface="glass-soft" class="settings-preview-form-chip rounded-2xl px-4 py-3">
+                            自动化
+                          </BaseBadge>
+                          <BaseBadge as="div" surface="glass-soft" class="settings-preview-form-chip rounded-2xl px-4 py-3">
+                            多账号
+                          </BaseBadge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="loginPreviewLoadFailed"
+                class="settings-preview-fail absolute bottom-5 left-5 right-5 z-20 rounded-2xl px-4 py-3 text-sm"
+              >
+                当前图片链接无法直接加载，预览已自动回退为默认渐变背景。正式保存前建议先换成可直链图片。
+              </div>
+            </div>
           </div>
         </div>
-        <p class="settings-system-warning-note text-[10px] italic">
-          提示：确认后系统会立即应用这些高风险时间配置，请仅在你明确理解风险时继续。
-        </p>
+
+        <div v-if="reportDetailVisible && reportDetailItem" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            class="settings-report-detail-overlay absolute inset-0 backdrop-blur-sm"
+            @click="closeReportLogDetail"
+          />
+          <div class="settings-report-detail-modal glass-panel relative z-10 max-h-[85vh] max-w-3xl w-full overflow-hidden border rounded-2xl shadow-2xl">
+            <div class="settings-report-detail-header flex items-center justify-between px-6 py-4">
+              <div class="min-w-0">
+                <h3 class="settings-report-detail-title truncate text-base font-bold">
+                  {{ reportDetailItem.title || '经营汇报详情' }}
+                </h3>
+                <div class="settings-report-detail-meta mt-1 text-xs">
+                  {{ formatReportMode(reportDetailItem.mode) }} · {{ formatReportLogTime(reportDetailItem.createdAt) }} · {{ reportDetailItem.channel || 'unknown' }}
+                </div>
+              </div>
+              <button
+                class="settings-report-detail-close rounded-full p-2 transition-colors"
+                @click="closeReportLogDetail"
+              >
+                <div class="i-carbon-close text-xl" />
+              </button>
+            </div>
+
+            <div class="max-h-[calc(85vh-8rem)] overflow-auto px-6 py-5 space-y-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="settings-result-badge rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  :class="reportDetailItem.ok ? 'ui-meta-chip--success' : 'ui-meta-chip--danger'"
+                >
+                  {{ reportDetailItem.ok ? '发送成功' : '发送失败' }}
+                </span>
+                <span class="settings-report-detail-chip ui-meta-chip--neutral rounded-full px-2.5 py-1 text-[11px]">
+                  账号：{{ reportDetailItem.accountName || reportDetailItem.accountId || '-' }}
+                </span>
+                <span class="settings-report-detail-chip ui-meta-chip--neutral rounded-full px-2.5 py-1 text-[11px]">
+                  ID：{{ reportDetailItem.accountId || '-' }}
+                </span>
+              </div>
+
+              <div v-if="reportDetailItem.errorMessage" class="settings-health-alert rounded-xl px-4 py-3 text-sm">
+                失败原因：{{ reportDetailItem.errorMessage }}
+              </div>
+
+              <div class="settings-report-detail-body rounded-xl px-4 py-4">
+                <div class="settings-report-detail-body-label mb-2 text-xs font-bold tracking-widest uppercase">
+                  完整正文
+                </div>
+                <div class="settings-report-detail-body-content whitespace-pre-line break-words text-sm leading-6">
+                  {{ reportDetailItem.content || '无正文' }}
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-report-detail-footer flex justify-end px-6 py-4">
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                @click="closeReportLogDetail"
+              >
+                关闭
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <div
+        v-if="currentAccountId && hasUnsavedAccountSettings && isSettingsCategoryVisible(['common', 'plant', 'auto', 'security'])"
+        class="settings-account-save-dock hidden lg:flex"
+      >
+        <div class="min-w-0 flex-1">
+          <p class="settings-account-save-dock-title">
+            当前账号有 {{ accountSettingsDirtyCount }} 项设置未保存
+          </p>
+          <p class="settings-account-save-dock-copy">
+            巡查时间、静默时段、策略和自动控制都属于账号级设置；右侧“仅保存全局下线提醒”不会保存这些改动。
+          </p>
+        </div>
+        <BaseButton
+          variant="primary"
+          size="sm"
+          :loading="saving"
+          class="shrink-0"
+          @click="saveAccountSettings"
+        >
+          保存当前账号设置
+        </BaseButton>
       </div>
-    </ConfirmModal>
+
+      <ConfirmModal
+        :show="modalVisible"
+        :title="modalConfig.title"
+        :message="modalConfig.message"
+        :type="modalConfig.type"
+        :is-alert="modalConfig.isAlert"
+        confirm-text="知道了"
+        @confirm="modalVisible = false"
+        @cancel="modalVisible = false"
+      />
+
+      <!-- 改动预览 Modal -->
+      <ConfirmModal
+        :show="diffModalVisible"
+        :title="diffModalTitle"
+        :confirm-text="diffModalConfirmText"
+        cancel-text="再检查下"
+        type="primary"
+        @confirm="handleDiffModalConfirm"
+        @cancel="closeDiffModal"
+      >
+        <div class="space-y-4">
+          <p class="glass-text-muted text-sm">
+            检测到以下配置项已变动：
+          </p>
+          <div class="settings-system-diff-panel max-h-60 overflow-y-auto rounded-xl p-2">
+            <div v-for="item in diffItems" :key="item.label" class="settings-system-diff-row flex items-center justify-between p-2 last:border-0">
+              <span class="glass-text-muted text-xs font-medium">{{ item.label }}</span>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="glass-text-muted line-through">{{ item.from }}</span>
+                <div class="i-carbon-arrow-right text-primary-500" />
+                <span class="text-primary-600 font-bold dark:text-primary-400">{{ item.to }}</span>
+              </div>
+            </div>
+          </div>
+          <p class="settings-system-warning-note text-[10px] italic">
+            {{ diffModalHint }}
+          </p>
+        </div>
+      </ConfirmModal>
+
+      <ConfirmModal
+        :show="shortIntervalRiskModalVisible"
+        title="确认高风险时间配置"
+        confirm-text="确认仍然保存"
+        cancel-text="返回调整"
+        type="danger"
+        @confirm="handleShortIntervalRiskModalConfirm"
+        @cancel="closeShortIntervalRiskModal"
+      >
+        <div class="text-left space-y-4">
+          <p class="glass-text-muted text-sm leading-relaxed">
+            检测到以下好友相关巡查时间低于 60 秒，继续保存会显著提高风控概率：
+          </p>
+          <div class="settings-system-diff-panel max-h-60 overflow-y-auto rounded-xl p-2">
+            <div v-for="item in shortIntervalRiskItems" :key="item" class="settings-system-diff-row p-2 text-xs">
+              <span class="settings-risk-item">{{ item }}</span>
+            </div>
+          </div>
+          <p class="settings-system-warning-note text-[10px] italic">
+            提示：确认后系统会立即应用这些高风险时间配置，请仅在你明确理解风险时继续。
+          </p>
+        </div>
+      </ConfirmModal>
+    </div>
   </div>
 </template>
 
 <style scoped lang="postcss">
 .settings-page {
   color: var(--ui-text-1);
+}
+
+.settings-layout {
+  position: relative;
+}
+
+.settings-primary-category {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 14;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-400) 16%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 96%, var(--ui-bg-surface) 4%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.settings-primary-category-list {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.settings-primary-category-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 88%, transparent);
+  color: var(--ui-text-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.settings-primary-category-item:hover {
+  color: var(--ui-text-1);
+  border-color: color-mix(in srgb, var(--ui-brand-400) 40%, var(--ui-border-subtle));
+  transform: translateY(-1px);
+}
+
+.settings-primary-category-item-active {
+  color: color-mix(in srgb, var(--ui-brand-500) 78%, var(--ui-text-1));
+  border-color: color-mix(in srgb, var(--ui-brand-500) 55%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-brand-100) 66%, var(--ui-bg-surface) 34%);
+  box-shadow: 0 10px 22px -16px color-mix(in srgb, var(--ui-brand-500) 58%, transparent);
+}
+
+.settings-primary-category-desc {
+  margin-top: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-300) 20%, var(--ui-border-subtle));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ui-brand-100) 28%, var(--ui-bg-surface) 72%);
+  color: var(--ui-text-2);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.settings-category-empty {
+  border: 1px dashed color-mix(in srgb, var(--ui-status-warning) 30%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-warning-bg) 78%, var(--ui-bg-surface) 22%);
+}
+
+.settings-category-empty-icon {
+  border: 1px solid color-mix(in srgb, var(--ui-status-warning) 30%, var(--ui-border-subtle));
+  color: color-mix(in srgb, var(--ui-status-warning) 72%, var(--ui-text-1));
+  background: color-mix(in srgb, var(--ui-status-warning-bg) 88%, var(--ui-bg-surface) 12%);
+}
+
+.settings-category-empty-title {
+  color: var(--ui-text-1);
+}
+
+.settings-category-empty-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-strategy-focus {
+  border: 1px solid color-mix(in srgb, var(--ui-brand-300) 28%, var(--ui-border-subtle));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-brand-100) 26%, var(--ui-bg-surface)),
+    color-mix(in srgb, var(--ui-brand-200) 18%, var(--ui-bg-surface-raised))
+  );
+}
+
+.settings-strategy-focus-title {
+  color: color-mix(in srgb, var(--ui-brand-600) 68%, var(--ui-text-1));
+}
+
+.settings-strategy-focus-hint {
+  color: var(--ui-text-2);
+}
+
+.settings-strategy-focus-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-400) 34%, var(--ui-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  color: color-mix(in srgb, var(--ui-brand-600) 58%, var(--ui-text-1));
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.settings-common-quick {
+  border: 1px solid color-mix(in srgb, var(--ui-status-success) 24%, var(--ui-border-subtle));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-status-success-bg) 62%, var(--ui-bg-surface)),
+    color-mix(in srgb, var(--ui-brand-100) 16%, var(--ui-bg-surface-raised))
+  );
+}
+
+.settings-common-quick-title {
+  color: color-mix(in srgb, var(--ui-status-success) 74%, var(--ui-text-1));
+}
+
+.settings-common-quick-hint {
+  color: var(--ui-text-2);
+}
+
+.settings-common-quick-card {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, transparent);
+}
+
+.settings-common-quick-label {
+  color: var(--ui-text-1);
+}
+
+.settings-quiet-hours-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settings-quiet-hours-input {
+  min-width: 0;
+}
+
+.settings-security-quick {
+  border: 1px solid color-mix(in srgb, var(--ui-status-warning) 26%, var(--ui-border-subtle));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-status-warning-bg) 58%, var(--ui-bg-surface)),
+    color-mix(in srgb, var(--ui-brand-100) 10%, var(--ui-bg-surface-raised))
+  );
+}
+
+.settings-security-quick-title {
+  color: color-mix(in srgb, var(--ui-status-warning) 72%, var(--ui-text-1));
+}
+
+.settings-security-quick-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-security-quick-chip {
+  border: 1px solid color-mix(in srgb, var(--ui-status-warning) 26%, var(--ui-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  color: color-mix(in srgb, var(--ui-status-warning) 78%, var(--ui-text-1));
+  font-weight: 600;
+}
+
+.settings-security-quick-card {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, transparent);
+}
+
+.settings-advanced-quick-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-advanced-quick-card {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+}
+
+.settings-advanced-quick-label {
+  color: var(--ui-text-2);
+}
+
+.settings-advanced-quick-value {
+  color: var(--ui-text-1);
+}
+
+.settings-advanced-quick-note {
+  color: var(--ui-text-2);
+}
+
+.settings-advanced-quick-actions {
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  padding-top: 0.75rem;
+}
+
+.settings-advanced-detail-nav-wrap {
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  padding-top: 0.75rem;
+}
+
+.settings-advanced-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-advanced-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 88%, transparent);
+  color: var(--ui-text-2);
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.settings-advanced-detail-tab:hover {
+  color: var(--ui-text-1);
+  border-color: color-mix(in srgb, var(--ui-brand-400) 40%, var(--ui-border-subtle));
+}
+
+.settings-advanced-detail-tab-active {
+  color: color-mix(in srgb, var(--ui-brand-500) 78%, var(--ui-text-1));
+  border-color: color-mix(in srgb, var(--ui-brand-500) 54%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-brand-100) 60%, var(--ui-bg-surface) 40%);
+}
+
+.settings-advanced-detail-nav-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-update-detail-nav-wrap {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  border-radius: 0.875rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  padding: 0.75rem;
+}
+
+.settings-update-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-update-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  color: var(--ui-text-2);
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.settings-update-detail-tab:hover {
+  color: var(--ui-text-1);
+  border-color: color-mix(in srgb, var(--ui-status-info) 32%, var(--ui-border-subtle));
+}
+
+.settings-update-detail-tab-active {
+  color: color-mix(in srgb, var(--ui-status-info) 80%, var(--ui-text-1));
+  border-color: color-mix(in srgb, var(--ui-status-info) 54%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-info-bg) 78%, var(--ui-bg-surface) 22%);
+}
+
+.settings-update-detail-nav-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-notice-quick {
+  border-top: 1px solid var(--ui-border-subtle);
+  border-bottom: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-status-info-bg) 58%, var(--ui-bg-surface));
+}
+
+.settings-notice-quick-head {
+  align-items: flex-start;
+}
+
+.settings-notice-quick-title {
+  color: color-mix(in srgb, var(--ui-status-info) 74%, var(--ui-text-1));
+}
+
+.settings-notice-quick-copy {
+  color: var(--ui-text-2);
+}
+
+.settings-notice-quick-metric {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 92%, transparent);
+}
+
+.settings-notice-quick-metric-label {
+  color: var(--ui-text-2);
+}
+
+.settings-notice-quick-metric-value {
+  color: var(--ui-text-1);
+}
+
+.settings-notice-quick-metric-note {
+  color: var(--ui-text-2);
+}
+
+.settings-notice-quick-chip {
+  border: 1px solid color-mix(in srgb, var(--ui-status-info) 24%, var(--ui-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  color: color-mix(in srgb, var(--ui-status-info) 78%, var(--ui-text-1));
+  font-weight: 600;
+}
+
+.settings-notice-quick-card {
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, transparent);
+}
+
+.settings-notice-quick-empty {
+  border: 1px dashed color-mix(in srgb, var(--ui-status-info) 30%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent);
+  color: var(--ui-text-2);
+}
+
+.settings-notice-quick-actions {
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+  padding-top: 0.75rem;
 }
 
 .settings-page :is([class*='text-'][class*='gray-500'], [class*='text-'][class*='gray-400'], .glass-text-muted) {
@@ -7261,6 +8748,10 @@ async function restoreTimingDefaults() {
   margin-top: auto;
 }
 
+.settings-theme-side-panel {
+  align-self: flex-start;
+}
+
 .settings-preset-chip {
   display: inline-flex;
   align-items: center;
@@ -7283,7 +8774,45 @@ async function restoreTimingDefaults() {
   background: color-mix(in srgb, var(--ui-border-strong) 72%, transparent);
 }
 
+@media (min-width: 1280px) {
+  .settings-theme-side-panel {
+    position: sticky;
+    top: 5.5rem;
+  }
+}
+
+@media (max-width: 1180px) {
+  .settings-primary-category-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
+  .settings-primary-category {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 14;
+  }
+
+  .settings-primary-category-list {
+    display: flex;
+    gap: 0.5rem;
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .settings-primary-category-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-primary-category-item {
+    min-width: 7.4rem;
+    flex: 0 0 auto;
+  }
+
   .settings-primary-toolbar {
     top: 0;
     z-index: 15;
@@ -7301,6 +8830,40 @@ async function restoreTimingDefaults() {
     margin-inline: -0.25rem;
     padding-inline: 0.25rem;
     padding-bottom: 0.125rem;
+  }
+
+  .settings-advanced-detail-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .settings-advanced-detail-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-advanced-detail-tab {
+    flex: 0 0 auto;
+    min-width: 6.8rem;
+  }
+
+  .settings-update-detail-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .settings-update-detail-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-update-detail-tab {
+    flex: 0 0 auto;
+    min-width: 7.2rem;
   }
 
   .settings-toolbar-divider {
