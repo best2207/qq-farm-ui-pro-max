@@ -8,6 +8,7 @@
 
 ### 快速索引（精简版）
 
+- `v4.5.22 (2026-03-17)` 微信好友保守链路与只读面板增强：手动刷新穿透、访客补缓存、只读好友页、日志摘要与快捷筛选同步落地。
 - `v4.5.21 (2026-03-16)` QQ 风控守卫与设置体验统一优化：高风险窗口、封禁阻断、多链路好友抓取开关与主界面整理同步落地。
 - `v4.5.20 (2026-03-11)` 发布链路归一与本地 Release 产物打包：本地/CI 统一输出二进制与部署包，Docker 推送脚本收口，旧服兼容软链补齐。
 - `v4.5.19 (2026-03-11)` 部署统一入口与宿主机更新代理落地：统一安装/更新脚本、Release 资产补齐、旧服 current 链接迁移与自测闭环全部完成。
@@ -20,6 +21,28 @@
 - `v4.5.6 (2026-03-08)` 用户状态与登录链路修复：`users.status` 语义拆分、QQ/微信登录续航增强、发布链路稳健性提升。
 
 > 说明：以上为“快速浏览摘要”；完整变更、验证命令与问题复盘请以下方详细记录为准。
+
+### 开发补记 - v4.5.22 微信好友保守链路与只读面板增强 (2026-03-17)
+
+#### ✅ 本轮发布收口
+- ✅ **版本口径已抬升到 `v4.5.22`**: `core/package.json`、`web/package.json`、部署模板、Docker 工作流默认值、离线包脚本与更新脚本中的默认镜像标签已经同步更新。
+- ✅ **微信好友链路补齐静默保护与手动刷新穿透**: `friend-actions.js`、`friend-scanner.js`、`data-provider.js`、`worker.js` 现在会在微信好友实时接口不可用时进入静默期，自动回退缓存，并允许管理员通过手动刷新执行单次穿透探测。
+- ✅ **好友页新增“手动刷新 / 访客补缓存 / 离线只读态”**: `Friends.vue`、`friend.ts` 与账号状态接口已经贯通好友来源元数据、访客补缓存入口、离线只读展示和批量操作禁用态。
+- ✅ **系统日志补齐好友链路排障入口**: `SystemLogs.vue` 现在支持好友链路快捷筛选、结构化摘要卡片、从日志回跳好友页与高风险/任务失败/缓存补种等摘要展示。
+- ✅ **背包详情弹窗与离线导出脚本继续收口**: `BagPanel.vue` 完成弹窗布局与关闭交互细化，`deploy/scripts/export-offline-packages.sh` 继续跟随当前版本默认值。
+
+#### 📌 本轮发布说明
+- 📌 **版本号虽然从 `4.5.21` 递增到 `4.5.22`，但重点是行为收口**: 这轮主要是把微信好友不可用场景从“报错/空白/反复探测”改成“有状态地降级、提示和排障”。
+- 📌 **预览图和测试报告未纳入正式发布**: `docs/*preview*`、`reports/` 与 `.DS_Store` 属于本地预览/测试产物，本轮没有随正式版本提交。
+
+#### 🧪 本轮验收
+- ✅ `node --test core/__tests__/admin-account-state-routes.test.js core/__tests__/friend-actions-cache-fallback.test.js core/__tests__/friend-actions-get-game-friends.test.js core/__tests__/friend-actions-passive-seed.test.js core/__tests__/friend-actions-get-game-friends-direct.test.js core/__tests__/friend-scanner-identifier.test.js`
+- ✅ `pnpm lint:web`
+- ✅ `pnpm test:web:regression`
+- ✅ `pnpm check:doc-links`
+- ⚠️ `pnpm check:announcements`：0 error(s), 1 warning(s)，`logs/development/Update.log` 仍有 1 条 bullet 超过 120 字符
+- ✅ `docker buildx version`
+- ✅ `docker info`
 
 ### 开发补记 - v4.5.21 QQ 风控守卫与设置体验统一优化 (2026-03-16)
 

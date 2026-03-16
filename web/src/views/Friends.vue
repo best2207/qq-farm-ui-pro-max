@@ -2,20 +2,24 @@
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LandCard from '@/components/LandCard.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAccountStore } from '@/stores/account'
 import { useFriendStore } from '@/stores/friend'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
+import { buildFriendFetchBannerCopy, buildFriendLogShortcut, isWechatFriendPlatform } from '@/utils/friend-fetch-status'
 
+const router = useRouter()
 const accountStore = useAccountStore()
 const toast = useToastStore()
 const friendStore = useFriendStore()
 const statusStore = useStatusStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
-const { friends, loading, friendLands, friendLandsLoading, blacklist } = storeToRefs(friendStore)
+const { friends, loading, seedCacheLoading, friendLands, friendLandsLoading, blacklist, friendFetchMeta } = storeToRefs(friendStore)
 const { status, loading: statusLoading, realtimeConnected } = storeToRefs(statusStore)
 
 // Confirm Modal state
@@ -28,6 +32,8 @@ const selectionMode = ref(false)
 const selectedFriendIds = ref<number[]>([])
 const batchRunning = ref(false)
 const batchResult = ref<any | null>(null)
+const nowTs = ref(Date.now())
+const manualRefreshLockedUntil = ref(0)
 
 function confirmAction(msg: string, action: () => Promise<void>) {
   confirmMessage.value = msg
@@ -55,7 +61,26 @@ async function onConfirm() {
 // Track expanded friends
 const expandedFriends = ref<Set<string>>(new Set())
 
-async function loadFriends() {
+function formatDuration(ms: number) {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000))
+  if (totalSec < 60)
+    return `${totalSec} 秒`
+  const hours = Math.floor(totalSec / 3600)
+  const minutes = Math.floor((totalSec % 3600) / 60)
+  const seconds = totalSec % 60
+  if (hours > 0)
+    return minutes > 0 ? `${hours} 小时 ${minutes} 分` : `${hours} 小时`
+  if (minutes > 0 && seconds > 0)
+    return `${minutes} 分 ${seconds} 秒`
+  return `${minutes} 分钟`
+}
+
+function getFriendAutoRetryText() {
+  const remainMs = Math.max(0, Number(friendFetchMeta.value?.cooldownUntil || 0) - nowTs.value)
+  return remainMs > 0 ? formatDuration(remainMs) : ''
+}
+
+async function loadFriends(options: { manualRefresh?: boolean } = {}) {
   if (currentAccountId.value) {
     const acc = currentAccount.value
     if (!acc)
@@ -66,9 +91,18 @@ async function loadFriends() {
     }
 
     avatarErrorKeys.value.clear()
-    const result = await friendStore.fetchFriends(currentAccountId.value)
+    const result = await friendStore.fetchFriends(currentAccountId.value, options)
+    const bannerCopy = buildFriendFetchBannerCopy(friendFetchMeta.value, getFriendAutoRetryText())
     if (result?.fromCache) {
-      toast.warning('好友列表实时拉取失败，已显示缓存数据，可能非最新')
+      toast.warning(bannerCopy?.title || '好友列表已回退缓存')
+    }
+    else if (options.manualRefresh) {
+      if (friends.value.length > 0) {
+        toast.success('好友列表已手动刷新')
+      }
+      else {
+        toast.warning(bannerCopy?.title || '本次手动刷新未拿到可用好友列表')
+      }
     }
     if (acc.running || friends.value.length > 0) {
       await friendStore.fetchBlacklist(currentAccountId.value)
@@ -76,7 +110,48 @@ async function loadFriends() {
   }
 }
 
+async function handleManualRefresh() {
+  if (!currentAccountId.value || loading.value || statusLoading.value)
+    return
+  const remainMs = Math.max(0, manualRefreshLockedUntil.value - Date.now())
+  if (remainMs > 0) {
+    toast.warning(`手动刷新过于频繁，请 ${formatDuration(remainMs)} 后再试`)
+    return
+  }
+  manualRefreshLockedUntil.value = Date.now() + 10_000
+  await loadFriends({ manualRefresh: true })
+}
+
+async function handleSeedFriendsCache() {
+  if (!currentAccountId.value || seedCacheLoading.value || loading.value || statusLoading.value || !status.value?.connection?.connected)
+    return
+
+  const result = await friendStore.seedFriendsCache(currentAccountId.value, 100)
+  const bannerCopy = buildFriendFetchBannerCopy(friendFetchMeta.value, getFriendAutoRetryText())
+
+  if (result.ok && friends.value.length > 0) {
+    const count = friends.value.length
+    const seededCount = Math.max(0, Number(result.seededCount || 0))
+    toast.success(seededCount > 0
+      ? `已从最近访客/互动记录补出 ${count} 位临时好友`
+      : `已加载 ${count} 位缓存好友`)
+    if (currentAccount.value?.running) {
+      await friendStore.fetchBlacklist(currentAccountId.value)
+    }
+    return
+  }
+
+  const seededCount = Math.max(0, Number(result.seededCount || 0))
+  if (seededCount > 0) {
+    toast.warning(`已识别 ${seededCount} 个访客种子，但暂未补出可用好友缓存`)
+    return
+  }
+
+  toast.warning(result.error || bannerCopy?.title || '访客记录里也没有可用好友')
+}
+
 useIntervalFn(() => {
+  nowTs.value = Date.now()
   for (const gid in friendLands.value) {
     if (friendLands.value[gid]) {
       friendLands.value[gid] = friendLands.value[gid].map((l: any) =>
@@ -111,10 +186,148 @@ const filteredFriends = computed(() => {
   })
 })
 
+const isWechatAccount = computed(() => {
+  return isWechatFriendPlatform(currentAccount.value?.platform || friendFetchMeta.value?.platform || '')
+})
+
+const isAccountConnected = computed(() => !!status.value?.connection?.connected)
+
+const friendAutoRetryRemainingMs = computed(() =>
+  Math.max(0, Number(friendFetchMeta.value?.cooldownUntil || 0) - nowTs.value),
+)
+
+const friendAutoRetryText = computed(() =>
+  friendAutoRetryRemainingMs.value > 0 ? formatDuration(friendAutoRetryRemainingMs.value) : '',
+)
+
+const manualRefreshLockRemainingMs = computed(() =>
+  Math.max(0, manualRefreshLockedUntil.value - nowTs.value),
+)
+
+const manualRefreshButtonLabel = computed(() => {
+  if (!currentAccountId.value)
+    return '请选择账号'
+  if (loading.value)
+    return '刷新中...'
+  if (statusLoading.value)
+    return '状态检查中...'
+  if (!isAccountConnected.value)
+    return '需先连接账号'
+  if (manualRefreshLockRemainingMs.value > 0)
+    return `${Math.ceil(manualRefreshLockRemainingMs.value / 1000)}s 后可刷新`
+  return '手动刷新'
+})
+
+const seedCacheButtonLabel = computed(() => {
+  if (!currentAccountId.value)
+    return '请选择账号'
+  if (seedCacheLoading.value)
+    return '补缓存中...'
+  if (loading.value)
+    return '列表加载中...'
+  if (statusLoading.value)
+    return '状态检查中...'
+  if (!isAccountConnected.value)
+    return '需先连接账号'
+  return '访客补缓存'
+})
+
+const isReadOnlyFriendView = computed(() =>
+  !!currentAccountId.value
+  && !loading.value
+  && !statusLoading.value
+  && !isAccountConnected.value
+  && friends.value.length > 0,
+)
+
+const friendStatusBanner = computed(() => {
+  const banner = buildFriendFetchBannerCopy(friendFetchMeta.value, friendAutoRetryText.value)
+  if (!banner)
+    return null
+  return {
+    ...banner,
+    cooldownText: isWechatAccount.value ? friendAutoRetryText.value : '',
+  }
+})
+
+const displayFriendBanner = computed(() => {
+  if (isReadOnlyFriendView.value) {
+    const baseBanner = friendStatusBanner.value
+    const descriptionSuffix = '当前账号未连接，下面显示的是只读缓存好友；连接账号后才能手动刷新并执行好友操作。'
+    if (baseBanner) {
+      return {
+        ...baseBanner,
+        tone: 'warning' as const,
+        badge: '离线缓存',
+        cooldownText: '',
+        description: `${baseBanner.description} ${descriptionSuffix}`,
+      }
+    }
+    return {
+      tone: 'warning' as const,
+      title: '当前显示离线缓存好友',
+      description: descriptionSuffix,
+      badge: '离线缓存',
+      cooldownText: '',
+    }
+  }
+  return friendStatusBanner.value
+})
+
+const friendStatusLogShortcut = computed(() => {
+  if (!displayFriendBanner.value || !currentAccountId.value)
+    return null
+  const shortcut = buildFriendLogShortcut(friendFetchMeta.value)
+  if (!shortcut)
+    return null
+  return {
+    ...shortcut,
+    accountId: currentAccountId.value,
+  }
+})
+
+const canManualRefreshFriends = computed(() =>
+  !!currentAccountId.value
+  && !loading.value
+  && !statusLoading.value
+  && isAccountConnected.value
+  && manualRefreshLockRemainingMs.value <= 0,
+)
+
+const canSeedFriendsCache = computed(() =>
+  !!currentAccountId.value
+  && isWechatAccount.value
+  && !seedCacheLoading.value
+  && !loading.value
+  && !statusLoading.value
+  && isAccountConnected.value,
+)
+
+const canMutateFriends = computed(() =>
+  !!currentAccountId.value
+  && !loading.value
+  && !statusLoading.value
+  && isAccountConnected.value,
+)
+
+function openRelatedLogs() {
+  if (!friendStatusLogShortcut.value)
+    return
+  router.push({
+    name: 'system-logs',
+    query: {
+      accountId: String(friendStatusLogShortcut.value.accountId || ''),
+      keyword: friendStatusLogShortcut.value.keyword,
+    },
+  })
+}
+
 const selectedFriendCount = computed(() => selectedFriendIds.value.length)
 const selectedIdSet = computed(() => new Set(selectedFriendIds.value))
 
 function toggleFriend(friendId: string) {
+  if (!canMutateFriends.value)
+    return
   if (expandedFriends.value.has(friendId)) {
     expandedFriends.value.delete(friendId)
   }
@@ -131,6 +344,8 @@ function toggleFriend(friendId: string) {
 }
 
 function toggleSelectionMode() {
+  if (!canMutateFriends.value)
+    return
   selectionMode.value = !selectionMode.value
   if (!selectionMode.value) {
     selectedFriendIds.value = []
@@ -139,6 +354,8 @@ function toggleSelectionMode() {
 
 function toggleFriendSelection(friendId: string | number, e?: Event) {
   e?.stopPropagation()
+  if (!canMutateFriends.value)
+    return
   const gid = Number(friendId || 0)
   if (!gid)
     return
@@ -151,6 +368,8 @@ function toggleFriendSelection(friendId: string | number, e?: Event) {
 }
 
 function selectAllFiltered() {
+  if (!canMutateFriends.value)
+    return
   selectedFriendIds.value = filteredFriends.value.map((friend: any) => Number(friend.gid || 0)).filter((gid: number) => gid > 0)
 }
 
@@ -160,7 +379,7 @@ function clearSelectedFriends() {
 
 async function handleOp(friendId: string, type: string, e: Event) {
   e.stopPropagation()
-  if (!currentAccountId.value)
+  if (!currentAccountId.value || !canMutateFriends.value)
     return
 
   confirmAction('确定执行此操作吗?', async () => {
@@ -171,14 +390,14 @@ async function handleOp(friendId: string, type: string, e: Event) {
 
 async function handleToggleBlacklist(friend: any, e: Event) {
   e.stopPropagation()
-  if (!currentAccountId.value)
+  if (!currentAccountId.value || !canMutateFriends.value)
     return
   await friendStore.toggleBlacklist(currentAccountId.value, Number(friend.gid))
   await loadFriends() // 切换黑名单后局部刷新
 }
 
 async function handleBatchOp(opType: string) {
-  if (!currentAccountId.value || selectedFriendIds.value.length === 0)
+  if (!currentAccountId.value || !canMutateFriends.value || selectedFriendIds.value.length === 0)
     return
   const actionLabels: Record<string, string> = {
     steal: '批量偷菜',
@@ -286,29 +505,52 @@ function getFriendStatusClass(friend: any) {
           (共 {{ friends.length }} 人)
         </span>
       </h2>
-      <div class="relative w-full shrink-0 sm:w-64">
-        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-          <div class="friends-search-icon i-carbon-search" />
-        </div>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索好友昵称/备注..."
-          class="friends-search-input glass-text-main block h-[38px] w-full rounded-lg py-2 pl-10 pr-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+      <div class="w-full flex shrink-0 items-center gap-2 sm:w-auto">
+        <button
+          class="friends-refresh-btn h-[38px] shrink-0 rounded-lg px-3 text-sm font-medium transition"
+          :disabled="!canManualRefreshFriends"
+          @click="handleManualRefresh"
         >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="i-carbon-renew" />
+            {{ manualRefreshButtonLabel }}
+          </span>
+        </button>
+        <button
+          v-if="isWechatAccount"
+          class="friends-refresh-btn h-[38px] shrink-0 rounded-lg px-3 text-sm font-medium transition"
+          :disabled="!canSeedFriendsCache"
+          @click="handleSeedFriendsCache"
+        >
+          <span class="inline-flex items-center gap-1.5">
+            <span class="i-carbon-user-follow" />
+            {{ seedCacheButtonLabel }}
+          </span>
+        </button>
+        <div class="relative min-w-0 flex-1 sm:w-64">
+          <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <div class="friends-search-icon i-carbon-search" />
+          </div>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索好友昵称/备注..."
+            class="friends-search-input glass-text-main block h-[38px] w-full rounded-lg py-2 pl-10 pr-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+        </div>
       </div>
     </div>
 
     <div class="friends-toolbar ui-mobile-sticky-toolbar mb-4">
       <div class="ui-bulk-actions">
-        <button class="batch-btn" :class="{ active: selectionMode }" @click="toggleSelectionMode">
+        <button class="batch-btn" :class="{ active: selectionMode }" :disabled="!canMutateFriends" @click="toggleSelectionMode">
           {{ selectionMode ? '退出批量模式' : '批量模式' }}
         </button>
         <template v-if="selectionMode">
-          <button class="batch-btn batch-btn-subtle" @click="selectAllFiltered">
+          <button class="batch-btn batch-btn-subtle" :disabled="!canMutateFriends" @click="selectAllFiltered">
             全选当前筛选
           </button>
-          <button class="batch-btn batch-btn-subtle" @click="clearSelectedFriends">
+          <button class="batch-btn batch-btn-subtle" :disabled="!canMutateFriends" @click="clearSelectedFriends">
             清空选择
           </button>
           <span class="friends-summary-note text-sm">
@@ -320,30 +562,65 @@ function getFriendStatusClass(friend: any) {
 
     <div v-if="selectionMode" class="glass-panel ui-mobile-action-panel mb-4 rounded-xl p-4 shadow">
       <div class="ui-bulk-actions">
-        <button class="batch-action batch-blue" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('steal')">
+        <button class="batch-action batch-blue" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('steal')">
           批量偷菜
         </button>
-        <button class="batch-action batch-cyan" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('water')">
+        <button class="batch-action batch-cyan" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('water')">
           批量浇水
         </button>
-        <button class="batch-action batch-green" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('weed')">
+        <button class="batch-action batch-green" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('weed')">
           批量除草
         </button>
-        <button class="batch-action batch-orange" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('bug')">
+        <button class="batch-action batch-orange" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('bug')">
           批量除虫
         </button>
-        <button class="batch-action batch-red" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('bad')">
+        <button class="batch-action batch-red" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('bad')">
           批量捣乱
         </button>
-        <button class="batch-action batch-gray" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('blacklist_add')">
+        <button class="batch-action batch-gray" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('blacklist_add')">
           批量拉黑
         </button>
-        <button class="batch-action batch-gray" :disabled="batchRunning || selectedFriendCount === 0" @click="handleBatchOp('blacklist_remove')">
+        <button class="batch-action batch-gray" :disabled="batchRunning || selectedFriendCount === 0 || !canMutateFriends" @click="handleBatchOp('blacklist_remove')">
           批量移黑
         </button>
       </div>
       <div class="friends-summary-note mt-2 text-xs">
-        批量操作默认串行执行，每个好友之间会插入保守冷却，避免瞬时请求过密。
+        {{ canMutateFriends ? '批量操作默认串行执行，每个好友之间会插入保守冷却，避免瞬时请求过密。' : '当前账号未连接，批量操作已切换为只读状态。' }}
+      </div>
+    </div>
+
+    <div
+      v-if="displayFriendBanner && currentAccountId && !loading && !statusLoading"
+      class="friends-status-banner mb-4 rounded-xl px-4 py-3"
+      :class="displayFriendBanner.tone === 'danger' ? 'friends-status-banner-danger' : 'friends-status-banner-warning'"
+    >
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0 flex items-start gap-3">
+          <div
+            class="friends-status-banner-icon mt-0.5 shrink-0"
+            :class="displayFriendBanner.tone === 'danger' ? 'i-carbon-warning-alt-filled' : 'i-carbon-information-filled'"
+          />
+          <div class="min-w-0">
+            <div class="friends-status-banner-title flex flex-wrap items-center gap-2">
+              <span>{{ displayFriendBanner.title }}</span>
+              <BaseBadge v-if="displayFriendBanner.badge" surface="meta" :tone="displayFriendBanner.tone === 'danger' ? 'danger' : 'warning'" class="rounded-full px-2 py-0.5 text-[10px]">
+                {{ displayFriendBanner.badge }}
+              </BaseBadge>
+              <BaseBadge v-if="displayFriendBanner.cooldownText" surface="meta" tone="info" class="rounded-full px-2 py-0.5 text-[10px]">
+                自动重试约 {{ displayFriendBanner.cooldownText }}
+              </BaseBadge>
+            </div>
+            <div class="friends-status-banner-desc mt-1 text-sm leading-6">
+              {{ displayFriendBanner.description }}
+            </div>
+          </div>
+        </div>
+        <div v-if="friendStatusLogShortcut" class="flex shrink-0 items-center">
+          <BaseButton variant="secondary" size="sm" class="friends-status-log-btn" @click="openRelatedLogs">
+            <div class="i-carbon-catalog mr-1.5" />
+            {{ friendStatusLogShortcut.label }}
+          </BaseButton>
+        </div>
       </div>
     </div>
 
@@ -390,20 +667,28 @@ function getFriendStatusClass(friend: any) {
       请选择账号后查看好友
     </div>
 
-    <div v-else-if="!status?.connection?.connected" class="glass-panel glass-text-muted flex flex-col items-center justify-center gap-4 rounded-lg p-12 text-center shadow">
+    <div v-else-if="!isAccountConnected && friends.length === 0" class="glass-panel glass-text-muted flex flex-col items-center justify-center gap-4 rounded-lg p-12 text-center shadow">
       <div class="friends-offline-icon i-carbon-connection-signal-off text-4xl" />
       <div>
         <div class="glass-text-main text-lg font-medium">
           账号未登录
         </div>
         <div class="friends-summary-note mt-1 text-sm">
-          请先运行账号或检查网络连接
+          请先运行账号或检查网络连接。顶部“手动刷新”需要账号连接后才可用。
         </div>
       </div>
     </div>
 
     <div v-else-if="friends.length === 0" class="glass-panel glass-text-muted rounded-lg p-8 text-center shadow">
-      暂无好友或数据加载失败
+      <div class="glass-text-main text-base font-semibold">
+        {{ friendStatusBanner?.title || '暂无好友或数据加载失败' }}
+      </div>
+      <div v-if="friendStatusBanner?.description" class="friends-summary-note mt-2 text-sm leading-6">
+        {{ friendStatusBanner.description }}
+      </div>
+      <div v-if="isWechatAccount && isAccountConnected" class="friends-summary-note mt-3 text-xs leading-5">
+        你也可以点击上方“访客补缓存”，尝试从最近访客/互动记录补一份临时好友缓存。
+      </div>
     </div>
 
     <div v-else>
@@ -417,8 +702,11 @@ function getFriendStatusClass(friend: any) {
           class="glass-panel flex flex-col overflow-hidden rounded-lg shadow"
         >
           <div
-            class="friends-card-body flex flex-1 flex-col cursor-pointer gap-4 p-4 transition"
-            :class="blacklist.includes(Number(friend.gid)) ? 'opacity-50' : ''"
+            class="friends-card-body flex flex-1 flex-col gap-4 p-4 transition"
+            :class="[
+              blacklist.includes(Number(friend.gid)) ? 'opacity-50' : '',
+              canMutateFriends ? 'cursor-pointer' : 'cursor-default',
+            ]"
             @click="toggleFriend(friend.gid)"
           >
             <!-- 头部：头像 + 名字 + 状态 -->
@@ -430,6 +718,7 @@ function getFriendStatusClass(friend: any) {
               >
                 <input
                   :checked="selectedIdSet.has(Number(friend.gid))"
+                  :disabled="!canMutateFriends"
                   type="checkbox"
                   @change="toggleFriendSelection(friend.gid, $event)"
                 >
@@ -465,36 +754,42 @@ function getFriendStatusClass(friend: any) {
             <div class="friends-op-area grid grid-cols-3 mt-auto gap-1.5 pt-2">
               <button
                 class="op-btn op-blue w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 @click="handleOp(friend.gid, 'steal', $event)"
               >
                 偷取
               </button>
               <button
                 class="op-btn op-cyan w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 @click="handleOp(friend.gid, 'water', $event)"
               >
                 浇水
               </button>
               <button
                 class="op-btn op-green w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 @click="handleOp(friend.gid, 'weed', $event)"
               >
                 除草
               </button>
               <button
                 class="op-btn op-orange w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 @click="handleOp(friend.gid, 'bug', $event)"
               >
                 除虫
               </button>
               <button
                 class="op-btn op-red w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 @click="handleOp(friend.gid, 'bad', $event)"
               >
                 捣乱
               </button>
               <button
                 class="op-btn op-gray w-full whitespace-nowrap"
+                :disabled="!canMutateFriends"
                 :class="{ 'opacity-80': blacklist.includes(Number(friend.gid)) }"
                 @click="handleToggleBlacklist(friend, $event)"
               >
@@ -562,6 +857,58 @@ function getFriendStatusClass(friend: any) {
   z-index: 12;
 }
 
+.friends-refresh-btn {
+  border: 1px solid var(--ui-border-subtle) !important;
+  background: color-mix(in srgb, var(--ui-bg-surface) 76%, transparent) !important;
+  color: var(--ui-text-1) !important;
+}
+
+.friends-refresh-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ui-status-info) 22%, var(--ui-border-subtle)) !important;
+  background: color-mix(in srgb, var(--ui-status-info) 8%, var(--ui-bg-surface)) !important;
+}
+
+.friends-refresh-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.friends-status-banner {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface) 82%, transparent);
+}
+
+.friends-status-banner-warning {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 24%, var(--ui-border-subtle)) !important;
+  background: color-mix(in srgb, var(--ui-status-warning) 8%, var(--ui-bg-surface)) !important;
+}
+
+.friends-status-banner-danger {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 24%, var(--ui-border-subtle)) !important;
+  background: color-mix(in srgb, var(--ui-status-danger) 8%, var(--ui-bg-surface)) !important;
+}
+
+.friends-status-banner-icon {
+  font-size: 18px;
+}
+
+.friends-status-banner-warning .friends-status-banner-icon {
+  color: color-mix(in srgb, var(--ui-status-warning) 82%, var(--ui-text-1)) !important;
+}
+
+.friends-status-banner-danger .friends-status-banner-icon {
+  color: color-mix(in srgb, var(--ui-status-danger) 82%, var(--ui-text-1)) !important;
+}
+
+.friends-status-banner-title {
+  color: var(--ui-text-1) !important;
+  font-weight: 700;
+}
+
+.friends-status-banner-desc {
+  color: var(--ui-text-2) !important;
+}
+
 .friends-result-row {
   border: 1px solid var(--ui-border-subtle) !important;
   background: color-mix(in srgb, var(--ui-bg-surface) 72%, transparent) !important;
@@ -581,6 +928,10 @@ function getFriendStatusClass(friend: any) {
 
 .friends-card-body:hover {
   background: color-mix(in srgb, var(--ui-bg-surface) 72%, transparent) !important;
+}
+
+.friends-card-body.cursor-default:hover {
+  background: transparent !important;
 }
 
 .friends-select-box,
@@ -663,6 +1014,13 @@ function getFriendStatusClass(friend: any) {
   filter: brightness(1.05);
 }
 
+.op-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none !important;
+  filter: none !important;
+}
+
 .op-btn:active {
   transform: translateY(0);
 }
@@ -681,6 +1039,11 @@ function getFriendStatusClass(friend: any) {
   border-color: transparent;
   background: linear-gradient(135deg, var(--ui-brand-700), var(--ui-brand-500));
   color: var(--ui-text-on-brand);
+}
+
+.batch-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .batch-btn-subtle {

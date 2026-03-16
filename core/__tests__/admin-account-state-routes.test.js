@@ -4,12 +4,15 @@ const assert = require('node:assert/strict');
 const { registerAccountStateRoutes } = require('../src/controllers/admin/account-state-routes');
 
 function createFakeApp() {
-    const routes = { get: new Map() };
+    const routes = { get: new Map(), post: new Map() };
     return {
         routes,
         app: {
             get(path, ...handlers) {
                 routes.get.set(path, handlers);
+            },
+            post(path, ...handlers) {
+                routes.post.set(path, handlers);
             },
         },
     };
@@ -133,6 +136,72 @@ test('friends route falls back to cached friends when worker is offline', async 
     assert.deepEqual(res.body, {
         ok: true,
         data: [{ gid: 1005, name: 'cached-friend' }],
+        meta: {
+            source: 'cache',
+            reason: 'worker_error',
+        },
+    });
+});
+
+test('friends route exposes runtime friend meta when available', async () => {
+    const { app, routes } = createFakeApp();
+    const friends = [{ gid: 1007, name: 'wx-cache-friend' }];
+    friends._meta = {
+        source: 'cache',
+        reason: 'self_only',
+        platform: 'wx_car',
+        conservative: true,
+        realtimeAvailable: false,
+    };
+    const deps = createDeps({
+        app,
+        getProvider: () => ({
+            getFriends: async () => friends,
+        }),
+    });
+
+    registerAccountStateRoutes(deps);
+    const { handler } = getRouteParts(routes, '/api/friends');
+    const res = createResponse();
+    await handler({}, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+        ok: true,
+        data: [{ gid: 1007, name: 'wx-cache-friend' }],
+        meta: {
+            source: 'cache',
+            reason: 'self_only',
+            platform: 'wx_car',
+            conservative: true,
+            realtimeAvailable: false,
+        },
+    });
+});
+
+test('friends route forwards manual refresh flag to provider', async () => {
+    const { app, routes } = createFakeApp();
+    const providerCalls = [];
+    const deps = createDeps({
+        app,
+        getProvider: () => ({
+            getFriends: async (_accountId, options) => {
+                providerCalls.push(options);
+                return [];
+            },
+        }),
+    });
+
+    registerAccountStateRoutes(deps);
+    const { handler } = getRouteParts(routes, '/api/friends');
+    const res = createResponse();
+    await handler({ query: { refresh: '1' } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(providerCalls, [{ manualRefresh: true }]);
+    assert.deepEqual(res.body, {
+        ok: true,
+        data: [],
     });
 });
 

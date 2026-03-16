@@ -61,6 +61,124 @@ function _clearPeriodicStatus(...keys) {
     keys.forEach(key => _periodicStatusLogCache.delete(key));
 }
 
+function _attachFriendsListMeta(list, meta = null) {
+    const target = Array.isArray(list) ? list : [];
+    if (!meta || typeof meta !== 'object') {
+        return target;
+    }
+    target._meta = meta;
+    return target;
+}
+
+function _buildFriendsListMeta(reply, options = {}) {
+    const reason = String(
+        options.reason
+        || reply?._wxRealtimeUnavailableReason
+        || ''
+    ).trim();
+    const platform = String(CONFIG.platform || '').trim();
+    const isWechatFallback = !!(reply?._wxConservativeGetAllOnly && reply?._wxRealtimeUnavailable);
+    const isQqCacheFallback = !!(reply?._qqConservativeSyncOnly && reply?._fromCache);
+    const source = String(
+        options.source
+        || (reply?._fromCache
+            ? 'cache'
+            : (isWechatFallback ? 'empty' : 'live'))
+    ).trim() || 'live';
+    const cooldownUntil = Math.max(0, Number(reply?._wxAutoRetryAt || 0));
+    const syncAllUnsupportedUntil = Math.max(0, Number(reply?._wxSyncAllUnsupportedUntil || 0));
+    const cacheSource = String(reply?._cacheSource || options.cacheSource || '').trim();
+    const seededCount = Math.max(0, Number(reply?._cacheSeededCount || options.seededCount || 0));
+    const needsMeta = isWechatFallback || isQqCacheFallback || source === 'cache' || source === 'empty' || cooldownUntil > 0 || syncAllUnsupportedUntil > 0 || !!cacheSource || seededCount > 0 || options.force;
+    if (!needsMeta) {
+        return null;
+    }
+    const meta = {
+        source,
+        reason: reason || undefined,
+        platform,
+        realtimeAvailable: source === 'live' && !isWechatFallback,
+        conservative: !!(reply?._wxConservativeGetAllOnly || reply?._qqConservativeSyncOnly),
+    };
+    if (cacheSource) {
+        meta.cacheSource = cacheSource;
+    }
+    if (seededCount > 0) {
+        meta.seededCount = seededCount;
+    }
+    if (cooldownUntil > 0) {
+        meta.cooldownUntil = cooldownUntil;
+    }
+    if (syncAllUnsupportedUntil > 0) {
+        meta.syncAllUnsupportedUntil = syncAllUnsupportedUntil;
+    }
+    return meta;
+}
+
+function _describeManualRefreshReason(reason) {
+    switch (String(reason || '').trim()) {
+        case 'self_only':
+            return '接口仅返回自己';
+        case 'empty':
+            return '接口未返回可用好友';
+        case 'cooldown':
+            return '当前处于静默期';
+        case 'error':
+            return '接口请求异常';
+        case 'worker_error':
+            return '运行时拉取失败';
+        case 'cache_fallback':
+            return '已回退缓存好友';
+        case 'request_failed':
+            return '请求失败';
+        default:
+            return '';
+    }
+}
+
+function _logManualRefreshSummary(meta, stats = {}) {
+    const normalizedMeta = meta && typeof meta === 'object' ? meta : {};
+    const source = String(normalizedMeta.source || 'empty').trim() || 'empty';
+    const reason = String(normalizedMeta.reason || '').trim();
+    const visibleCount = Math.max(0, Number(stats.visibleCount || 0));
+    const rawCount = Math.max(0, Number(stats.rawCount || 0));
+    const filteredOutCount = Math.max(0, Number(stats.filteredOutCount || 0));
+    const cooldownMs = Math.max(0, Number(normalizedMeta.cooldownUntil || 0) - Date.now());
+    const cooldownSec = cooldownMs > 0 ? Math.ceil(cooldownMs / 1000) : 0;
+    const reasonText = _describeManualRefreshReason(reason);
+
+    if (source === 'live' && visibleCount > 0) {
+        log('好友', `手动刷新好友成功：实时好友 ${visibleCount} 人`, {
+            module: 'friend',
+            event: 'friend_manual_refresh',
+            result: 'live',
+            source,
+            visibleCount,
+            rawCount,
+            filteredOutCount,
+        });
+        return;
+    }
+
+    const normalizedSource = source === 'live' ? 'empty' : source;
+    const baseMessage = normalizedSource === 'cache'
+        ? `手动刷新好友已回退缓存：缓存好友 ${visibleCount} 人`
+        : '手动刷新好友未拿到可用结果';
+    const reasonMessage = reasonText ? `，原因：${reasonText}` : '';
+    const retryMessage = cooldownSec > 0 ? `，自动重试约 ${cooldownSec} 秒后恢复` : '';
+    logWarn('好友', `${baseMessage}${reasonMessage}${retryMessage}`, {
+        module: 'friend',
+        event: 'friend_manual_refresh',
+        result: normalizedSource,
+        source: normalizedSource,
+        reason: reason || undefined,
+        visibleCount,
+        rawCount,
+        filteredOutCount,
+        cooldownSec: cooldownSec || undefined,
+    });
+}
+
 function isQQPlatform() {
     return String(CONFIG.platform || '').trim().toLowerCase() === 'qq';
 }
@@ -453,9 +571,9 @@ function autoDisableHelpByExpLimit() {
     });
 }
 
-async function getFriendsList() {
+async function getFriendsList(options = {}) {
     try {
-        const reply = await actions.getAllFriends();
+        const reply = await actions.getAllFriends(options);
         const friends = reply.game_friends || [];
         const userState = getUserState();
         const platformInst = PlatformFactory.createPlatform(CONFIG.platform);
@@ -492,7 +610,7 @@ async function getFriendsList() {
             );
         }
 
-        return filtered
+        const normalized = filtered
             .map(f => ({
                 gid: toNum(f.gid),
                 uin: _resolveFriendQQUin(f),
@@ -515,9 +633,39 @@ async function getFriendsList() {
                 if (byName !== 0) return byName;
                 return Number(a.gid || 0) - Number(b.gid || 0);
             });
+        const meta = _buildFriendsListMeta(reply, {
+            reason: options.manualRefresh ? String(reply?._wxRealtimeUnavailableReason || '').trim() : '',
+            force: !!options.manualRefresh,
+        });
+        if (options.manualRefresh) {
+            _logManualRefreshSummary(meta || { source: 'live' }, {
+                visibleCount: normalized.length,
+                rawCount: friends.length,
+                filteredOutCount: filteredOut.length,
+            });
+        }
+        return _attachFriendsListMeta(normalized, meta);
     } catch (err) {
         _logFriendsListDebug('friends_list_error', `[getFriendsList 调试] 获取好友列表异常: ${err.message}`, 'warn');
-        return [];
+        if (options.manualRefresh) {
+            _logManualRefreshSummary({
+                source: 'empty',
+                reason: 'error',
+            }, {
+                visibleCount: 0,
+                rawCount: 0,
+                filteredOutCount: 0,
+            });
+        }
+        return _attachFriendsListMeta([], {
+            source: 'empty',
+            reason: 'error',
+            platform: String(CONFIG.platform || '').trim(),
+            realtimeAvailable: false,
+            conservative: false,
+            cacheSource: '',
+            seededCount: 0,
+        });
     }
 }
 
@@ -870,6 +1018,29 @@ async function checkFriends(mode = 'full') {
             return false;
         }
         _clearPeriodicStatus('friend_qq_conservative_cache_skip');
+        if (friendsReply && friendsReply._wxConservativeGetAllOnly && friendsReply._wxRealtimeUnavailable) {
+            const usingCache = !!friendsReply._fromCache;
+            _logPeriodicStatus(
+                'friend_wx_conservative_skip',
+                usingCache
+                    ? '微信保守好友链路：实时好友列表当前不可用，本轮仅保留缓存展示并跳过自动好友互动。'
+                    : '微信保守好友链路：实时好友列表当前不可用，且没有可用缓存，本轮已停止重复探测并跳过自动好友互动。',
+                {
+                    level: 'warn',
+                    tag: '安全',
+                    stateValue: `wx_skip:${usingCache ? 'cache' : 'empty'}:${String(friendsReply._wxRealtimeUnavailableReason || 'unknown')}`,
+                    meta: {
+                        module: 'friend',
+                        event: 'wx_friend_fetch_guard',
+                        result: usingCache ? 'skip_cycle_by_cache' : 'skip_cycle_empty',
+                        cachedCount: friends.length,
+                        reason: String(friendsReply._wxRealtimeUnavailableReason || '').trim() || undefined,
+                    },
+                },
+            );
+            return false;
+        }
+        _clearPeriodicStatus('friend_wx_conservative_skip');
         if (friends.length === 0) {
             if (!platformAllowsAutoSteal && baseStealEnabled) {
                 _logPeriodicStatus(

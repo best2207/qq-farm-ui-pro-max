@@ -27,8 +27,12 @@ const GET_GAME_FRIENDS_BATCH_SIZE = 35;
 const SHARED_FRIEND_CACHE_REUSE_COOLDOWN_MS = 60 * 1000;
 const VISITOR_FRIEND_SEED_COOLDOWN_MS = 60 * 1000;
 const QQ_CONSERVATIVE_FETCH_LOG_TTL_MS = 5 * 60 * 1000;
+const WECHAT_SYNC_ALL_UNSUPPORTED_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const WECHAT_GET_ALL_UNAVAILABLE_COOLDOWN_MS = 30 * 60 * 1000;
+const WECHAT_CONSERVATIVE_FETCH_LOG_TTL_MS = 5 * 60 * 1000;
 const _friendFetchStateByAccount = new Map();
 const _qqConservativeFetchLogCache = new Map();
+const _wechatConservativeFetchLogCache = new Map();
 
 
 function _resolveRuntimeAccountId(userState = null) {
@@ -69,8 +73,22 @@ function _logQQConservativeFetch(cacheKey, message, level = 'info', meta = {}) {
     log('好友', message, meta);
 }
 
+function _logWeChatConservativeFetch(cacheKey, message, level = 'info', meta = {}) {
+    const now = Date.now();
+    const prev = _wechatConservativeFetchLogCache.get(cacheKey) || 0;
+    if (now - prev < WECHAT_CONSERVATIVE_FETCH_LOG_TTL_MS) {
+        return;
+    }
+    _wechatConservativeFetchLogCache.set(cacheKey, now);
+    if (level === 'warn') {
+        logWarn('好友', message, meta);
+        return;
+    }
+    log('好友', message, meta);
+}
 
-async function getAllFriends() {
+
+async function getAllFriends(options = {}) {
     let reply;
     const platformInst = PlatformFactory.createPlatform(CONFIG.platform);
     const userState = getUserState();
@@ -79,6 +97,7 @@ async function getAllFriends() {
     const forceGetAll = getForceGetAllConfig(accountId).enabled;
     const isWeChat = !platformInst.allowSyncAll();
     const label = isWeChat ? '微信' : 'QQ';
+    const manualRefresh = !!options.manualRefresh;
 
     if (_isQQConservativeFriendFetchEnabled(accountId)) {
         reply = await _getAllViaConservativeQQSyncAll({
@@ -87,6 +106,21 @@ async function getAllFriends() {
             label,
             userState,
             forceGetAll,
+        });
+        if (reply && reply.game_friends && networkEvents) {
+            networkEvents.emit('friends_updated', reply.game_friends);
+        }
+        return reply;
+    }
+
+    if (isWeChat) {
+        reply = await _getAllViaConservativeWeChatGetAll({
+            fetchState,
+            accountId,
+            label,
+            userState,
+            forceGetAll,
+            manualRefresh,
         });
         if (reply && reply.game_friends && networkEvents) {
             networkEvents.emit('friends_updated', reply.game_friends);
@@ -258,6 +292,218 @@ async function _getAllViaConservativeQQSyncAll(options = {}) {
     };
 }
 
+function _buildEmptyFriendReply(extra = {}) {
+    return {
+        game_friends: [],
+        invitations: [],
+        application_count: 0,
+        ...extra,
+    };
+}
+
+function _isWeChatSyncAllUnsupported(fetchState) {
+    return !!(fetchState && Number(fetchState.syncAllUnsupportedUntil) > Date.now());
+}
+
+function _markWeChatSyncAllUnsupported(fetchState, label) {
+    if (!fetchState) return;
+    const nextUntil = Date.now() + WECHAT_SYNC_ALL_UNSUPPORTED_COOLDOWN_MS;
+    const changed = nextUntil > Number(fetchState.syncAllUnsupportedUntil || 0);
+    fetchState.syncAllUnsupportedUntil = nextUntil;
+    if (!changed) return;
+    _logWeChatConservativeFetch('syncall_unsupported', `SyncAll 返回 code=1000020(${label})，已记录为微信账号不支持该接口，24 小时内不再重复探测。`, 'warn', {
+        module: 'friend',
+        event: 'wx_friend_fetch_guard',
+        result: 'sync_all_unsupported',
+        cooldownMs: WECHAT_SYNC_ALL_UNSUPPORTED_COOLDOWN_MS,
+    });
+}
+
+function _isWeChatRealtimeUnavailable(fetchState) {
+    return !!(fetchState && Number(fetchState.wechatRealtimeUnavailableUntil) > Date.now());
+}
+
+function _markWeChatRealtimeUnavailable(fetchState, resultLabel) {
+    if (!fetchState) return;
+    const nextUntil = Date.now() + WECHAT_GET_ALL_UNAVAILABLE_COOLDOWN_MS;
+    const changed = nextUntil > Number(fetchState.wechatRealtimeUnavailableUntil || 0);
+    fetchState.wechatRealtimeUnavailableUntil = nextUntil;
+    fetchState.wechatRealtimeUnavailableReason = String(resultLabel || '').trim() || 'empty';
+    if (!changed) return;
+    const reasonText = fetchState.wechatRealtimeUnavailableReason === 'self_only'
+        ? '仅返回自己'
+        : (fetchState.wechatRealtimeUnavailableReason === 'error' ? '请求异常' : '返回空');
+    _logWeChatConservativeFetch(`realtime_unavailable:${fetchState.wechatRealtimeUnavailableReason}`, `微信好友链路：GetAll ${reasonText}，30 分钟内停止重复实时探测，改走缓存/静默模式。`, 'warn', {
+        module: 'friend',
+        event: 'wx_friend_fetch_guard',
+        result: 'realtime_unavailable',
+        reason: fetchState.wechatRealtimeUnavailableReason,
+        cooldownMs: WECHAT_GET_ALL_UNAVAILABLE_COOLDOWN_MS,
+    });
+}
+
+function _clearWeChatRealtimeUnavailable(fetchState) {
+    if (!fetchState) return;
+    fetchState.wechatRealtimeUnavailableUntil = 0;
+    fetchState.wechatRealtimeUnavailableReason = '';
+}
+
+function _getWeChatAutoRetryAt(fetchState) {
+    if (!fetchState) return 0;
+    return Math.max(
+        Number(fetchState.wechatRealtimeUnavailableUntil || 0),
+        Number(fetchState.getAllParamErrorUntil || 0),
+    );
+}
+
+function _getWeChatGuardMeta(fetchState) {
+    const meta = {};
+    const autoRetryAt = _getWeChatAutoRetryAt(fetchState);
+    const syncAllUnsupportedUntil = Number(fetchState && fetchState.syncAllUnsupportedUntil || 0);
+    if (autoRetryAt > Date.now()) {
+        meta._wxAutoRetryAt = autoRetryAt;
+    }
+    if (syncAllUnsupportedUntil > Date.now()) {
+        meta._wxSyncAllUnsupportedUntil = syncAllUnsupportedUntil;
+    }
+    return meta;
+}
+
+function _withWeChatConservativeMeta(reply, extra = {}) {
+    const { _fetchState, ...safeExtra } = extra || {};
+    return {
+        ...(reply || _buildEmptyFriendReply()),
+        _wxConservativeGetAllOnly: true,
+        ..._getWeChatGuardMeta(_fetchState),
+        ...safeExtra,
+    };
+}
+
+async function _getAllViaConservativeWeChatGetAll(options = {}) {
+    const fetchState = options.fetchState || null;
+    const accountId = options.accountId || null;
+    const userState = options.userState || null;
+    const label = options.label || '微信';
+    const forceGetAll = !!options.forceGetAll;
+    const manualRefresh = !!options.manualRefresh;
+
+    _setFriendFetchMode(fetchState, FRIEND_FETCH_MODE.GET_ALL, `${label} 保守模式固定使用 GetAll，关闭 SyncAll 探测`, forceGetAll ? 'forced' : 'wx_conservative');
+
+    if (_isWeChatSyncAllUnsupported(fetchState)) {
+        _logWeChatConservativeFetch('syncall_disabled_notice', '微信好友链路：已记住当前账号不支持 SyncAll，后续固定跳过该接口。', 'info', {
+            module: 'friend',
+            event: 'wx_friend_fetch_guard',
+            result: 'sync_all_skipped',
+        });
+    }
+
+    if (!manualRefresh && (_isGetAllParamErrorCoolingDown(fetchState) || _isWeChatRealtimeUnavailable(fetchState))) {
+        const cachedReply = await _getCachedFriendsReply(accountId, fetchState, {
+            userState,
+            allowVisitorSeed: true,
+        });
+        if (cachedReply) {
+            _logWeChatConservativeFetch('cooldown_cache', '微信好友链路：当前处于静默/兼容冷却期，本轮仅展示缓存好友，不再重复请求实时接口。', 'warn', {
+                module: 'friend',
+                event: 'wx_friend_fetch_guard',
+                result: 'cache_fallback',
+                cachedCount: Array.isArray(cachedReply.game_friends) ? cachedReply.game_friends.length : 0,
+            });
+            return _withWeChatConservativeMeta(cachedReply, {
+                _fetchState: fetchState,
+                _wxRealtimeUnavailable: true,
+                _wxRealtimeUnavailableReason: String(fetchState && fetchState.wechatRealtimeUnavailableReason || '').trim() || 'cooldown',
+            });
+        }
+
+        _logWeChatConservativeFetch('cooldown_empty', '微信好友链路：当前处于静默/兼容冷却期，且没有可用缓存，本轮直接跳过实时探测。', 'warn', {
+            module: 'friend',
+            event: 'wx_friend_fetch_guard',
+            result: 'empty',
+        });
+        return _withWeChatConservativeMeta(_buildEmptyFriendReply(), {
+            _fetchState: fetchState,
+            _wxRealtimeUnavailable: true,
+            _wxRealtimeUnavailableReason: String(fetchState && fetchState.wechatRealtimeUnavailableReason || '').trim() || 'cooldown',
+        });
+    }
+
+    if (manualRefresh && (_isGetAllParamErrorCoolingDown(fetchState) || _isWeChatRealtimeUnavailable(fetchState))) {
+        _logWeChatConservativeFetch('manual_refresh_probe', '微信好友链路：本次由手动刷新触发，已临时穿透静默期执行一次 GetAll，不会恢复自动重试。', 'warn', {
+            module: 'friend',
+            event: 'wx_friend_fetch_guard',
+            result: 'manual_refresh_probe',
+        });
+    }
+
+    try {
+        const reply = await _getAllViaGetAll('微信固定链路', {
+            fetchState,
+            retryOnEmpty: false,
+        });
+        if (_hasUsableFriendEntries(reply, userState)) {
+            _clearGetAllParamError(fetchState);
+            _clearWeChatRealtimeUnavailable(fetchState);
+            return _withWeChatConservativeMeta(reply, {
+                _fetchState: fetchState,
+            });
+        }
+
+        const reason = _describeFriendReply(reply, userState) === '仅自己' ? 'self_only' : 'empty';
+        _markWeChatRealtimeUnavailable(fetchState, reason);
+        const cachedReply = await _getCachedFriendsReply(accountId, fetchState, {
+            userState,
+            allowVisitorSeed: true,
+        });
+        if (cachedReply) {
+            return _withWeChatConservativeMeta(cachedReply, {
+                _fetchState: fetchState,
+                _wxRealtimeUnavailable: true,
+                _wxRealtimeUnavailableReason: reason,
+            });
+        }
+
+        return _withWeChatConservativeMeta(_buildEmptyFriendReply(), {
+            _fetchState: fetchState,
+            _wxRealtimeUnavailable: true,
+            _wxRealtimeUnavailableReason: reason,
+        });
+    } catch (err) {
+        _markWeChatRealtimeUnavailable(fetchState, 'error');
+        if (isParamError(err)) {
+            _markGetAllParamError(fetchState, label);
+        }
+        const cachedReply = await _getCachedFriendsReply(accountId, fetchState, {
+            userState,
+            allowVisitorSeed: true,
+        });
+        if (cachedReply) {
+            _logWeChatConservativeFetch('error_cache', `微信好友链路：GetAll 异常(${err.message || err})，本轮回退缓存，不再追加其他接口探测。`, 'warn', {
+                module: 'friend',
+                event: 'wx_friend_fetch_guard',
+                result: 'error_cache',
+                cachedCount: Array.isArray(cachedReply.game_friends) ? cachedReply.game_friends.length : 0,
+            });
+            return _withWeChatConservativeMeta(cachedReply, {
+                _fetchState: fetchState,
+                _wxRealtimeUnavailable: true,
+                _wxRealtimeUnavailableReason: 'error',
+            });
+        }
+
+        _logWeChatConservativeFetch('error_empty', `微信好友链路：GetAll 异常(${err.message || err})，且没有可用缓存，本轮直接停止。`, 'warn', {
+            module: 'friend',
+            event: 'wx_friend_fetch_guard',
+            result: 'error_empty',
+        });
+        return _withWeChatConservativeMeta(_buildEmptyFriendReply(), {
+            _fetchState: fetchState,
+            _wxRealtimeUnavailable: true,
+            _wxRealtimeUnavailableReason: 'error',
+        });
+    }
+}
+
 function resetGetAllMode(accountId = null) {
     if (accountId !== null && accountId !== undefined) {
         _friendFetchStateByAccount.delete(_getFriendFetchKey(accountId));
@@ -292,6 +538,9 @@ function _getFriendFetchState(accountId) {
             modeReason: '',
             modeSource: 'probe',
             getAllParamErrorUntil: 0,
+            syncAllUnsupportedUntil: 0,
+            wechatRealtimeUnavailableUntil: 0,
+            wechatRealtimeUnavailableReason: '',
             sharedCacheReuseAt: 0,
             visitorSeedAt: 0,
         });
@@ -312,6 +561,44 @@ function _isFetchProbeCooling(fetchState, field, cooldownMs) {
 function _markFetchProbe(fetchState, field) {
     if (!fetchState) return;
     fetchState[field] = Date.now();
+}
+
+function _attachCacheSeedMeta(list, source = '', seededCount = 0) {
+    const target = Array.isArray(list) ? list : [];
+    const normalizedSource = String(source || '').trim();
+    const normalizedSeededCount = Math.max(0, Number(seededCount || 0));
+    if (!normalizedSource && normalizedSeededCount <= 0) {
+        return target;
+    }
+    if (normalizedSource) {
+        target._cacheSource = normalizedSource;
+    }
+    if (normalizedSeededCount > 0) {
+        target._cacheSeededCount = normalizedSeededCount;
+    }
+    return target;
+}
+
+function _buildFriendSeedsFromInteractRecords(records = [], options = {}) {
+    const selfGid = toNum(options.userState && options.userState.gid);
+    const deduped = new Map();
+
+    for (const record of (Array.isArray(records) ? records : [])) {
+        const gid = toNum(record && record.visitorGid);
+        if (gid <= 0 || (selfGid > 0 && gid === selfGid) || deduped.has(gid)) {
+            continue;
+        }
+
+        const nick = String(record && record.nick || '').trim();
+        const avatarUrl = String(record && record.avatarUrl || '').trim();
+        deduped.set(gid, {
+            gid,
+            name: nick === `GID:${gid}` ? '' : nick,
+            avatarUrl,
+        });
+    }
+
+    return Array.from(deduped.values());
 }
 
 async function _tryReuseSharedFriendsCache(accountId, options = {}) {
@@ -360,7 +647,11 @@ async function _tryReuseSharedFriendsCache(accountId, options = {}) {
         });
 
         const cached = await getCachedFriends(accountId);
-        return Array.isArray(cached) && cached.length > 0 ? cached : friends;
+        return _attachCacheSeedMeta(
+            Array.isArray(cached) && cached.length > 0 ? cached : friends,
+            'shared_cache',
+            Array.isArray(friends) ? friends.length : 0,
+        );
     } catch (error) {
         logWarn('好友', `复用共享好友缓存失败: ${error.message}`, {
             module: 'friend',
@@ -384,25 +675,29 @@ async function _trySeedFriendsCacheFromVisitors(accountId, options = {}) {
 
     try {
         const records = await getInteractRecords(100);
-        const visitorGids = [...new Set(
-            (Array.isArray(records) ? records : [])
-                .map(record => toNum(record && record.visitorGid))
-                .filter(gid => gid > 0)
-        )];
-        if (visitorGids.length <= 0) {
+        const visitorSeeds = _buildFriendSeedsFromInteractRecords(records, {
+            userState: options.userState || null,
+        });
+        if (visitorSeeds.length <= 0) {
             return [];
         }
 
+        await cacheFriendSeeds(visitorSeeds, {
+            accountId,
+            immediate: true,
+        });
+
         const cached = await getCachedFriends(accountId);
         if (Array.isArray(cached) && cached.length > 0) {
-            log('好友', `当前账号无好友缓存，已从最近访客回填 ${visitorGids.length} 个 GID`, {
+            log('好友', `当前账号无好友缓存，已从最近访客补建 ${cached.length} 个临时好友缓存`, {
                 module: 'friend',
                 event: 'friend_cache_seed',
                 result: 'ok',
-                visitorCount: visitorGids.length,
+                visitorCount: visitorSeeds.length,
                 cachedCount: cached.length,
+                cacheSource: 'interact_records',
             });
-            return cached;
+            return _attachCacheSeedMeta(cached, 'interact_records', visitorSeeds.length);
         }
     } catch (error) {
         logWarn('好友', `最近访客回填好友缓存失败: ${error.message}`, {
@@ -495,6 +790,9 @@ async function _getAllViaSyncAll(isWeChat, options = {}) {
     } catch (syncErr) {
         const errMsg = syncErr.message || '';
         if (errMsg.includes('code=1000020')) {
+            if (isWeChat) {
+                _markWeChatSyncAllUnsupported(fetchState, label);
+            }
             log('好友', `SyncAll 返回 code=1000020(${label})，该接口不支持当前账号`);
         } else {
             logWarn('好友', `SyncAll 失败(${label}): ${errMsg}`);
@@ -708,6 +1006,8 @@ async function _getCachedFriendsReply(accountId, fetchState, options = {}) {
         invitations: [],
         application_count: 0,
         _fromCache: true,
+        _cacheSource: String(cached && cached._cacheSource || '').trim() || undefined,
+        _cacheSeededCount: Math.max(0, Number(cached && cached._cacheSeededCount || 0)),
     };
 
     if (reply.game_friends.length <= 0) return null;

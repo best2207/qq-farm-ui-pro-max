@@ -4,9 +4,23 @@ import api from '@/api'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 
 export const useFriendStore = defineStore('friend', () => {
+  const defaultFriendFetchMeta = () => ({
+    source: 'live',
+    reason: '',
+    platform: '',
+    cacheSource: '',
+    seededCount: 0,
+    conservative: false,
+    realtimeAvailable: true,
+    cooldownUntil: 0,
+    syncAllUnsupportedUntil: 0,
+  })
+
   const friends = ref<any[]>([])
   const cachedFriends = ref<any[]>([])
+  const friendFetchMeta = ref(defaultFriendFetchMeta())
   const loading = ref(false)
+  const seedCacheLoading = ref(false)
   const friendLands = ref<Record<string, any[]>>({})
   const friendLandsLoading = ref<Record<string, boolean>>({})
   const blacklist = ref<number[]>([])
@@ -14,6 +28,25 @@ export const useFriendStore = defineStore('friend', () => {
   const interactLoading = ref(false)
   const interactError = ref('')
   let interactRequestSeq = 0
+
+  function normalizeFriendFetchMeta(meta: any) {
+    const next = (meta && typeof meta === 'object') ? meta : {}
+    return {
+      source: String(next.source || 'live').trim() || 'live',
+      reason: String(next.reason || '').trim(),
+      platform: String(next.platform || '').trim(),
+      cacheSource: String(next.cacheSource || '').trim(),
+      seededCount: Math.max(0, Number(next.seededCount || 0)),
+      conservative: !!next.conservative,
+      realtimeAvailable: next.realtimeAvailable !== false,
+      cooldownUntil: Math.max(0, Number(next.cooldownUntil || 0)),
+      syncAllUnsupportedUntil: Math.max(0, Number(next.syncAllUnsupportedUntil || 0)),
+    }
+  }
+
+  function setFriendFetchMeta(meta?: any) {
+    friendFetchMeta.value = meta ? normalizeFriendFetchMeta(meta) : defaultFriendFetchMeta()
+  }
 
   function normalizeInteractError(input: any, errorCode?: string) {
     const raw = String(input || '').trim()
@@ -96,25 +129,45 @@ export const useFriendStore = defineStore('friend', () => {
     return false
   }
 
-  async function fetchFriends(accountId: string): Promise<{ ok: boolean, fromCache?: boolean }> {
+  async function fetchFriends(accountId: string, options: { manualRefresh?: boolean } = {}): Promise<{ ok: boolean, fromCache?: boolean }> {
     if (!accountId)
       return { ok: false }
     loading.value = true
     try {
       const res = await api.get('/api/friends', {
         headers: { 'x-account-id': accountId },
+        params: options.manualRefresh ? { refresh: '1' } : undefined,
       })
       if (res.data.ok) {
+        const apiMeta = normalizeFriendFetchMeta(res.data.meta)
         const liveFriends = Array.isArray(res.data.data) ? res.data.data : []
         if (liveFriends.length > 0) {
           friends.value = liveFriends
-          return { ok: true, fromCache: false }
+          setFriendFetchMeta(apiMeta)
+          return { ok: true, fromCache: apiMeta.source === 'cache' }
         }
         const fromCache = await applyCachedFriendsFallback(accountId)
+        setFriendFetchMeta(fromCache
+          ? {
+              ...apiMeta,
+              source: 'cache',
+              reason: apiMeta.reason || 'cache_fallback',
+              realtimeAvailable: apiMeta.realtimeAvailable,
+            }
+          : apiMeta)
         friends.value = fromCache ? [...cachedFriends.value] : []
         return { ok: true, fromCache }
       }
       const fromCache = await applyCachedFriendsFallback(accountId)
+      setFriendFetchMeta(fromCache
+        ? {
+            source: 'cache',
+            reason: 'request_failed',
+            platform: '',
+            conservative: false,
+            realtimeAvailable: false,
+          }
+        : undefined)
       if (fromCache)
         return { ok: true, fromCache: true }
       return { ok: false }
@@ -123,10 +176,24 @@ export const useFriendStore = defineStore('friend', () => {
       try {
         const fromCache = await applyCachedFriendsFallback(accountId)
         if (fromCache) {
+          setFriendFetchMeta({
+            source: 'cache',
+            reason: 'request_failed',
+            platform: '',
+            conservative: false,
+            realtimeAvailable: false,
+          })
           return { ok: true, fromCache: true }
         }
       }
       catch { /* ignore */ }
+      setFriendFetchMeta({
+        source: 'empty',
+        reason: 'request_failed',
+        platform: '',
+        conservative: false,
+        realtimeAvailable: false,
+      })
       return { ok: false }
     }
     finally {
@@ -228,6 +295,63 @@ export const useFriendStore = defineStore('friend', () => {
     }
   }
 
+  async function seedFriendsCache(accountId: string, limit = 100): Promise<{ ok: boolean, fromCache?: boolean, seededCount?: number, error?: string, errorCode?: string }> {
+    if (!accountId)
+      return { ok: false, error: '缺少账号标识' }
+    seedCacheLoading.value = true
+    try {
+      const res = await api.post('/api/friends/seed-cache', {
+        limit: Math.max(1, Math.min(200, Number(limit) || 100)),
+      }, {
+        headers: { 'x-account-id': accountId },
+      })
+
+      const apiMeta = normalizeFriendFetchMeta(res.data?.meta)
+      const nextFriends = Array.isArray(res.data?.data) ? res.data.data : []
+
+      if (nextFriends.length > 0) {
+        friends.value = nextFriends
+        cachedFriends.value = [...nextFriends]
+        setFriendFetchMeta(apiMeta)
+        return {
+          ok: true,
+          fromCache: true,
+          seededCount: Math.max(0, Number(res.data?.seededCount || apiMeta.seededCount || 0)),
+        }
+      }
+
+      friends.value = []
+      setFriendFetchMeta(apiMeta)
+      return {
+        ok: !!res.data?.ok,
+        fromCache: false,
+        seededCount: Math.max(0, Number(res.data?.seededCount || apiMeta.seededCount || 0)),
+        error: res.data?.ok ? '' : String(res.data?.error || '未补到可用好友缓存'),
+        errorCode: String(res.data?.errorCode || '').trim(),
+      }
+    }
+    catch (error: any) {
+      setFriendFetchMeta({
+        source: 'empty',
+        reason: 'interact_seed_error',
+        platform: '',
+        cacheSource: 'interact_records',
+        seededCount: 0,
+        conservative: true,
+        realtimeAvailable: false,
+      })
+      return {
+        ok: false,
+        fromCache: false,
+        error: String(error?.response?.data?.error || error?.message || '访客补缓存失败'),
+        errorCode: String(error?.response?.data?.errorCode || '').trim(),
+      }
+    }
+    finally {
+      seedCacheLoading.value = false
+    }
+  }
+
   async function fetchInteractRecords(accountId: string, limit = 50): Promise<boolean> {
     const normalizedAccountId = String(accountId || '').trim()
     if (!normalizedAccountId) {
@@ -283,7 +407,9 @@ export const useFriendStore = defineStore('friend', () => {
   return {
     friends,
     cachedFriends,
+    friendFetchMeta,
     loading,
+    seedCacheLoading,
     friendLands,
     friendLandsLoading,
     blacklist,
@@ -293,6 +419,7 @@ export const useFriendStore = defineStore('friend', () => {
     clearInteractState,
     fetchFriends,
     fetchCachedFriends,
+    seedFriendsCache,
     fetchBlacklist,
     toggleBlacklist,
     fetchFriendLands,

@@ -917,7 +917,7 @@ async function handleApiCall(msg) {
                 result = await farmService.getLandsDetail();
                 break;
             case 'getFriends':
-                result = await friendService.getFriendsList();
+                result = await friendService.getFriendsList(args[0] || {});
                 break;
             case 'getFriendLands':
                 result = await friendService.getFriendLandsDetail(args[0]);

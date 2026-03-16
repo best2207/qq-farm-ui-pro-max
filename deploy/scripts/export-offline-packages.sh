@@ -14,7 +14,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/deploy/offline}"
 APP_IMAGE_OVERRIDE="${APP_IMAGE_OVERRIDE:-}"
 RETRY_COUNT="${RETRY_COUNT:-20}"
 RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-30}"
-VERSION_INPUT="${VERSION:-v4.5.21}"
+VERSION_INPUT="${VERSION:-v4.5.22}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -191,33 +191,28 @@ export_stack_archive() {
     local arch="$1"
     local output_file="$2"
     local app_local_tag=""
-    local mysql_local_tag=""
-    local redis_local_tag=""
-    local ipad860_local_tag=""
 
     print_info "导出 ${arch} 离线镜像包..."
 
     app_local_tag="$(materialize_platform_local_tag "${APP_IMAGE_SOURCE}" "linux/${arch}" "app-${arch}")"
-    mysql_local_tag="$(materialize_platform_local_tag "${MYSQL_IMAGE}" "linux/${arch}" "mysql-${arch}")"
-    redis_local_tag="$(materialize_platform_local_tag "${REDIS_IMAGE}" "linux/${arch}" "redis-${arch}")"
-    ipad860_local_tag="$(materialize_platform_local_tag "${IPAD860_IMAGE}" "linux/amd64" "ipad860-${arch}")"
+    pull_with_retry "${MYSQL_IMAGE}" "linux/${arch}" >/dev/null
+    pull_with_retry "${REDIS_IMAGE}" "linux/${arch}" >/dev/null
+    pull_with_retry "${IPAD860_IMAGE}" "linux/amd64" >/dev/null
 
     if [ "${arch}" = "arm64" ]; then
         print_warning "arm64 离线包中的 ipad860 仍为 linux/amd64，目标宿主机需支持 QEMU。"
     fi
 
+    docker tag "${app_local_tag}" "${APP_IMAGE_SOURCE}"
+
     docker save \
-        "${app_local_tag}" \
-        "${mysql_local_tag}" \
-        "${redis_local_tag}" \
-        "${ipad860_local_tag}" \
+        "${APP_IMAGE_SOURCE}" \
+        "${MYSQL_IMAGE}" \
+        "${REDIS_IMAGE}" \
+        "${IPAD860_IMAGE}" \
         | gzip > "${output_file}"
 
-    docker image rm -f \
-        "${app_local_tag}" \
-        "${mysql_local_tag}" \
-        "${redis_local_tag}" \
-        "${ipad860_local_tag}" >/dev/null 2>&1 || true
+    docker image rm -f "${app_local_tag}" >/dev/null 2>&1 || true
 
     print_success "镜像包已导出: ${output_file}"
 }

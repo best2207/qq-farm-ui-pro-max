@@ -2809,322 +2809,375 @@ useIntervalFn(loadBag, 60000)
                 </template>
               </div>
             </div>
-            <button class="detail-modal-close" @click="closeDetailPanel">
-              关闭
+            <button type="button" class="detail-modal-close" aria-label="关闭详情弹窗" @click="closeDetailPanel">
+              <span class="detail-modal-close__icon i-carbon-close" aria-hidden="true" />
+              <span class="detail-modal-close__text">关闭</span>
             </button>
           </div>
-
-          <template v-if="bagDetailItem">
-            <div class="detail-hero">
-              <div class="detail-hero__art" :data-fallback="getItemFallbackLabel(bagDetailItem)">
-                <img
-                  v-if="bagDetailItem.image && !imageErrors[getImageErrorKey('bag-detail', bagDetailItem.id)]"
-                  :src="bagDetailItem.image"
-                  :alt="bagDetailItem.name"
-                  class="detail-hero__image"
-                  loading="lazy"
-                  @error="imageErrors[getImageErrorKey('bag-detail', bagDetailItem.id)] = true"
-                >
-                <div v-else class="inventory-card__fallback">
-                  {{ getItemFallbackLabel(bagDetailItem) }}
-                </div>
-              </div>
-              <div class="detail-hero__copy">
-                <div class="detail-badges">
-                  <span class="inventory-pill">{{ getBagCategoryLabel(resolveBagCategory(bagDetailItem)) }}</span>
-                  <span class="inventory-pill inventory-pill-sky">稀有度 {{ getRarityLabel(bagDetailItem.rarity) }}</span>
-                  <span class="inventory-pill" :class="bagDetailItem.canUse ? 'inventory-pill-emerald' : 'inventory-pill-amber'">
-                    {{ bagDetailItem.canUse ? '可使用' : '不可直接使用' }}
-                  </span>
-                </div>
-                <div class="detail-summary">
-                  {{ getItemDescription(bagDetailItem) || '暂无物品说明' }}
-                </div>
-                <div class="detail-actions">
-                  <div v-if="bagDetailItem.canUse && !itemNeedsLandSelection(bagDetailItem)" class="trade-stepper">
-                    <button class="trade-stepper__btn" @click="bumpUseCount(bagDetailItem.id, -1, bagDetailItem.count)">
-                      -
-                    </button>
-                    <input
-                      :value="getUseCount(bagDetailItem.id, bagDetailItem.count)"
-                      type="number"
-                      min="1"
-                      :max="Math.max(1, Number(bagDetailItem.count || 1))"
-                      class="trade-input trade-input-stepper"
-                      @input="updateUseCount(bagDetailItem.id, Number(($event.target as HTMLInputElement).value || 1), bagDetailItem.count)"
-                    >
-                    <button class="trade-stepper__btn" @click="bumpUseCount(bagDetailItem.id, 1, bagDetailItem.count)">
-                      +
-                    </button>
-                  </div>
-                  <div v-if="bagDetailItem.canUse && itemNeedsLandSelection(bagDetailItem)" class="detail-land-counter">
-                    已选 {{ selectedLandIds.length }} / {{ getLandSelectionLimit(bagDetailItem) }} 块，将按选中地块数消耗
-                  </div>
-                  <BaseButton
-                    v-if="bagDetailItem.canUse"
-                    variant="primary"
-                    class="trade-btn trade-btn-primary"
-                    :disabled="actionLoading"
-                    @click="handleUseBagItem(bagDetailItem)"
-                  >
-                    立即使用
-                  </BaseButton>
-                  <BaseButton
-                    v-if="bagDetailItem.category === 'fruit'"
-                    variant="primary"
-                    class="trade-btn trade-btn-primary"
-                    @click="toggleSelectItem(Number(bagDetailItem.id || 0))"
-                  >
-                    {{ isSelected(Number(bagDetailItem.id || 0)) ? '移出出售选择' : '加入出售选择' }}
-                  </BaseButton>
-                  <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" @click="closeDetailPanel">
-                    返回列表
-                  </BaseButton>
-                </div>
-              </div>
-            </div>
-
-            <div class="detail-stats">
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">当前持有</span>
-                <span class="detail-stat-card__value">{{ bagDetailItem.hoursText || `x${bagDetailItem.count || 0}` }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">等级 / 单价</span>
-                <span class="detail-stat-card__value">Lv{{ bagDetailItem.level || 0 }} · {{ bagDetailItem.price || 0 }}金</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">类型 / 交互</span>
-                <span class="detail-stat-card__value">{{ bagDetailItem.itemType || 0 }} · {{ bagDetailItem.interactionType || '无' }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">堆叠上限</span>
-                <span class="detail-stat-card__value">{{ bagDetailItem.maxCount || 0 }} / {{ bagDetailItem.maxOwn || 0 }}</span>
-              </div>
-            </div>
-
-            <div class="detail-sections">
-              <div v-for="(text, index) in getItemLongDescription(bagDetailItem)" :key="`bag-desc-${index}`" class="detail-section-card">
-                {{ text }}
-              </div>
-            </div>
-
-            <template v-if="bagDetailItem.canUse && itemNeedsLandSelection(bagDetailItem)">
-              <div class="detail-section-title">
-                目标土地
-              </div>
-              <div class="detail-land-toolbar">
-                <div class="detail-land-toolbar__hint">
-                  {{ getLandSelectionHint(bagDetailItem) }}
-                </div>
-                <div class="detail-land-toolbar__actions">
-                  <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="landsLoading" @click="ensureFarmLandsLoaded()">
-                    刷新土地
-                  </BaseButton>
-                  <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="suggestedTargetLandIds.length === 0" @click="selectSuggestedLands()">
-                    智能选择
-                  </BaseButton>
-                  <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="selectedLandIds.length === 0" @click="clearSelectedLands()">
-                    清空选择
-                  </BaseButton>
-                </div>
-              </div>
-              <div v-if="landsLoading" class="detail-land-empty">
-                正在加载土地...
-              </div>
-              <div v-else-if="availableTargetLands.length === 0" class="detail-land-empty">
-                当前没有可用土地数据
-              </div>
-              <div v-else class="detail-land-grid">
-                <button
-                  v-for="land in availableTargetLands"
-                  :key="`use-land-${land.id}`"
-                  class="detail-land-card"
-                  :class="{ active: isLandSelected(Number(land.id || 0)), suggested: suggestedTargetLandIds.includes(Number(land.id || 0)) }"
-                  @click="toggleSelectedLand(Number(land.id || 0))"
-                >
-                  <div class="detail-land-card__head">
-                    <span class="detail-land-card__id">#{{ land.id }}</span>
-                    <span class="detail-land-card__status">{{ normalizeLandStatusLabel(land) }}</span>
-                  </div>
-                  <div class="detail-land-card__name">
-                    {{ land.plantName || land.phaseName || '空地' }}
-                  </div>
-                  <div class="detail-land-card__meta">
-                    <span v-if="land.needWater">缺水</span>
-                    <span v-if="land.needWeed">有草</span>
-                    <span v-if="land.needBug">有虫</span>
-                    <span v-if="Number(land.matureInSec || 0) > 0">{{ Number(land.matureInSec || 0) }}s</span>
-                    <span v-if="!land.needWater && !land.needWeed && !land.needBug && Number(land.matureInSec || 0) <= 0">普通</span>
-                  </div>
-                </button>
-              </div>
-            </template>
-
-            <template v-if="lastUseResult && Number(lastUseResult.itemId || 0) === Number(bagDetailItem.id || 0)">
-              <div class="detail-section-title">
-                本次使用结果
-              </div>
-              <div class="detail-use-summary">
-                <div class="detail-use-summary__message">
-                  {{ lastUseResult.rewardSummary || lastUseResult.message || '使用成功' }}
-                </div>
-                <div class="detail-use-summary__meta">
-                  <span>使用数量 {{ lastUseResult.count || 1 }}</span>
-                  <span v-if="lastUseResult.landIds?.length">目标土地 {{ lastUseResult.landIds.join(', ') }}</span>
-                </div>
-              </div>
-              <div v-if="lastUseResult.rewardItems?.length" class="detail-preview-grid">
-                <div
-                  v-for="reward in lastUseResult.rewardItems"
-                  :key="`use-result-${bagDetailItem.id}-${reward.id}`"
-                  class="detail-preview-card"
-                >
-                  <div class="detail-preview-card__thumb" :data-fallback="getItemFallbackLabel(reward)">
-                    <img
-                      v-if="reward.image && !imageErrors[getImageErrorKey('use-result', bagDetailItem.id, reward.id)]"
-                      :src="reward.image"
-                      :alt="reward.name"
-                      loading="lazy"
-                      @error="imageErrors[getImageErrorKey('use-result', bagDetailItem.id, reward.id)] = true"
-                    >
-                    <div v-else class="inventory-card__fallback detail-preview-card__fallback">
-                      {{ getItemFallbackLabel(reward) }}
-                    </div>
-                  </div>
-                  <div class="detail-preview-card__copy">
-                    <div class="detail-preview-card__title">
-                      {{ reward.name }}
-                    </div>
-                    <div class="detail-preview-card__meta">
-                      <span>{{ getBagCategoryLabel(resolveBagCategory(reward)) }}</span>
-                      <span>x{{ reward.count }}</span>
-                      <span v-if="reward.level > 0">Lv{{ reward.level }}</span>
-                    </div>
-                    <div v-if="reward.effectDesc || reward.desc" class="detail-preview-card__desc">
-                      {{ reward.effectDesc || reward.desc }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </template>
-
-          <template v-else-if="mallDetailGoods">
-            <div class="detail-hero">
-              <div class="detail-hero__art" :data-fallback="getMallFallbackLabel(mallDetailGoods)">
-                <img
-                  v-if="mallDetailGoods.image && !imageErrors[getImageErrorKey('mall-detail', mallDetailGoods.goodsId)]"
-                  :src="mallDetailGoods.image"
-                  :alt="mallDetailGoods.name"
-                  class="detail-hero__image"
-                  loading="lazy"
-                  @error="imageErrors[getImageErrorKey('mall-detail', mallDetailGoods.goodsId)] = true"
-                >
-                <div v-else class="inventory-card__fallback">
-                  {{ getMallFallbackLabel(mallDetailGoods) }}
-                </div>
-              </div>
-              <div class="detail-hero__copy">
-                <div class="detail-badges">
-                  <span class="inventory-pill inventory-pill-emerald">{{ getMallPriceLabel(mallDetailGoods) }}</span>
-                  <span v-if="mallDetailGoods.isLimited" class="inventory-pill inventory-pill-amber">限购商品</span>
-                  <span v-if="!mallDetailGoods.supportsPurchase" class="inventory-pill inventory-pill-sky">{{ mallDetailGoods.purchaseDisabledReason || '需在游戏内完成' }}</span>
-                  <span class="inventory-pill inventory-pill-sky">内容 {{ getGoodsPreviewGroups(mallDetailGoods).length }} 种</span>
-                </div>
-                <div class="detail-summary">
-                  {{ getGoodsSummary(mallDetailGoods) }}
-                </div>
-                <div class="detail-actions">
-                  <div v-if="mallDetailGoods.supportsPurchase" class="trade-stepper">
-                    <button class="trade-stepper__btn" @click="bumpPurchaseCount(mallDetailGoods, -1)">
-                      -
-                    </button>
-                    <input
-                      :value="getPurchaseCount(mallDetailGoods)"
-                      type="number"
-                      min="1"
-                      class="trade-input trade-input-stepper"
-                      @input="updatePurchaseCount(mallDetailGoods, Number(($event.target as HTMLInputElement).value || 1))"
-                    >
-                    <button class="trade-stepper__btn" @click="bumpPurchaseCount(mallDetailGoods, 1)">
-                      +
-                    </button>
-                  </div>
-                  <BaseButton
-                    v-if="mallDetailGoods.slotKey === 'month_card' && getMonthCardInfo(mallDetailGoods)?.canClaim"
-                    variant="secondary"
-                    class="trade-btn trade-btn-secondary"
-                    :disabled="actionLoading"
-                    @click="handleClaimMonthCard(mallDetailGoods)"
-                  >
-                    领取今日奖励
-                  </BaseButton>
-                  <BaseButton variant="primary" class="trade-btn trade-btn-primary" :disabled="actionLoading || !mallDetailGoods.supportsPurchase" @click="handleBuyGoods(mallDetailGoods)">
-                    {{ mallDetailGoods.supportsPurchase ? '立即购买' : '需在游戏内完成' }}
-                  </BaseButton>
-                </div>
-              </div>
-            </div>
-
-            <div class="detail-stats">
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">价格</span>
-                <span class="detail-stat-card__value">{{ getMallPriceLabel(mallDetailGoods) }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">所属分页</span>
-                <span class="detail-stat-card__value">{{ getGoodsSourceLabel(mallDetailGoods) }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">内容总项</span>
-                <span class="detail-stat-card__value">{{ mallDetailGoods.itemIds?.length || 0 }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">主物品</span>
-                <span class="detail-stat-card__value">#{{ mallDetailGoods.primaryItemId || 0 }}</span>
-              </div>
-              <div class="detail-stat-card">
-                <span class="detail-stat-card__label">购买记录</span>
-                <span class="detail-stat-card__value">
-                  {{ getMallPurchaseStats(mallDetailGoods).count || 0 }} 次 · {{ formatPurchaseTime(getMallPurchaseStats(mallDetailGoods).lastPurchasedAt) }}
-                </span>
-              </div>
-            </div>
-
-            <div class="detail-section-title">
-              内容物清单
-            </div>
-            <div class="detail-preview-grid">
-              <div v-for="preview in getGoodsPreviewGroups(mallDetailGoods)" :key="`detail-preview-${mallDetailGoods.goodsId}-${preview.id}`" class="detail-preview-card">
-                <div class="detail-preview-card__thumb" :data-fallback="getItemFallbackLabel(preview)">
+          <div class="detail-modal-body">
+            <template v-if="bagDetailItem">
+              <div class="detail-hero">
+                <div class="detail-hero__art" :data-fallback="getItemFallbackLabel(bagDetailItem)">
                   <img
-                    v-if="preview.image && !imageErrors[getImageErrorKey('mall-detail-preview', mallDetailGoods.goodsId, preview.id)]"
-                    :src="preview.image"
-                    :alt="preview.name"
+                    v-if="bagDetailItem.image && !imageErrors[getImageErrorKey('bag-detail', bagDetailItem.id)]"
+                    :src="bagDetailItem.image"
+                    :alt="bagDetailItem.name"
+                    class="detail-hero__image"
                     loading="lazy"
-                    @error="imageErrors[getImageErrorKey('mall-detail-preview', mallDetailGoods.goodsId, preview.id)] = true"
+                    @error="imageErrors[getImageErrorKey('bag-detail', bagDetailItem.id)] = true"
                   >
-                  <div v-else class="inventory-card__fallback detail-preview-card__fallback">
-                    {{ getItemFallbackLabel(preview) }}
+                  <div v-else class="inventory-card__fallback">
+                    {{ getItemFallbackLabel(bagDetailItem) }}
                   </div>
                 </div>
-                <div class="detail-preview-card__copy">
-                  <div class="detail-preview-card__title">
-                    {{ preview.name }}
+                <div class="detail-hero__copy">
+                  <div class="detail-badges">
+                    <span class="inventory-pill">{{ getBagCategoryLabel(resolveBagCategory(bagDetailItem)) }}</span>
+                    <span class="inventory-pill inventory-pill-sky">稀有度 {{ getRarityLabel(bagDetailItem.rarity) }}</span>
+                    <span class="inventory-pill" :class="bagDetailItem.canUse ? 'inventory-pill-emerald' : 'inventory-pill-amber'">
+                      {{ bagDetailItem.canUse ? '可使用' : '不可直接使用' }}
+                    </span>
                   </div>
-                  <div class="detail-preview-card__meta">
-                    <span>{{ getBagCategoryLabel(resolveBagCategory(preview)) }}</span>
-                    <span v-if="preview.count > 1">x{{ preview.count }}</span>
-                    <span v-if="preview.level > 0">Lv{{ preview.level }}</span>
+                  <div class="detail-summary">
+                    {{ getItemDescription(bagDetailItem) || '暂无物品说明' }}
                   </div>
-                  <div v-if="preview.effectDesc || preview.desc" class="detail-preview-card__desc">
-                    {{ preview.effectDesc || preview.desc }}
+                  <div class="detail-actions">
+                    <div v-if="bagDetailItem.canUse && !itemNeedsLandSelection(bagDetailItem)" class="trade-stepper">
+                      <button class="trade-stepper__btn" @click="bumpUseCount(bagDetailItem.id, -1, bagDetailItem.count)">
+                        -
+                      </button>
+                      <input
+                        :value="getUseCount(bagDetailItem.id, bagDetailItem.count)"
+                        type="number"
+                        min="1"
+                        :max="Math.max(1, Number(bagDetailItem.count || 1))"
+                        class="trade-input trade-input-stepper"
+                        @input="updateUseCount(bagDetailItem.id, Number(($event.target as HTMLInputElement).value || 1), bagDetailItem.count)"
+                      >
+                      <button class="trade-stepper__btn" @click="bumpUseCount(bagDetailItem.id, 1, bagDetailItem.count)">
+                        +
+                      </button>
+                    </div>
+                    <div v-if="bagDetailItem.canUse && itemNeedsLandSelection(bagDetailItem)" class="detail-land-counter">
+                      已选 {{ selectedLandIds.length }} / {{ getLandSelectionLimit(bagDetailItem) }} 块，将按选中地块数消耗
+                    </div>
+                    <BaseButton
+                      v-if="bagDetailItem.canUse"
+                      variant="primary"
+                      class="trade-btn trade-btn-primary"
+                      :disabled="actionLoading"
+                      @click="handleUseBagItem(bagDetailItem)"
+                    >
+                      立即使用
+                    </BaseButton>
+                    <BaseButton
+                      v-if="bagDetailItem.category === 'fruit'"
+                      variant="primary"
+                      class="trade-btn trade-btn-primary"
+                      @click="toggleSelectItem(Number(bagDetailItem.id || 0))"
+                    >
+                      {{ isSelected(Number(bagDetailItem.id || 0)) ? '移出出售选择' : '加入出售选择' }}
+                    </BaseButton>
+                    <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" @click="closeDetailPanel">
+                      返回列表
+                    </BaseButton>
                   </div>
                 </div>
               </div>
-            </div>
-          </template>
+
+              <section class="detail-block">
+                <div class="detail-block__header">
+                  <div class="detail-block__title">
+                    基础信息
+                  </div>
+                  <div class="detail-block__meta">
+                    库存、等级、类型与堆叠限制
+                  </div>
+                </div>
+                <div class="detail-stats">
+                  <div class="detail-stat-card detail-stat-card-emerald">
+                    <span class="detail-stat-card__label">当前持有</span>
+                    <span class="detail-stat-card__value">{{ bagDetailItem.hoursText || `x${bagDetailItem.count || 0}` }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-amber">
+                    <span class="detail-stat-card__label">等级 / 单价</span>
+                    <span class="detail-stat-card__value">Lv{{ bagDetailItem.level || 0 }} · {{ bagDetailItem.price || 0 }}金</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-sky">
+                    <span class="detail-stat-card__label">类型 / 交互</span>
+                    <span class="detail-stat-card__value">{{ bagDetailItem.itemType || 0 }} · {{ bagDetailItem.interactionType || '无' }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-violet">
+                    <span class="detail-stat-card__label">堆叠上限</span>
+                    <span class="detail-stat-card__value">{{ bagDetailItem.maxCount || 0 }} / {{ bagDetailItem.maxOwn || 0 }}</span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="detail-block">
+                <div class="detail-block__header">
+                  <div class="detail-block__title">
+                    详细说明
+                  </div>
+                  <div class="detail-block__meta">
+                    物品用途与补充描述
+                  </div>
+                </div>
+                <div class="detail-sections">
+                  <div v-for="(text, index) in getItemLongDescription(bagDetailItem)" :key="`bag-desc-${index}`" class="detail-section-card">
+                    {{ text }}
+                  </div>
+                </div>
+              </section>
+
+              <template v-if="bagDetailItem.canUse && itemNeedsLandSelection(bagDetailItem)">
+                <section class="detail-block">
+                  <div class="detail-block__header">
+                    <div class="detail-block__title">
+                      目标土地
+                    </div>
+                    <div class="detail-block__meta">
+                      已选 {{ selectedLandIds.length }} / {{ getLandSelectionLimit(bagDetailItem) }}
+                    </div>
+                  </div>
+                  <div class="detail-land-toolbar">
+                    <div class="detail-land-toolbar__hint">
+                      {{ getLandSelectionHint(bagDetailItem) }}
+                    </div>
+                    <div class="detail-land-toolbar__actions">
+                      <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="landsLoading" @click="ensureFarmLandsLoaded()">
+                        刷新土地
+                      </BaseButton>
+                      <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="suggestedTargetLandIds.length === 0" @click="selectSuggestedLands()">
+                        智能选择
+                      </BaseButton>
+                      <BaseButton variant="secondary" class="trade-btn trade-btn-secondary" :disabled="selectedLandIds.length === 0" @click="clearSelectedLands()">
+                        清空选择
+                      </BaseButton>
+                    </div>
+                  </div>
+                  <div v-if="landsLoading" class="detail-land-empty">
+                    正在加载土地...
+                  </div>
+                  <div v-else-if="availableTargetLands.length === 0" class="detail-land-empty">
+                    当前没有可用土地数据
+                  </div>
+                  <div v-else class="detail-land-grid">
+                    <button
+                      v-for="land in availableTargetLands"
+                      :key="`use-land-${land.id}`"
+                      class="detail-land-card"
+                      :class="{ active: isLandSelected(Number(land.id || 0)), suggested: suggestedTargetLandIds.includes(Number(land.id || 0)) }"
+                      @click="toggleSelectedLand(Number(land.id || 0))"
+                    >
+                      <div class="detail-land-card__head">
+                        <span class="detail-land-card__id">#{{ land.id }}</span>
+                        <span class="detail-land-card__status">{{ normalizeLandStatusLabel(land) }}</span>
+                      </div>
+                      <div class="detail-land-card__name">
+                        {{ land.plantName || land.phaseName || '空地' }}
+                      </div>
+                      <div class="detail-land-card__meta">
+                        <span v-if="land.needWater">缺水</span>
+                        <span v-if="land.needWeed">有草</span>
+                        <span v-if="land.needBug">有虫</span>
+                        <span v-if="Number(land.matureInSec || 0) > 0">{{ Number(land.matureInSec || 0) }}s</span>
+                        <span v-if="!land.needWater && !land.needWeed && !land.needBug && Number(land.matureInSec || 0) <= 0">普通</span>
+                      </div>
+                    </button>
+                  </div>
+                </section>
+              </template>
+
+              <template v-if="lastUseResult && Number(lastUseResult.itemId || 0) === Number(bagDetailItem.id || 0)">
+                <section class="detail-block detail-block-highlight">
+                  <div class="detail-block__header">
+                    <div class="detail-block__title">
+                      本次使用结果
+                    </div>
+                    <div class="detail-block__meta">
+                      {{ lastUseResult.count || 1 }} 次操作反馈
+                    </div>
+                  </div>
+                  <div class="detail-use-summary">
+                    <div class="detail-use-summary__message">
+                      {{ lastUseResult.rewardSummary || lastUseResult.message || '使用成功' }}
+                    </div>
+                    <div class="detail-use-summary__meta">
+                      <span>使用数量 {{ lastUseResult.count || 1 }}</span>
+                      <span v-if="lastUseResult.landIds?.length">目标土地 {{ lastUseResult.landIds.join(', ') }}</span>
+                    </div>
+                  </div>
+                  <div v-if="lastUseResult.rewardItems?.length" class="detail-preview-grid">
+                    <div
+                      v-for="reward in lastUseResult.rewardItems"
+                      :key="`use-result-${bagDetailItem.id}-${reward.id}`"
+                      class="detail-preview-card"
+                    >
+                      <div class="detail-preview-card__thumb" :data-fallback="getItemFallbackLabel(reward)">
+                        <img
+                          v-if="reward.image && !imageErrors[getImageErrorKey('use-result', bagDetailItem.id, reward.id)]"
+                          :src="reward.image"
+                          :alt="reward.name"
+                          loading="lazy"
+                          @error="imageErrors[getImageErrorKey('use-result', bagDetailItem.id, reward.id)] = true"
+                        >
+                        <div v-else class="inventory-card__fallback detail-preview-card__fallback">
+                          {{ getItemFallbackLabel(reward) }}
+                        </div>
+                      </div>
+                      <div class="detail-preview-card__copy">
+                        <div class="detail-preview-card__title">
+                          {{ reward.name }}
+                        </div>
+                        <div class="detail-preview-card__meta">
+                          <span>{{ getBagCategoryLabel(resolveBagCategory(reward)) }}</span>
+                          <span>x{{ reward.count }}</span>
+                          <span v-if="reward.level > 0">Lv{{ reward.level }}</span>
+                        </div>
+                        <div v-if="reward.effectDesc || reward.desc" class="detail-preview-card__desc">
+                          {{ reward.effectDesc || reward.desc }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </template>
+            </template>
+
+            <template v-else-if="mallDetailGoods">
+              <div class="detail-hero">
+                <div class="detail-hero__art" :data-fallback="getMallFallbackLabel(mallDetailGoods)">
+                  <img
+                    v-if="mallDetailGoods.image && !imageErrors[getImageErrorKey('mall-detail', mallDetailGoods.goodsId)]"
+                    :src="mallDetailGoods.image"
+                    :alt="mallDetailGoods.name"
+                    class="detail-hero__image"
+                    loading="lazy"
+                    @error="imageErrors[getImageErrorKey('mall-detail', mallDetailGoods.goodsId)] = true"
+                  >
+                  <div v-else class="inventory-card__fallback">
+                    {{ getMallFallbackLabel(mallDetailGoods) }}
+                  </div>
+                </div>
+                <div class="detail-hero__copy">
+                  <div class="detail-badges">
+                    <span class="inventory-pill inventory-pill-emerald">{{ getMallPriceLabel(mallDetailGoods) }}</span>
+                    <span v-if="mallDetailGoods.isLimited" class="inventory-pill inventory-pill-amber">限购商品</span>
+                    <span v-if="!mallDetailGoods.supportsPurchase" class="inventory-pill inventory-pill-sky">{{ mallDetailGoods.purchaseDisabledReason || '需在游戏内完成' }}</span>
+                    <span class="inventory-pill inventory-pill-sky">内容 {{ getGoodsPreviewGroups(mallDetailGoods).length }} 种</span>
+                  </div>
+                  <div class="detail-summary">
+                    {{ getGoodsSummary(mallDetailGoods) }}
+                  </div>
+                  <div class="detail-actions">
+                    <div v-if="mallDetailGoods.supportsPurchase" class="trade-stepper">
+                      <button class="trade-stepper__btn" @click="bumpPurchaseCount(mallDetailGoods, -1)">
+                        -
+                      </button>
+                      <input
+                        :value="getPurchaseCount(mallDetailGoods)"
+                        type="number"
+                        min="1"
+                        class="trade-input trade-input-stepper"
+                        @input="updatePurchaseCount(mallDetailGoods, Number(($event.target as HTMLInputElement).value || 1))"
+                      >
+                      <button class="trade-stepper__btn" @click="bumpPurchaseCount(mallDetailGoods, 1)">
+                        +
+                      </button>
+                    </div>
+                    <BaseButton
+                      v-if="mallDetailGoods.slotKey === 'month_card' && getMonthCardInfo(mallDetailGoods)?.canClaim"
+                      variant="secondary"
+                      class="trade-btn trade-btn-secondary"
+                      :disabled="actionLoading"
+                      @click="handleClaimMonthCard(mallDetailGoods)"
+                    >
+                      领取今日奖励
+                    </BaseButton>
+                    <BaseButton variant="primary" class="trade-btn trade-btn-primary" :disabled="actionLoading || !mallDetailGoods.supportsPurchase" @click="handleBuyGoods(mallDetailGoods)">
+                      {{ mallDetailGoods.supportsPurchase ? '立即购买' : '需在游戏内完成' }}
+                    </BaseButton>
+                  </div>
+                </div>
+              </div>
+
+              <section class="detail-block">
+                <div class="detail-block__header">
+                  <div class="detail-block__title">
+                    购买信息
+                  </div>
+                  <div class="detail-block__meta">
+                    价格、来源与近期购买记录
+                  </div>
+                </div>
+                <div class="detail-stats">
+                  <div class="detail-stat-card detail-stat-card-emerald">
+                    <span class="detail-stat-card__label">价格</span>
+                    <span class="detail-stat-card__value">{{ getMallPriceLabel(mallDetailGoods) }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-sky">
+                    <span class="detail-stat-card__label">所属分页</span>
+                    <span class="detail-stat-card__value">{{ getGoodsSourceLabel(mallDetailGoods) }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-amber">
+                    <span class="detail-stat-card__label">内容总项</span>
+                    <span class="detail-stat-card__value">{{ mallDetailGoods.itemIds?.length || 0 }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-violet">
+                    <span class="detail-stat-card__label">主物品</span>
+                    <span class="detail-stat-card__value">#{{ mallDetailGoods.primaryItemId || 0 }}</span>
+                  </div>
+                  <div class="detail-stat-card detail-stat-card-rose">
+                    <span class="detail-stat-card__label">购买记录</span>
+                    <span class="detail-stat-card__value">
+                      {{ getMallPurchaseStats(mallDetailGoods).count || 0 }} 次 · {{ formatPurchaseTime(getMallPurchaseStats(mallDetailGoods).lastPurchasedAt) }}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="detail-block">
+                <div class="detail-block__header">
+                  <div class="detail-block__title">
+                    内容物清单
+                  </div>
+                  <div class="detail-block__meta">
+                    共 {{ getGoodsPreviewGroups(mallDetailGoods).length }} 种内容物
+                  </div>
+                </div>
+                <div class="detail-preview-grid">
+                  <div v-for="preview in getGoodsPreviewGroups(mallDetailGoods)" :key="`detail-preview-${mallDetailGoods.goodsId}-${preview.id}`" class="detail-preview-card">
+                    <div class="detail-preview-card__thumb" :data-fallback="getItemFallbackLabel(preview)">
+                      <img
+                        v-if="preview.image && !imageErrors[getImageErrorKey('mall-detail-preview', mallDetailGoods.goodsId, preview.id)]"
+                        :src="preview.image"
+                        :alt="preview.name"
+                        loading="lazy"
+                        @error="imageErrors[getImageErrorKey('mall-detail-preview', mallDetailGoods.goodsId, preview.id)] = true"
+                      >
+                      <div v-else class="inventory-card__fallback detail-preview-card__fallback">
+                        {{ getItemFallbackLabel(preview) }}
+                      </div>
+                    </div>
+                    <div class="detail-preview-card__copy">
+                      <div class="detail-preview-card__title">
+                        {{ preview.name }}
+                      </div>
+                      <div class="detail-preview-card__meta">
+                        <span>{{ getBagCategoryLabel(resolveBagCategory(preview)) }}</span>
+                        <span v-if="preview.count > 1">x{{ preview.count }}</span>
+                        <span v-if="preview.level > 0">Lv{{ preview.level }}</span>
+                      </div>
+                      <div v-if="preview.effectDesc || preview.desc" class="detail-preview-card__desc">
+                        {{ preview.effectDesc || preview.desc }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </template>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -4254,36 +4307,110 @@ useIntervalFn(loadBag, 60000)
 }
 
 .detail-modal-backdrop {
+  --bag-surface: var(--ui-bg-surface);
+  --bag-surface-raised: var(--ui-bg-surface-raised);
+  --bag-border: var(--ui-border-subtle);
+  --bag-border-strong: var(--ui-border-strong);
+  --bag-text-main: var(--ui-text-1);
+  --bag-text-muted: var(--ui-text-2);
+  --bag-text-soft: var(--ui-text-3);
+  --bag-shadow-soft: var(--ui-shadow-panel);
+  --bag-shadow-strong: var(--ui-shadow-panel-strong);
+  --bag-shadow-inner: var(--ui-shadow-inner);
+  --bag-overlay-backdrop: var(--ui-overlay-backdrop);
+  --bag-brand-soft: color-mix(in srgb, var(--ui-brand-500) 12%, transparent);
+  --bag-brand-soft-strong: color-mix(in srgb, var(--ui-brand-500) 18%, transparent);
+  --bag-brand-border-strong: color-mix(in srgb, var(--ui-border-subtle) 54%, var(--ui-brand-500) 46%);
+  --bag-brand-gradient-soft: linear-gradient(135deg, var(--bag-brand-soft), var(--bag-surface));
+  --bag-brand-gradient-strong: linear-gradient(135deg, var(--bag-brand-soft-strong), var(--bag-surface));
   position: fixed;
   inset: 0;
   z-index: 80;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
   background: var(--bag-overlay-backdrop);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .detail-modal-panel {
-  width: min(980px, 100%);
+  position: relative;
+  isolation: isolate;
+  z-index: 1;
+  display: flex;
+  width: min(900px, 100%);
+  min-height: 0;
+  flex-direction: column;
   max-height: calc(100vh - 2rem);
-  overflow: auto;
-  border-radius: 28px;
-  border: 1px solid var(--bag-border);
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid var(--bag-border-strong);
   background:
-    radial-gradient(circle at top right, var(--bag-brand-soft-strong), transparent 32%),
-    linear-gradient(180deg, var(--bag-surface-raised), var(--bag-surface));
-  padding: 1.25rem;
-  box-shadow: 0 28px 60px var(--bag-shadow-strong);
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--bag-brand-soft-strong) 115%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bag-surface-raised) 94%, var(--bag-surface) 6%),
+      var(--bag-surface)
+    );
+  color: var(--bag-text-main);
+  box-shadow:
+    0 32px 70px -30px var(--bag-shadow-strong),
+    inset 0 1px 0 var(--bag-shadow-inner);
+}
+
+.detail-modal-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-text-on-brand) 5%, transparent), transparent 22%);
+  pointer-events: none;
+}
+
+.detail-modal-panel::after {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 78%, transparent);
+  pointer-events: none;
 }
 
 .detail-modal-header {
   display: flex;
-  align-items: flex-start;
+  flex-shrink: 0;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface-raised) 94%, var(--bag-surface) 6%);
+}
+
+.detail-modal-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem;
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bag-surface-raised) 90%, var(--bag-surface) 10%),
+    color-mix(in srgb, var(--bag-surface) 94%, var(--bag-surface-raised) 6%)
+  );
+}
+
+.detail-modal-header__copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .detail-modal-header__eyebrow {
@@ -4296,39 +4423,89 @@ useIntervalFn(loadBag, 60000)
 .detail-modal-header__title {
   margin-top: 0.4rem;
   color: var(--bag-text-main);
-  font-size: 1.45rem;
+  font-size: 1.65rem;
   font-weight: 800;
+  line-height: 1.15;
 }
 
 .detail-modal-header__sub {
-  margin-top: 0.35rem;
+  margin-top: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 92%, transparent);
+  background: color-mix(in srgb, var(--bag-surface-raised) 92%, var(--bag-surface) 8%);
+  padding: 0.36rem 0.72rem;
   color: var(--bag-text-muted);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .detail-modal-close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 2.9rem;
+  min-height: 2.9rem;
   border-radius: 999px;
-  border: 1px solid var(--bag-border);
-  background: var(--bag-surface);
+  border: 1px solid var(--bag-border-strong);
+  background: color-mix(in srgb, var(--bag-surface-raised) 92%, var(--bag-surface) 8%);
   color: var(--bag-text-main);
-  padding: 0.6rem 0.95rem;
+  padding: 0.6rem 0.8rem;
   font-size: 0.85rem;
   font-weight: 600;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.detail-modal-close:hover {
+  transform: translateY(-1px);
+  border-color: var(--bag-brand-border-strong);
+  background: color-mix(in srgb, var(--bag-brand-soft-strong) 54%, var(--bag-surface-raised) 46%);
+  box-shadow: 0 12px 26px -22px var(--bag-shadow-soft);
+}
+
+.detail-modal-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ui-focus-ring);
+}
+
+.detail-modal-close__icon {
+  font-size: 1rem;
+}
+
+.detail-modal-close__text {
+  line-height: 1;
 }
 
 .detail-hero {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 1rem;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 86%, transparent);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--bag-surface) 88%, var(--bag-surface-raised) 12%);
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-hero__art {
   min-height: 220px;
   border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 86%, transparent);
   background: radial-gradient(circle at top, var(--bag-brand-soft), transparent 56%), var(--bag-surface);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-hero__image {
@@ -4343,6 +4520,7 @@ useIntervalFn(loadBag, 60000)
   min-width: 0;
   flex-direction: column;
   gap: 0.9rem;
+  padding: 0.2rem 0;
 }
 
 .detail-badges {
@@ -4352,15 +4530,87 @@ useIntervalFn(loadBag, 60000)
 }
 
 .detail-summary {
-  color: var(--bag-text-muted);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--bag-surface-raised) 92%, transparent);
+  padding: 0.95rem 1rem;
+  color: var(--bag-text-main);
   line-height: 1.7;
   font-size: 0.94rem;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed color-mix(in srgb, var(--bag-border) 92%, transparent);
+}
+
+.detail-block {
+  margin-top: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 90%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--bag-surface) 78%, var(--bag-surface-raised) 22%);
+  padding: 1rem;
+  box-shadow:
+    0 16px 34px -32px var(--bag-shadow-soft),
+    inset 0 1px 0 var(--bag-shadow-inner);
+}
+
+.detail-block-highlight {
+  border-color: color-mix(in srgb, var(--bag-brand-border-strong) 82%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bag-brand-soft) 54%, var(--bag-surface-raised) 46%),
+    color-mix(in srgb, var(--bag-surface) 84%, var(--bag-surface-raised) 16%)
+  );
+}
+
+.detail-block__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.detail-block__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--bag-text-main);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.detail-block__title::before {
+  content: '';
+  width: 0.38rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--ui-brand-500), color-mix(in srgb, var(--ui-brand-500) 28%, transparent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 22%, transparent);
+}
+
+.detail-block__meta {
+  color: var(--bag-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.detail-block > .detail-stats,
+.detail-block > .detail-sections,
+.detail-block > .detail-preview-grid,
+.detail-block > .detail-land-toolbar,
+.detail-block > .detail-land-empty,
+.detail-block > .detail-land-grid,
+.detail-block > .detail-use-summary {
+  margin-top: 0;
 }
 
 .detail-land-counter {
@@ -4375,53 +4625,122 @@ useIntervalFn(loadBag, 60000)
 }
 
 .detail-stats {
-  margin-top: 1rem;
+  margin-top: 1.1rem;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.8rem;
 }
 
 .detail-stat-card {
+  --detail-stat-accent: var(--ui-brand-500);
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
   border-radius: 20px;
-  background: var(--bag-surface);
-  padding: 0.95rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface) 90%, var(--bag-surface-raised) 10%);
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
+}
+
+.detail-stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  top: 0;
+  height: 0.24rem;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(
+    90deg,
+    var(--detail-stat-accent),
+    color-mix(in srgb, var(--detail-stat-accent) 28%, transparent)
+  );
+  opacity: 0.95;
+}
+
+.detail-stat-card::after {
+  content: '';
+  position: absolute;
+  top: -1.8rem;
+  right: -1rem;
+  width: 5.25rem;
+  height: 5.25rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--detail-stat-accent) 14%, transparent), transparent 68%);
+  pointer-events: none;
 }
 
 .detail-stat-card__label {
-  color: var(--bag-text-soft);
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--detail-stat-accent) 10%, transparent);
+  padding: 0.26rem 0.6rem;
+  color: color-mix(in srgb, var(--detail-stat-accent) 48%, var(--bag-text-main) 52%);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.detail-stat-card__value {
-  color: var(--bag-text-main);
-  font-size: 0.95rem;
   font-weight: 700;
 }
 
+.detail-stat-card__value {
+  position: relative;
+  z-index: 1;
+  color: var(--bag-text-main);
+  font-size: 1.12rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.detail-stat-card-emerald {
+  --detail-stat-accent: var(--ui-status-success);
+}
+
+.detail-stat-card-amber {
+  --detail-stat-accent: var(--ui-status-warning);
+}
+
+.detail-stat-card-sky {
+  --detail-stat-accent: var(--ui-status-info);
+}
+
+.detail-stat-card-violet {
+  --detail-stat-accent: #7c3aed;
+}
+
+.detail-stat-card-rose {
+  --detail-stat-accent: #e11d48;
+}
+
 .detail-sections {
-  margin-top: 1rem;
+  margin-top: 1.1rem;
   display: grid;
   gap: 0.8rem;
 }
 
 .detail-section-card {
   border-radius: 20px;
-  background: var(--bag-surface);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface) 88%, var(--bag-surface-raised) 12%);
   padding: 1rem 1.05rem;
-  color: var(--bag-text-muted);
+  color: var(--bag-text-main);
   line-height: 1.72;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-section-title {
-  margin-top: 1.15rem;
+  margin-top: 1.2rem;
   color: var(--bag-text-main);
   font-size: 1rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .detail-land-toolbar {
@@ -4436,6 +4755,7 @@ useIntervalFn(loadBag, 60000)
 .detail-land-toolbar__hint {
   color: var(--bag-text-muted);
   font-size: 0.84rem;
+  line-height: 1.6;
 }
 
 .detail-land-toolbar__actions {
@@ -4447,7 +4767,8 @@ useIntervalFn(loadBag, 60000)
 .detail-land-empty {
   margin-top: 0.85rem;
   border-radius: 18px;
-  background: var(--bag-surface);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface) 90%, var(--bag-surface-raised) 10%);
   padding: 1rem;
   color: var(--bag-text-muted);
   text-align: center;
@@ -4466,10 +4787,11 @@ useIntervalFn(loadBag, 60000)
   flex-direction: column;
   gap: 0.45rem;
   border-radius: 18px;
-  border: 1px solid var(--bag-border);
-  background: var(--bag-surface);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface) 90%, var(--bag-surface-raised) 10%);
   padding: 0.9rem;
   text-align: left;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
@@ -4528,8 +4850,10 @@ useIntervalFn(loadBag, 60000)
 .detail-use-summary {
   margin-top: 0.85rem;
   border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--bag-brand-border-strong) 74%, transparent);
   background: var(--bag-brand-gradient-soft);
   padding: 1rem 1.05rem;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-use-summary__message {
@@ -4558,8 +4882,10 @@ useIntervalFn(loadBag, 60000)
   display: flex;
   gap: 0.8rem;
   border-radius: 20px;
-  background: var(--bag-surface);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 88%, transparent);
+  background: color-mix(in srgb, var(--bag-surface) 90%, var(--bag-surface-raised) 10%);
   padding: 0.85rem;
+  box-shadow: inset 0 1px 0 var(--bag-shadow-inner);
 }
 
 .detail-preview-card__thumb {
@@ -4567,7 +4893,8 @@ useIntervalFn(loadBag, 60000)
   height: 72px;
   flex-shrink: 0;
   border-radius: 18px;
-  background: var(--bag-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--bag-border) 82%, transparent);
+  background: color-mix(in srgb, var(--bag-surface-raised) 94%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4608,6 +4935,155 @@ useIntervalFn(loadBag, 60000)
 
 .detail-preview-card__fallback {
   font-size: 0.85rem;
+}
+
+:global(html:not(.dark)) .detail-modal-backdrop {
+  --bag-surface: #f8fafc;
+  --bag-surface-raised: #ffffff;
+  --bag-border: rgba(15, 23, 42, 0.08);
+  --bag-border-strong: rgba(15, 23, 42, 0.16);
+  --bag-shadow-soft: rgba(15, 23, 42, 0.22);
+  --bag-shadow-strong: rgba(15, 23, 42, 0.4);
+  --bag-shadow-inner: rgba(255, 255, 255, 0.92);
+  --bag-overlay-backdrop: rgba(2, 6, 23, 0.84);
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(18px) brightness(0.62) saturate(0.38);
+  -webkit-backdrop-filter: blur(18px) brightness(0.62) saturate(0.38);
+}
+
+:global(html:not(.dark)) .detail-modal-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.08), rgba(2, 6, 23, 0.22));
+  pointer-events: none;
+}
+
+:global(html:not(.dark)) .detail-modal-panel {
+  border-color: rgba(15, 23, 42, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  box-shadow:
+    0 72px 140px -44px rgba(15, 23, 42, 0.7),
+    0 38px 84px -44px rgba(15, 23, 42, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+:global(html:not(.dark)) .detail-modal-panel::before {
+  background: none;
+}
+
+:global(html:not(.dark)) .detail-modal-panel::after {
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+:global(html:not(.dark)) .detail-modal-body {
+  background: #eef2f7;
+}
+
+:global(html:not(.dark)) .detail-modal-header {
+  border-bottom-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+:global(html:not(.dark)) .detail-modal-header__eyebrow {
+  color: rgba(71, 85, 105, 0.9);
+}
+
+:global(html:not(.dark)) .detail-modal-header__title {
+  color: #0f172a;
+}
+
+:global(html:not(.dark)) .detail-modal-header__sub {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  color: rgba(51, 65, 85, 0.78);
+}
+
+:global(html:not(.dark)) .detail-modal-close {
+  border-color: rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+  box-shadow:
+    0 14px 28px -22px rgba(15, 23, 42, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+:global(html:not(.dark)) .detail-modal-close:hover {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+:global(html:not(.dark)) .detail-modal-close__icon {
+  color: #0f172a;
+}
+
+:global(html:not(.dark)) .detail-summary,
+:global(html:not(.dark)) .detail-block,
+:global(html:not(.dark)) .detail-stat-card,
+:global(html:not(.dark)) .detail-section-card,
+:global(html:not(.dark)) .detail-land-empty,
+:global(html:not(.dark)) .detail-land-card,
+:global(html:not(.dark)) .detail-preview-card {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  box-shadow:
+    0 24px 46px -38px rgba(15, 23, 42, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+:global(html:not(.dark)) .detail-block-highlight {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 18%, rgba(15, 23, 42, 0.08));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-brand-500) 5%, #ffffff), #ffffff 100%);
+}
+
+:global(html:not(.dark)) .detail-block__title::before {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 16%, transparent);
+}
+
+:global(html:not(.dark)) .detail-stat-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+}
+
+:global(html:not(.dark)) .detail-hero {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  box-shadow:
+    0 26px 50px -40px rgba(15, 23, 42, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+:global(html:not(.dark)) .detail-hero__art,
+:global(html:not(.dark)) .detail-preview-card__thumb {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+:global(html:not(.dark)) .detail-summary,
+:global(html:not(.dark)) .detail-section-card,
+:global(html:not(.dark)) .detail-land-toolbar__hint,
+:global(html:not(.dark)) .detail-land-empty,
+:global(html:not(.dark)) .detail-land-card__status,
+:global(html:not(.dark)) .detail-land-card__meta,
+:global(html:not(.dark)) .detail-use-summary__meta,
+:global(html:not(.dark)) .detail-preview-card__meta,
+:global(html:not(.dark)) .detail-preview-card__desc,
+:global(html:not(.dark)) .detail-modal-header__sub {
+  color: color-mix(in srgb, var(--bag-text-main) 84%, var(--bag-text-muted) 16%);
+}
+
+:global(html:not(.dark)) .detail-land-card.active {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 38%, rgba(15, 23, 42, 0.08));
+  background: color-mix(in srgb, var(--ui-brand-500) 8%, #ffffff);
+}
+
+:global(html:not(.dark)) .detail-actions {
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+:global(html:not(.dark)) .detail-use-summary {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 18%, rgba(15, 23, 42, 0.08));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-500) 7%, #ffffff), #ffffff 68%);
 }
 
 @media (max-width: 768px) {
@@ -4754,12 +5230,44 @@ useIntervalFn(loadBag, 60000)
     text-align: left;
   }
 
-  .detail-modal-panel {
+  .detail-modal-header {
+    padding: 1rem 1rem 0.85rem;
+    align-items: flex-start;
+  }
+
+  .detail-modal-body {
     padding: 1rem;
+  }
+
+  .detail-modal-header__title {
+    font-size: 1.36rem;
+  }
+
+  .detail-block {
+    padding: 0.9rem;
+  }
+
+  .detail-block__header {
+    align-items: flex-start;
+  }
+
+  .detail-stat-card__value {
+    font-size: 1.02rem;
+  }
+
+  .detail-modal-close {
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    padding-inline: 0.7rem;
+  }
+
+  .detail-modal-close__text {
+    display: none;
   }
 
   .detail-hero {
     grid-template-columns: 1fr;
+    padding: 0.9rem;
   }
 
   .detail-hero__art {

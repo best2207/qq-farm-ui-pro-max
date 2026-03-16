@@ -207,7 +207,7 @@ function createDataProvider(options) {
 
         // 透传方法
         getLands: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getLands'),
-        getFriends: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriends'),
+        getFriends: async (accountRef, options) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriends', options || {}),
         getFriendLands: async (accountRef, gid) => callWorkerApi(await resolveAccountRefId(accountRef), 'getFriendLands', gid),
         getInteractRecords: async (accountRef, limit) => callWorkerApi(await resolveAccountRefId(accountRef), 'getInteractRecords', limit),
         doFriendOp: async (accountRef, gid, opType) => callWorkerApi(await resolveAccountRefId(accountRef), 'doFriendOp', gid, opType),
