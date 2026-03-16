@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CropAtlasEntry } from '@/utils/crop-atlas'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -8,7 +9,6 @@ import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { useAccountStore } from '@/stores/account'
 import { useFriendStore } from '@/stores/friend'
 import { useSettingStore } from '@/stores/setting'
-import type { CropAtlasEntry } from '@/utils/crop-atlas'
 import { loadCropAtlasEntries, normalizeCropSelectionIds } from '@/utils/crop-atlas'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 

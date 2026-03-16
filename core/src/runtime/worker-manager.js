@@ -17,6 +17,24 @@ function normalizeAvatarUrl(value) {
     return String(value || '').trim();
 }
 
+function normalizeAccountWsError(code, message) {
+    const normalizedCode = Number(code) || 0;
+    const normalizedMessage = String(message || '').trim();
+    if (!normalizedCode && !normalizedMessage) {
+        return null;
+    }
+    return {
+        code: normalizedCode,
+        message: normalizedMessage,
+        at: Date.now(),
+    };
+}
+
+function isPermanentBanReason(reason) {
+    const text = String(reason || '').trim();
+    return /已被封禁|账号已被封禁|封禁/.test(text);
+}
+
 function flushSystemLogBatch() {
     if (systemLogBatch.length === 0) return;
     const pool = getPool();
@@ -80,7 +98,18 @@ function createWorkerManager(options) {
 
     function isWechatAutoRefreshEnabled() {
         const thirdPartyCfg = store.getThirdPartyApiConfig ? store.getThirdPartyApiConfig() : {};
-        const raw = thirdPartyCfg.wechatAutoRefreshAuth ?? processRef.env.WECHAT_AUTO_REFRESH_AUTH ?? '';
+        const raw = thirdPartyCfg.wechatAutoRefreshAuth ?? processRef.env.WECHAT_AUTO_REFRESH_AUTH;
+        if (raw === undefined || raw === null || String(raw).trim() === '') {
+            return true;
+        }
+        if (typeof raw === 'boolean') return raw;
+        const text = String(raw).trim().toLowerCase();
+        if (['0', 'false', 'no', 'off'].includes(text)) return false;
+        return ['1', 'true', 'yes', 'on'].includes(text);
+    }
+
+    function isQQAutoRefreshEnabled() {
+        const raw = processRef.env.FARM_QQ_AUTO_REFRESH_AUTH ?? '';
         if (typeof raw === 'boolean') return raw;
         const text = String(raw || '').trim().toLowerCase();
         return text === '1' || text === 'true' || text === 'yes' || text === 'on';
@@ -180,7 +209,7 @@ function createWorkerManager(options) {
         if (workers[account.id]) return false; // 已运行
 
         let launchAccount = { ...account };
-        if (String(launchAccount.platform || '') === 'qq' && launchAccount.authTicket) {
+        if (String(launchAccount.platform || '') === 'qq' && launchAccount.authTicket && isQQAutoRefreshEnabled()) {
             try {
                 const refreshedAccount = await refreshQQAuthCode(launchAccount);
                 if (refreshedAccount.code && refreshedAccount.code !== launchAccount.code) {
@@ -627,6 +656,17 @@ function createWorkerManager(options) {
             }
         } else if (msg.type === 'account_kicked') {
             const reason = msg.reason || '未知';
+            if (isPermanentBanReason(reason)) {
+                worker.wsError = normalizeAccountWsError(1000016, reason);
+                try {
+                    addOrUpdateAccount({
+                        id: accountId,
+                        running: false,
+                        connected: false,
+                        wsError: worker.wsError,
+                    });
+                } catch { }
+            }
             log('系统', `账号 ${worker.name} 被踢下线，已自动停止账号`, { accountId: String(accountId), accountName: worker.name });
             triggerOfflineReminder({
                 accountId,

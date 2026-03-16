@@ -9,7 +9,7 @@ on:
       version:
         description: 'Version'
         required: false
-        default: 'v4.5.20'
+        default: 'v4.5.21'
       latest:
         description: 'Latest'
         required: false

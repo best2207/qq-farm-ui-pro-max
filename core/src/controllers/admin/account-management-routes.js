@@ -157,6 +157,9 @@ function registerAccountManagementRoutes({
             if (!isUpdate && req.currentUser) {
                 payload.username = req.currentUser.username;
             }
+            if (shouldStartAfterSave) {
+                payload.wsError = null;
+            }
             if (!isUpdate) {
                 const freshSnapshot = createSnapshot || await getAccountsSnapshot({ force: true });
                 payload.id = allocateNextAccountId(freshSnapshot);

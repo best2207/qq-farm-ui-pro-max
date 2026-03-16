@@ -18,7 +18,24 @@ const RULES = {
         if (expected === 'array') return Array.isArray(value);
         if (expected === 'integer') return typeof value === 'number' && Number.isInteger(value);
         if (expected === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
-        return typeof value === expected;
+        switch (expected) {
+        case 'string':
+            return typeof value === 'string';
+        case 'number':
+            return typeof value === 'number';
+        case 'boolean':
+            return typeof value === 'boolean';
+        case 'function':
+            return typeof value === 'function';
+        case 'undefined':
+            return typeof value === 'undefined';
+        case 'symbol':
+            return typeof value === 'symbol';
+        case 'bigint':
+            return typeof value === 'bigint';
+        default:
+            return false;
+        }
     },
 
     required(value) {
@@ -238,6 +255,7 @@ const AUTOMATION_SCHEMA = {
     friend_auto_accept: { type: 'boolean', default: false, label: '自动同意好友' },
     friend_three_phase: { type: 'boolean', default: false, label: '三阶段巡查模式' },
     auto_blacklist_banned: { type: 'boolean', default: true, label: '被封禁好友自动加黑' },
+    qqFriendFetchMultiChain: { type: 'boolean', default: false, label: 'QQ 多链路好友拉取' },
     fertilizer_buy_limit: { type: 'integer', min: 1, max: 9999, default: 100, label: '单日化肥购买上限' },
     fertilizer_60s_anti_steal: { type: 'boolean', default: false, label: '60秒防偷' },
     fertilizer_smart_phase: { type: 'boolean', default: false, label: '智能二季施肥' },
@@ -274,6 +292,13 @@ const STEAL_FILTER_SCHEMA = {
 const STAKEOUT_STEAL_SCHEMA = {
     enabled: { type: 'boolean', default: false, label: '蹲守偷菜开关' },
     delaySec: { type: 'integer', min: 0, max: 60, default: 3, label: '蹲守延迟(秒)' },
+};
+
+const QQ_HIGH_RISK_WINDOW_SCHEMA = {
+    durationMinutes: { type: 'integer', min: 5, max: 180, default: 30, label: 'QQ 高风险自动回退时长(分钟)' },
+    expiresAt: { type: 'integer', min: 0, default: 0, label: 'QQ 高风险窗口到期时间' },
+    lastIssuedAt: { type: 'integer', min: 0, default: 0, label: 'QQ 高风险窗口签发时间' },
+    lastAutoDisabledAt: { type: 'integer', min: 0, default: 0, label: 'QQ 高风险窗口自动回退时间' },
 };
 
 const STEAL_FRIEND_FILTER_SCHEMA = {
@@ -445,6 +470,11 @@ const SETTINGS_SCHEMA = {
         type: 'object',
         label: '蹲守偷菜',
         properties: STAKEOUT_STEAL_SCHEMA,
+    },
+    qqHighRiskWindow: {
+        type: 'object',
+        label: 'QQ 高风险窗口',
+        properties: QQ_HIGH_RISK_WINDOW_SCHEMA,
     },
     plantingStrategy: {
         type: 'string',

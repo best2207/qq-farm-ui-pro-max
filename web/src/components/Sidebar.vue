@@ -169,7 +169,8 @@ useIntervalFn(() => {
 
 watch(() => currentAccount.value?.id || currentAccount.value?.uin || '', (newVal, oldVal) => {
   // 值级幂等：ID 未实际变化时不触发重连，防止 fetchAccounts 刷新数组后误触发
-  if (newVal === oldVal) return
+  if (newVal === oldVal)
+    return
   const accountRef = currentAccount.value?.id || currentAccount.value?.uin
   statusStore.connectRealtime(String(accountRef || ''))
   refreshStatusFallback()
@@ -385,7 +386,7 @@ const copyrightText = computed(() => appStore.copyrightText)
           <div class="i-carbon-close text-lg" />
           <span class="text-xs font-semibold">收起</span>
         </button>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="h-7 w-7 xl:ml-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="sidebar-brand-mark h-7 w-7 xl:ml-2">
           <defs>
             <linearGradient id="sidebarGrad" x1="0" y1="1" x2="0.3" y2="0">
               <stop offset="0%" stop-color="var(--ui-status-success)" />
@@ -508,7 +509,7 @@ const copyrightText = computed(() => appStore.copyrightText)
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+    <nav class="sidebar-nav flex-1 overflow-y-auto px-3 py-4 space-y-1">
       <router-link
         v-for="item in navItems"
         :key="item.path"
@@ -567,31 +568,31 @@ const copyrightText = computed(() => appStore.copyrightText)
 
     <!-- Footer Status -->
     <div class="sidebar-footer mt-auto border-t p-4">
-      <div class="glass-text-muted mb-2 flex items-center justify-between text-xs">
-        <div class="flex items-center gap-1.5">
+      <div class="sidebar-footer-status glass-text-muted mb-2 flex items-center justify-between text-xs">
+        <div class="sidebar-footer-status-main flex items-center gap-1.5">
           <div
             class="h-2 w-2 rounded-full"
             :class="[connectionStatus.color, { 'animate-pulse': connectionStatus.pulse }]"
           />
           <span>{{ connectionStatus.text }}</span>
         </div>
-        <div class="flex items-center gap-2">
-          <span>{{ uptime }}</span>
-          <ThemeToggle />
+        <div class="sidebar-footer-status-meta flex items-center gap-2">
+          <span class="sidebar-footer-uptime" :title="uptime">{{ uptime }}</span>
+          <ThemeToggle class="sidebar-footer-theme-toggle" />
         </div>
       </div>
       <div class="sidebar-footer-meta mt-1 flex flex-col gap-0.5 text-xs font-mono">
-        <div class="flex items-center justify-between">
-          <span>{{ formattedTime }}</span>
+        <div class="sidebar-footer-time-row flex items-center justify-between">
+          <span class="sidebar-footer-time" :title="String(formattedTime)">{{ formattedTime }}</span>
         </div>
-        <div class="flex items-center justify-between opacity-50">
-          <span>Web v{{ version }}</span>
-          <span v-if="serverVersion">Core v{{ serverVersion }}</span>
+        <div class="sidebar-footer-version-row flex items-center justify-between gap-2 opacity-50">
+          <span class="sidebar-footer-version">Web v{{ version }}</span>
+          <span v-if="serverVersion" class="sidebar-footer-version">Core v{{ serverVersion }}</span>
         </div>
         <!-- 侧栏微缩防伪水印 -->
-        <div class="sidebar-watermark pointer-events-none mt-1.5 flex select-none items-center justify-between border-t pt-1.5 text-[10px]">
-          <span>{{ copyrightText }}</span>
-          <span>QQ群: {{ supportQqGroup }}</span>
+        <div class="sidebar-watermark pointer-events-none mt-1.5 flex select-none items-center justify-between gap-2 border-t pt-1.5 text-[10px]">
+          <span class="sidebar-watermark__copyright" :title="String(copyrightText)">{{ copyrightText }}</span>
+          <span class="sidebar-watermark__group" :title="`QQ群: ${supportQqGroup}`">QQ群: {{ supportQqGroup }}</span>
         </div>
       </div>
     </div>
@@ -719,6 +720,34 @@ const copyrightText = computed(() => appStore.copyrightText)
   background: color-mix(in srgb, var(--ui-bg-surface) 60%, transparent);
 }
 
+.sidebar-footer-status,
+.sidebar-footer-status-main,
+.sidebar-footer-status-meta,
+.sidebar-footer-time-row,
+.sidebar-footer-version-row,
+.sidebar-watermark {
+  min-width: 0;
+}
+
+.sidebar-footer-time,
+.sidebar-footer-version,
+.sidebar-footer-uptime,
+.sidebar-watermark__copyright,
+.sidebar-watermark__group {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-footer-status-meta {
+  flex: 0 0 auto;
+}
+
+.sidebar-footer-theme-toggle {
+  margin-inline: 0 !important;
+  flex: 0 0 auto;
+}
+
 .sidebar-footer-meta {
   color: var(--ui-text-3);
 }
@@ -726,6 +755,15 @@ const copyrightText = computed(() => appStore.copyrightText)
 .sidebar-watermark {
   border-color: var(--ui-border-subtle);
   color: color-mix(in srgb, var(--ui-text-3) 80%, transparent);
+}
+
+.sidebar-watermark__copyright {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-watermark__group {
+  flex: 0 0 auto;
 }
 
 .sidebar-brand-wordmark {
@@ -786,5 +824,168 @@ const copyrightText = computed(() => appStore.copyrightText)
 .sidebar-dropdown-avatar {
   background: color-mix(in srgb, var(--ui-bg-surface-raised) 88%, transparent) !important;
   border: 1px solid var(--ui-border-subtle) !important;
+}
+
+/* Compact desktop sidebar profile. */
+@media (max-height: 980px) {
+  /* Brand + account switcher */
+  .sidebar-brand {
+    height: 3.5rem;
+    padding-inline: 0.9rem;
+  }
+
+  .sidebar-brand-mark {
+    height: 1.35rem;
+    width: 1.35rem;
+  }
+
+  .sidebar-brand-wordmark {
+    font-size: 1rem;
+    letter-spacing: 0.16em;
+  }
+
+  .sidebar-account {
+    padding: 0.75rem;
+  }
+
+  .sidebar-account-trigger {
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.9rem;
+  }
+
+  .sidebar-account-note {
+    margin-top: 0.45rem;
+    font-size: 0.62rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .sidebar-nav {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .sidebar-nav > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.16rem;
+  }
+
+  .sidebar-nav-link,
+  .sidebar-entry-btn {
+    gap: 0.7rem;
+    padding-top: 0.58rem;
+    padding-bottom: 0.58rem;
+  }
+
+  .sidebar-nav-link {
+    padding-inline: 0.78rem;
+  }
+
+  .sidebar-entry-btn {
+    padding-inline: 0.78rem;
+  }
+
+  /* Footer */
+  .sidebar-footer {
+    padding: 0.75rem;
+  }
+
+  .sidebar-footer-status {
+    margin-bottom: 0.35rem !important;
+    font-size: 0.68rem;
+    line-height: 1.1;
+  }
+
+  .sidebar-footer-status-meta {
+    gap: 0.4rem;
+  }
+
+  .sidebar-footer-theme-toggle {
+    transform: scale(0.9);
+    transform-origin: center;
+  }
+
+  .sidebar-footer-meta {
+    gap: 0.15rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .sidebar-watermark {
+    margin-top: 0.5rem !important;
+    padding-top: 0.5rem !important;
+    gap: 0.4rem;
+    font-size: 0.56rem;
+    line-height: 1.1;
+  }
+}
+
+/* Ultra-compact desktop sidebar profile. */
+@media (max-height: 860px) {
+  /* Brand + account switcher */
+  .sidebar-brand {
+    height: 3.15rem;
+    padding-inline: 0.75rem;
+  }
+
+  .sidebar-brand-mark {
+    height: 1.18rem;
+    width: 1.18rem;
+  }
+
+  .sidebar-brand-wordmark {
+    font-size: 0.92rem;
+    letter-spacing: 0.13em;
+  }
+
+  .sidebar-account {
+    padding: 0.65rem;
+  }
+
+  .sidebar-account-trigger {
+    padding: 0.56rem 0.72rem;
+  }
+
+  .sidebar-account-note {
+    margin-top: 0.34rem;
+    font-size: 0.58rem;
+    -webkit-line-clamp: 1;
+  }
+
+  .sidebar-nav {
+    padding-top: 0.42rem;
+    padding-bottom: 0.42rem;
+  }
+
+  .sidebar-nav > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.12rem;
+  }
+
+  .sidebar-nav-link,
+  .sidebar-entry-btn {
+    gap: 0.58rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Footer */
+  .sidebar-footer {
+    padding: 0.65rem;
+  }
+
+  .sidebar-footer-status {
+    margin-bottom: 0.28rem !important;
+  }
+
+  .sidebar-footer-meta {
+    font-size: 0.62rem;
+  }
+
+  .sidebar-watermark {
+    font-size: 0.52rem;
+  }
 }
 </style>

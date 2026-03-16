@@ -188,7 +188,7 @@ test('accounts route starts an existing offline account when duplicate create ca
     assert.equal(res.statusCode, 200);
     assert.deepEqual(calls, [
         ['console', '[API /api/accounts] 拦截重复创建: 标识 10001 已存在，转为更新 (ID: acc-9)'],
-        ['save', { uin: '10001', platform: 'qq', name: '原名字', code: 'fresh-code', loginType: 'qr', id: 'acc-9', username: 'alice', qq: '10001' }],
+        ['save', { uin: '10001', platform: 'qq', name: '原名字', code: 'fresh-code', loginType: 'qr', id: 'acc-9', username: 'alice', qq: '10001', wsError: null }],
         ['persist', 'acc-9', { strict: true }],
         ['log', 'update', '更新账号: 原名字', 'acc-9', '原名字'],
         ['start', 'acc-9'],
@@ -407,6 +407,7 @@ test('accounts route clears stale authTicket for manual updates and drops qq res
         loginType: 'manual',
         qq: '',
         authTicket: '',
+        wsError: null,
     }]);
 });
 

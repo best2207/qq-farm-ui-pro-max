@@ -52,6 +52,7 @@ const expandedRuntimeReloadHistoryKeys = ref<string[]>([])
 const landsPreview = ref<any>(null)
 const lastLandsFetchAt = ref(0)
 const localMatureCountdowns = ref<Record<number, number>>({})
+const taskCountdowns = ref<Record<string, string>>({})
 
 function resetDashboardRuntimePreviewState() {
   schedulerPreview.value = null
@@ -491,6 +492,48 @@ function getOpIcon(key: string | number) {
 function getOpColor(key: string | number) {
   return OP_META[String(key)]?.color || 'dashboard-op-tone dashboard-op-tone--neutral'
 }
+
+function normalizeOperationCount(value: unknown) {
+  const num = Number(value)
+  if (!Number.isFinite(num))
+    return 0
+  return Math.max(0, Math.trunc(num))
+}
+
+const operationEntries = computed(() => {
+  const rawOperations = status.value?.operations && typeof status.value.operations === 'object'
+    ? status.value.operations
+    : {}
+  const usedKeys = new Set<string>()
+  const entries = Object.keys(OP_META).map((key) => {
+    usedKeys.add(key)
+    return {
+      key,
+      label: getOpName(key),
+      value: normalizeOperationCount((rawOperations as Record<string, unknown>)[key]),
+    }
+  })
+
+  Object.entries(rawOperations as Record<string, unknown>).forEach(([key, value]) => {
+    if (usedKeys.has(key))
+      return
+    entries.push({
+      key,
+      label: getOpName(key),
+      value: normalizeOperationCount(value),
+    })
+  })
+
+  return entries
+})
+
+const totalOperationCount = computed(() =>
+  operationEntries.value.reduce((sum, item) => sum + item.value, 0),
+)
+
+const activeOperationCount = computed(() =>
+  operationEntries.value.filter(item => item.value > 0).length,
+)
 
 function getExpPercent(p: any) {
   if (!p || !p.needed)
@@ -951,7 +994,7 @@ function getRuntimeReloadSourceLabel(source: string) {
 }
 
 function sanitizeRuntimeReloadExportFilePart(value: string) {
-  return String(value || '').trim().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'all'
+  return String(value || '').trim().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'all'
 }
 
 function exportRuntimeReloadHistory() {
@@ -976,14 +1019,14 @@ function exportRuntimeReloadHistory() {
     summary: runtimeReloadHistorySummary.value,
     items,
   }
-  const filename = [
+  const filename = `${[
     'runtime-reload-history',
     sanitizeRuntimeReloadExportFilePart(String(currentAccountId.value || 'account')),
     sanitizeRuntimeReloadExportFilePart(String(runtimeReloadHistoryFilter.value || 'all-targets')),
     sanitizeRuntimeReloadExportFilePart(String(runtimeReloadHistoryResultFilter.value || 'all-results')),
     sanitizeRuntimeReloadExportFilePart(String(runtimeReloadHistorySourceFilter.value || 'all-sources')),
     Date.now(),
-  ].join('-') + '.json'
+  ].join('-')}.json`
 
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
     type: 'application/json;charset=utf-8',
@@ -1030,12 +1073,12 @@ function getRuntimeReloadTaskKindLabel(kind: string) {
 function normalizeRuntimeReloadHistoryTasks(raw: any): RuntimeReloadTaskSnapshot[] {
   return Array.isArray(raw)
     ? raw
-      .map((task: any) => ({
-        name: String(task?.name || '').trim(),
-        kind: String(task?.kind || 'timeout').trim() || 'timeout',
-        running: !!task?.running,
-      }))
-      .filter(task => !!task.name)
+        .map((task: any) => ({
+          name: String(task?.name || '').trim(),
+          kind: String(task?.kind || 'timeout').trim() || 'timeout',
+          running: !!task?.running,
+        }))
+        .filter(task => !!task.name)
     : []
 }
 
@@ -1541,9 +1584,6 @@ function openTaskDetail(task: any) {
   showTaskDetailModal.value = true
 }
 
-// ========== 任务倒计时实时刷新 ==========
-const taskCountdowns = ref<Record<string, string>>({})
-
 function updateTaskCountdowns() {
   const tasks = schedulerTasks.value
   if (!tasks.length)
@@ -1840,9 +1880,9 @@ async function handleDashboardTrialRenew() {
     </div>
 
     <!-- Status Cards -->
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="dashboard-status-grid grid grid-cols-1 gap-3 lg:grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
       <!-- Account & Exp -->
-      <div class="glass-panel flex flex-col rounded-lg p-3 shadow">
+      <div class="glass-panel dashboard-top-card dashboard-top-card--account flex flex-col rounded-lg p-3 shadow">
         <div class="mb-1 flex items-start justify-between">
           <div class="glass-text-muted flex items-center gap-1.5 text-sm">
             <div class="i-fas-user-circle" />
@@ -1852,13 +1892,13 @@ async function handleDashboardTrialRenew() {
             Lv.{{ status?.status?.level || 0 }}
           </div>
         </div>
-        <div class="glass-text-main mb-1 truncate text-xl font-bold" :title="displayName">
+        <div class="dashboard-top-card__account-name glass-text-main mb-1 truncate text-xl font-bold" :title="displayName">
           {{ displayName }}
         </div>
 
         <!-- Level Progress -->
-        <div class="mt-auto">
-          <div class="glass-text-muted mb-1 flex justify-between text-xs">
+        <div class="dashboard-top-card__progress mt-auto">
+          <div class="dashboard-top-card__progress-row glass-text-muted mb-1 flex justify-between text-xs">
             <div class="flex items-center gap-1">
               <div class="dashboard-exp-icon i-fas-bolt" />
               <span>EXP</span>
@@ -1871,7 +1911,7 @@ async function handleDashboardTrialRenew() {
               :style="{ width: `${getExpPercent(status?.levelProgress)}%` }"
             />
           </div>
-          <div class="glass-text-muted mt-2 flex justify-between text-xs">
+          <div class="dashboard-top-card__progress-meta glass-text-muted mt-2 flex justify-between text-xs">
             <span>效率: {{ expRate }}</span>
             <span>{{ timeToLevel }}</span>
           </div>
@@ -1879,19 +1919,19 @@ async function handleDashboardTrialRenew() {
       </div>
 
       <!-- Assets & Status -->
-      <div class="glass-panel flex flex-col justify-between rounded-lg p-3 shadow">
+      <div class="glass-panel dashboard-top-card dashboard-top-card--assets flex flex-col justify-between rounded-lg p-3 shadow">
         <div class="flex justify-between">
           <div>
             <div class="glass-text-muted flex items-center gap-1.5 text-xs">
               <div class="i-fas-coins text-yellow-500" />
               金币
             </div>
-            <div class="text-2xl text-yellow-600 font-bold dark:text-yellow-500">
+            <div class="dashboard-top-card__asset-value text-2xl text-yellow-600 font-bold dark:text-yellow-500">
               {{ status?.status?.gold || 0 }}
             </div>
             <div
               v-if="(status?.sessionGoldGained || 0) !== 0"
-              class="text-[10px]"
+              class="dashboard-top-card__delta text-[10px]"
               :class="(status?.sessionGoldGained || 0) > 0 ? 'text-green-500' : 'text-red-500'"
             >
               {{ (status?.sessionGoldGained || 0) > 0 ? '+' : '' }}{{ status?.sessionGoldGained || 0 }}
@@ -1902,25 +1942,25 @@ async function handleDashboardTrialRenew() {
               <div class="i-fas-ticket-alt text-emerald-400" />
               点券
             </div>
-            <div class="text-2xl text-emerald-500 font-bold dark:text-emerald-400">
+            <div class="dashboard-top-card__asset-value text-2xl text-emerald-500 font-bold dark:text-emerald-400">
               {{ status?.status?.coupon || 0 }}
             </div>
             <div
               v-if="(status?.sessionCouponGained || 0) !== 0"
-              class="text-[10px]"
+              class="dashboard-top-card__delta text-[10px]"
               :class="(status?.sessionCouponGained || 0) > 0 ? 'text-green-500' : 'text-red-500'"
             >
               {{ (status?.sessionCouponGained || 0) > 0 ? '+' : '' }}{{ status?.sessionCouponGained || 0 }}
             </div>
           </div>
         </div>
-        <div class="mt-3 border-t border-gray-100/50 pt-2 dark:border-gray-700/50">
-          <div class="flex items-center justify-between">
+        <div class="dashboard-top-card__footer mt-3 border-t border-gray-100/50 pt-2 dark:border-gray-700/50">
+          <div class="dashboard-top-card__footer-row flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="h-2.5 w-2.5 rounded-full" :class="status?.connection?.connected ? 'bg-green-500' : 'bg-red-500'" />
               <span class="glass-text-main text-xs font-bold">{{ status?.connection?.connected ? '在线' : '离线' }}</span>
             </div>
-            <div class="glass-text-muted flex items-center gap-1.5 text-xs">
+            <div class="dashboard-top-card__uptime glass-text-muted flex items-center gap-1.5 text-xs">
               <div class="i-fas-clock text-purple-400" />
               {{ formatDuration(localUptime) }}
             </div>
@@ -1932,18 +1972,18 @@ async function handleDashboardTrialRenew() {
       </div>
 
       <!-- Items (Fertilizer & Collection) -->
-      <div class="glass-panel flex flex-col justify-between rounded-lg p-3 shadow">
-        <div class="glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
+      <div class="glass-panel dashboard-top-card dashboard-top-card--inventory flex flex-col justify-between rounded-lg p-3 shadow">
+        <div class="dashboard-top-card__title glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
           <div class="i-fas-flask text-emerald-400" />
           化肥容器
         </div>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="dashboard-top-card__metric-grid grid grid-cols-2 gap-2">
           <div>
             <div class="glass-text-muted flex items-center gap-1 text-xs">
               <div class="i-fas-flask text-emerald-400" />
               普通
             </div>
-            <div class="glass-text-main font-bold">
+            <div class="dashboard-top-card__metric-value glass-text-main font-bold">
               {{ formatBucketTime(fertilizerNormal) }}
             </div>
           </div>
@@ -1952,23 +1992,23 @@ async function handleDashboardTrialRenew() {
               <div class="i-fas-vial text-emerald-400" />
               有机
             </div>
-            <div class="glass-text-main font-bold">
+            <div class="dashboard-top-card__metric-value glass-text-main font-bold">
               {{ formatBucketTime(fertilizerOrganic) }}
             </div>
           </div>
         </div>
-        <div class="my-2 border-t border-gray-100/50 dark:border-gray-700/50" />
-        <div class="glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
+        <div class="dashboard-top-card__divider my-2 border-t border-gray-100/50 dark:border-gray-700/50" />
+        <div class="dashboard-top-card__title glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
           <div class="i-fas-star text-emerald-400" />
           收藏点
         </div>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="dashboard-top-card__metric-grid grid grid-cols-2 gap-2">
           <div>
             <div class="glass-text-muted flex items-center gap-1 text-xs">
               <div class="i-fas-bookmark text-emerald-400" />
               普通
             </div>
-            <div class="glass-text-main font-bold">
+            <div class="dashboard-top-card__metric-value glass-text-main font-bold">
               {{ collectionNormal?.count || 0 }}
             </div>
           </div>
@@ -1977,7 +2017,7 @@ async function handleDashboardTrialRenew() {
               <div class="i-fas-gem text-emerald-400" />
               典藏
             </div>
-            <div class="glass-text-main font-bold">
+            <div class="dashboard-top-card__metric-value glass-text-main font-bold">
               {{ collectionRare?.count || 0 }}
             </div>
           </div>
@@ -1985,27 +2025,27 @@ async function handleDashboardTrialRenew() {
       </div>
 
       <!-- Next Checks -->
-      <div class="glass-panel flex flex-col justify-between rounded-lg p-3 shadow">
-        <h3 class="glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
+      <div class="glass-panel dashboard-top-card dashboard-top-card--checks flex flex-col justify-between rounded-lg p-3 shadow">
+        <h3 class="dashboard-top-card__title glass-text-muted mb-1 flex items-center gap-1.5 text-sm">
           <div class="i-carbon-hourglass" />
           <span>下次巡查倒计时</span>
         </h3>
-        <div class="mt-1 flex flex-1 flex-col justify-center gap-2">
-          <div class="flex items-center justify-between">
+        <div class="dashboard-top-card__checks mt-1 flex flex-1 flex-col justify-center gap-2">
+          <div class="dashboard-top-card__check-row flex items-center justify-between">
             <div class="glass-text-muted flex items-center gap-1.5 text-xs tracking-wider">
               <div class="i-carbon-sprout text-primary-500" />
               <span>农场</span>
             </div>
-            <div class="glass-text-main text-base font-bold font-mono">
+            <div class="dashboard-top-card__check-value glass-text-main text-base font-bold font-mono">
               {{ nextFarmCheck }}
             </div>
           </div>
-          <div class="flex items-center justify-between">
+          <div class="dashboard-top-card__check-row flex items-center justify-between">
             <div class="glass-text-muted flex items-center gap-1.5 text-xs tracking-wider">
               <div class="i-carbon-user-multiple text-blue-500" />
               <span>好友</span>
             </div>
-            <div class="glass-text-main text-base font-bold font-mono">
+            <div class="dashboard-top-card__check-value glass-text-main text-base font-bold font-mono">
               {{ nextFriendCheck }}
             </div>
           </div>
@@ -2014,12 +2054,12 @@ async function handleDashboardTrialRenew() {
     </div>
 
     <!-- Main Content Flex: 日志 40% + 右侧 60%（纵向分割：农场预览 + 今日统计） -->
-    <div class="flex flex-1 flex-col items-stretch gap-4 md:flex-row md:overflow-hidden">
+    <div class="dashboard-main-panels min-h-0 flex flex-1 flex-col items-stretch gap-4 md:flex-row">
       <!-- 运行日志（左侧 40%） -->
-      <div class="flex flex-1 flex-col gap-4 md:min-w-0 md:w-[40%] md:overflow-hidden">
-        <div class="glass-panel flex flex-1 flex-col rounded-lg p-4 shadow md:overflow-hidden">
-          <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 class="glass-text-main flex items-center gap-2 text-base font-medium">
+      <div class="dashboard-log-column min-h-0 flex flex-1 flex-col gap-4 md:min-w-0 md:w-[40%]">
+        <div class="glass-panel dashboard-log-panel min-h-0 flex flex-1 flex-col rounded-lg p-4 shadow">
+          <div class="dashboard-log-header mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 class="dashboard-log-heading glass-text-main flex items-center gap-2 text-base font-medium">
               <div class="i-carbon-document" />
               <span>运行日志</span>
             </h3>
@@ -2088,15 +2128,15 @@ async function handleDashboardTrialRenew() {
             </div>
           </div>
 
-          <div class="dashboard-log-note mb-3 rounded-xl px-3 py-2 text-xs leading-5">
+          <div class="dashboard-log-note mb-3 rounded-xl px-3 py-2 text-xs leading-5" :title="DASHBOARD_BROWSER_PREF_NOTE">
             {{ DASHBOARD_BROWSER_PREF_NOTE }}
           </div>
 
-          <div ref="logContainer" class="max-h-[50vh] min-h-0 flex-1 overflow-y-auto border border-gray-200/20 rounded bg-transparent p-3 text-xs leading-relaxed font-mono md:max-h-none dark:border-gray-700/20" @scroll="onLogScroll">
+          <div ref="logContainer" class="dashboard-log-list max-h-[50vh] min-h-0 flex-1 overflow-y-auto border border-gray-200/20 rounded bg-transparent p-3 text-xs leading-relaxed font-mono md:max-h-none dark:border-gray-700/20" @scroll="onLogScroll">
             <div v-if="!allLogs.length" class="glass-text-muted py-8 text-center">
               暂无日志
             </div>
-            <div v-for="log in allLogs" :key="log.ts + log.msg" class="mb-2 break-all">
+            <div v-for="log in allLogs" :key="log.ts + log.msg" class="dashboard-log-entry mb-2 break-all">
               <div>
                 <span class="mr-1.5 select-none opacity-60">[{{ formatLogTime(log.time) }}]</span>
                 <span class="mr-1.5 rounded px-1 py-0.5 text-xs font-bold" :class="getLogTagClass(log.tag)">{{ log.tag }}</span>
@@ -2119,15 +2159,15 @@ async function handleDashboardTrialRenew() {
         </div>
       </div>
 
-      <!-- 右侧面板（60%）：纵向分割 —— 任务队列预览 + 今日统计 -->
-      <div class="flex flex-col gap-4 md:min-w-0 md:w-[60%] md:overflow-hidden">
+      <!-- 右侧面板（60%）：任务队列优先占高，今日统计按内容收口 -->
+      <div class="dashboard-right-column min-h-0 flex flex-col gap-4 md:min-w-0 md:w-[60%]">
         <!-- 任务队列预览 -->
-        <div class="glass-panel dashboard-task-panel flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg px-4 py-3 shadow">
-	          <div class="dashboard-task-panel__header mb-1.5 shrink-0">
-	            <div class="dashboard-task-panel__heading min-w-0">
-	              <h3 class="dashboard-task-panel__title glass-text-main flex items-center gap-2 text-base font-medium">
-	                <div class="i-carbon-task text-indigo-500" />
-	                <span>任务队列预览</span>
+        <div class="glass-panel dashboard-task-panel min-h-0 flex flex-1 flex-col overflow-hidden rounded-lg px-4 py-3 shadow">
+          <div class="dashboard-task-panel__header mb-1.5 shrink-0">
+            <div class="dashboard-task-panel__heading min-w-0">
+              <h3 class="dashboard-task-panel__title glass-text-main flex items-center gap-2 text-base font-medium">
+                <div class="i-carbon-task text-indigo-500" />
+                <span>任务队列预览</span>
               </h3>
               <p class="dashboard-task-panel__desc hidden md:block">
                 紧凑展示当前账号的调度队列，优先把运行中和即将触发的任务排在前面。
@@ -2135,333 +2175,339 @@ async function handleDashboardTrialRenew() {
             </div>
             <div v-if="allSchedulerTaskCount" class="dashboard-task-meta ui-bulk-actions text-xs font-normal">
               <span class="dashboard-task-pill dashboard-task-pill--count">总任务 {{ allSchedulerTaskCount }}</span>
-	              <span class="dashboard-task-pill dashboard-task-pill--running">运行中 {{ runningSchedulerTaskCount }}</span>
-	              <button
-	                v-if="hiddenInfrastructureTaskCount"
-	                class="dashboard-toggle-btn rounded-full px-2 py-0.5 text-[10px] transition-colors"
-	                :class="getShowAllTasksButtonClass()"
+              <span class="dashboard-task-pill dashboard-task-pill--running">运行中 {{ runningSchedulerTaskCount }}</span>
+              <button
+                v-if="hiddenInfrastructureTaskCount"
+                class="dashboard-toggle-btn rounded-full px-2 py-0.5 text-[10px] transition-colors"
+                :class="getShowAllTasksButtonClass()"
                 @click="showAllTasks = !showAllTasks"
               >
                 {{ showAllTasks ? `收起内部 ${hiddenInfrastructureTaskCount}` : `已收起 ${hiddenInfrastructureTaskCount}` }}
-	              </button>
-	            </div>
-	          </div>
+              </button>
+            </div>
+          </div>
 
-	          <div v-if="reloadableRuntimeTargets.length || runtimeReloadError" class="dashboard-runtime-reload-row mb-3 shrink-0">
-	            <div class="dashboard-runtime-reload-row__label">
-	              <span class="dashboard-runtime-reload-row__title">运行时热重载</span>
-	              <span class="dashboard-runtime-reload-row__desc">保持当前连接，只重建业务模块族。</span>
-	            </div>
-	            <div v-if="reloadableRuntimeTargets.length" class="dashboard-runtime-reload-row__actions">
-	              <BaseButton
-	                v-for="item in reloadableRuntimeTargets"
-	                :key="item.target"
-	                variant="outline"
-	                size="sm"
-	                class="dashboard-runtime-reload-btn"
-	                :title="item.queueImpactSummary || item.description || ''"
-	                :loading="runtimeReloadingTarget === item.target"
-	                :loading-label="`${getRuntimeReloadTargetLabel(item.target)}重载中`"
-	                :disabled="!!runtimeReloadingTarget"
-	                @click="openRuntimeReloadConfirm(item)"
-	              >
-	                {{ getRuntimeReloadTargetLabel(item.target) }}<span v-if="item.inCooldown"> · 冷却中</span>
-	              </BaseButton>
-	            </div>
-	            <p v-else-if="runtimeReloadError" class="dashboard-runtime-reload-row__error">
-	              {{ runtimeReloadError }}
-	            </p>
-	            <p v-if="runtimeReloadHasCooldownTarget" class="dashboard-runtime-reload-row__hint">
-	              部分模块族刚完成热重载；再次执行时会先显示冷却提示，并要求显式确认。
-	            </p>
-	          </div>
-
-            <div v-if="latestRuntimeReloadReplay" class="dashboard-runtime-reload-replay mb-3 shrink-0">
-              <div class="dashboard-runtime-reload-replay__header">
-                <div class="dashboard-runtime-reload-replay__label">
-                  <span class="dashboard-runtime-reload-replay__title">最近一次热重载回放</span>
-                  <span class="dashboard-runtime-reload-replay__meta">
-                    {{ formatRuntimeReloadTimestamp(latestRuntimeReloadReplay.lastReloadSummary?.finishedAt || latestRuntimeReloadReplay.lastReloadAt) }}
-                    ·
-                    {{ getRuntimeReloadSourceLabel(latestRuntimeReloadReplay.lastReloadSummary?.source || latestRuntimeReloadReplay.lastReloadSource) }}
-                  </span>
-                </div>
-                <div class="dashboard-runtime-reload-replay__badges">
-                  <span :class="getRuntimeReloadRiskClass(latestRuntimeReloadReplay.riskLevel)">
-                    {{ getRuntimeReloadRiskLabel(latestRuntimeReloadReplay.riskLevel) }}
-                  </span>
-                  <span :class="getRuntimeReloadReplayResultClass(latestRuntimeReloadReplay.lastReloadSummary?.result || latestRuntimeReloadReplay.lastReloadResult)">
-                    {{ getRuntimeReloadReplayResultLabel(latestRuntimeReloadReplay.lastReloadSummary?.result || latestRuntimeReloadReplay.lastReloadResult) }}
-                  </span>
-                  <span
-                    v-if="latestRuntimeReloadReplay.lastReloadSummary?.forced"
-                    class="dashboard-runtime-reload-modal__badge dashboard-runtime-reload-modal__badge--neutral"
-                  >
-                    强制执行
-                  </span>
-                </div>
-              </div>
-
-              <dl class="dashboard-runtime-reload-replay__grid">
-                <div class="dashboard-runtime-reload-replay__item">
-                  <dt>目标模块族</dt>
-                  <dd>{{ getRuntimeReloadTargetLabel(latestRuntimeReloadReplay.lastReloadSummary?.target || latestRuntimeReloadReplay.target) }}</dd>
-                </div>
-                <div class="dashboard-runtime-reload-replay__item">
-                  <dt>耗时</dt>
-                  <dd>{{ formatRuntimeReloadDuration(latestRuntimeReloadReplay.lastReloadSummary?.durationMs || latestRuntimeReloadReplay.lastReloadDurationMs) }}</dd>
-                </div>
-                <div class="dashboard-runtime-reload-replay__item">
-                  <dt>统一调度</dt>
-                  <dd>
-                    {{
-                      latestRuntimeReloadReplay.affectsUnifiedScheduler
-                        ? (latestRuntimeReloadReplay.lastReloadSummary?.unifiedSchedulerResumed ? '已恢复' : '未恢复或无需恢复')
-                        : '未受影响'
-                    }}
-                  </dd>
-                </div>
-                <div class="dashboard-runtime-reload-replay__item">
-                  <dt>队列变化</dt>
-                  <dd>
-                    {{
-                      formatRuntimeReloadQueueDelta(
-                        latestRuntimeReloadReplay.lastReloadSummary?.beforeTaskCount,
-                        latestRuntimeReloadReplay.lastReloadSummary?.afterTaskCount,
-                      )
-                    }}
-                  </dd>
-                </div>
-                <div class="dashboard-runtime-reload-replay__item">
-                  <dt>运行中变化</dt>
-                  <dd>
-                    {{
-                      formatRuntimeReloadQueueDelta(
-                        latestRuntimeReloadReplay.lastReloadSummary?.beforeRunningTaskCount,
-                        latestRuntimeReloadReplay.lastReloadSummary?.afterRunningTaskCount,
-                      )
-                    }}
-                  </dd>
-                </div>
-                <div class="dashboard-runtime-reload-replay__item dashboard-runtime-reload-replay__item--full">
-                  <dt>重建模块</dt>
-                  <dd>{{ latestRuntimeReloadReplay.lastReloadSummary?.modules?.join(' / ') || latestRuntimeReloadReplay.modules?.join(' / ') || '-' }}</dd>
-                </div>
-              </dl>
-
-              <p
-                v-if="latestRuntimeReloadReplay.lastReloadSummary?.error"
-                class="dashboard-runtime-reload-replay__error"
+          <div v-if="reloadableRuntimeTargets.length || runtimeReloadError" class="dashboard-runtime-reload-row mb-3 shrink-0">
+            <div class="dashboard-runtime-reload-row__label">
+              <span class="dashboard-runtime-reload-row__title">运行时热重载</span>
+              <span class="dashboard-runtime-reload-row__desc">保持当前连接，只重建业务模块族。</span>
+            </div>
+            <div v-if="reloadableRuntimeTargets.length" class="dashboard-runtime-reload-row__actions">
+              <BaseButton
+                v-for="item in reloadableRuntimeTargets"
+                :key="item.target"
+                variant="outline"
+                size="sm"
+                class="dashboard-runtime-reload-btn"
+                :title="item.queueImpactSummary || item.description || ''"
+                :loading="runtimeReloadingTarget === item.target"
+                :loading-label="`${getRuntimeReloadTargetLabel(item.target)}重载中`"
+                :disabled="!!runtimeReloadingTarget"
+                @click="openRuntimeReloadConfirm(item)"
               >
-                最近一次返回错误：{{ latestRuntimeReloadReplay.lastReloadSummary.error }}
-              </p>
+                {{ getRuntimeReloadTargetLabel(item.target) }}<span v-if="item.inCooldown"> · 冷却中</span>
+              </BaseButton>
+            </div>
+            <p v-else-if="runtimeReloadError" class="dashboard-runtime-reload-row__error">
+              {{ runtimeReloadError }}
+            </p>
+            <p v-if="runtimeReloadHasCooldownTarget" class="dashboard-runtime-reload-row__hint">
+              部分模块族刚完成热重载；再次执行时会先显示冷却提示，并要求显式确认。
+            </p>
+          </div>
+
+          <div v-if="latestRuntimeReloadReplay" class="dashboard-runtime-reload-replay mb-3 shrink-0">
+            <div class="dashboard-runtime-reload-replay__header">
+              <div class="dashboard-runtime-reload-replay__label">
+                <span class="dashboard-runtime-reload-replay__title">最近一次热重载回放</span>
+                <span class="dashboard-runtime-reload-replay__meta">
+                  {{ formatRuntimeReloadTimestamp(latestRuntimeReloadReplay.lastReloadSummary?.finishedAt || latestRuntimeReloadReplay.lastReloadAt) }}
+                  ·
+                  {{ getRuntimeReloadSourceLabel(latestRuntimeReloadReplay.lastReloadSummary?.source || latestRuntimeReloadReplay.lastReloadSource) }}
+                </span>
+              </div>
+              <div class="dashboard-runtime-reload-replay__badges">
+                <span :class="getRuntimeReloadRiskClass(latestRuntimeReloadReplay.riskLevel)">
+                  {{ getRuntimeReloadRiskLabel(latestRuntimeReloadReplay.riskLevel) }}
+                </span>
+                <span :class="getRuntimeReloadReplayResultClass(latestRuntimeReloadReplay.lastReloadSummary?.result || latestRuntimeReloadReplay.lastReloadResult)">
+                  {{ getRuntimeReloadReplayResultLabel(latestRuntimeReloadReplay.lastReloadSummary?.result || latestRuntimeReloadReplay.lastReloadResult) }}
+                </span>
+                <span
+                  v-if="latestRuntimeReloadReplay.lastReloadSummary?.forced"
+                  class="dashboard-runtime-reload-modal__badge dashboard-runtime-reload-modal__badge--neutral"
+                >
+                  强制执行
+                </span>
+              </div>
             </div>
 
-            <div v-if="runtimeReloadHistoryEntries.length" class="dashboard-runtime-reload-history mb-3 shrink-0">
-              <div class="dashboard-runtime-reload-history__header">
-                <div class="dashboard-runtime-reload-history__label">
-                  <span class="dashboard-runtime-reload-history__title">近期热重载历史</span>
-                  <span class="dashboard-runtime-reload-history__meta">
-                    保留最近 {{ runtimeReloadHistoryEntries.length }} 次执行记录
-                    <span v-if="runtimeReloadHistoryFilter"> · {{ getRuntimeReloadTargetLabel(runtimeReloadHistoryFilter) }}</span>
-                    <span v-if="runtimeReloadHistoryResultFilter"> · {{ runtimeReloadHistoryResultFilter === 'error' ? '仅失败' : '仅成功' }}</span>
-                    <span v-if="runtimeReloadHistorySourceFilter"> · {{ getRuntimeReloadSourceLabel(runtimeReloadHistorySourceFilter) }}</span>
-                  </span>
-                </div>
-                <div class="dashboard-runtime-reload-history__controls">
-                  <BaseSelect
-                    v-model="runtimeReloadHistoryFilter"
-                    :options="runtimeReloadHistoryFilterOptions"
-                    class="dashboard-runtime-reload-history__filter"
-                  />
-                  <BaseSelect
-                    v-model="runtimeReloadHistoryResultFilter"
-                    :options="runtimeReloadHistoryResultFilterOptions"
-                    class="dashboard-runtime-reload-history__filter"
-                  />
-                  <BaseSelect
-                    v-model="runtimeReloadHistorySourceFilter"
-                    :options="runtimeReloadHistorySourceFilterOptions"
-                    class="dashboard-runtime-reload-history__filter"
-                  />
-                  <BaseButton
-                    variant="outline"
-                    size="sm"
-                    class="dashboard-runtime-reload-history__export"
-                    @click="exportRuntimeReloadHistory"
-                  >
-                    导出 JSON
-                  </BaseButton>
-                </div>
+            <dl class="dashboard-runtime-reload-replay__grid">
+              <div class="dashboard-runtime-reload-replay__item">
+                <dt>目标模块族</dt>
+                <dd>{{ getRuntimeReloadTargetLabel(latestRuntimeReloadReplay.lastReloadSummary?.target || latestRuntimeReloadReplay.target) }}</dd>
               </div>
+              <div class="dashboard-runtime-reload-replay__item">
+                <dt>耗时</dt>
+                <dd>{{ formatRuntimeReloadDuration(latestRuntimeReloadReplay.lastReloadSummary?.durationMs || latestRuntimeReloadReplay.lastReloadDurationMs) }}</dd>
+              </div>
+              <div class="dashboard-runtime-reload-replay__item">
+                <dt>统一调度</dt>
+                <dd>
+                  {{
+                    latestRuntimeReloadReplay.affectsUnifiedScheduler
+                      ? (latestRuntimeReloadReplay.lastReloadSummary?.unifiedSchedulerResumed ? '已恢复' : '未恢复或无需恢复')
+                      : '未受影响'
+                  }}
+                </dd>
+              </div>
+              <div class="dashboard-runtime-reload-replay__item">
+                <dt>队列变化</dt>
+                <dd>
+                  {{
+                    formatRuntimeReloadQueueDelta(
+                      latestRuntimeReloadReplay.lastReloadSummary?.beforeTaskCount,
+                      latestRuntimeReloadReplay.lastReloadSummary?.afterTaskCount,
+                    )
+                  }}
+                </dd>
+              </div>
+              <div class="dashboard-runtime-reload-replay__item">
+                <dt>运行中变化</dt>
+                <dd>
+                  {{
+                    formatRuntimeReloadQueueDelta(
+                      latestRuntimeReloadReplay.lastReloadSummary?.beforeRunningTaskCount,
+                      latestRuntimeReloadReplay.lastReloadSummary?.afterRunningTaskCount,
+                    )
+                  }}
+                </dd>
+              </div>
+              <div class="dashboard-runtime-reload-replay__item dashboard-runtime-reload-replay__item--full">
+                <dt>重建模块</dt>
+                <dd>{{ latestRuntimeReloadReplay.lastReloadSummary?.modules?.join(' / ') || latestRuntimeReloadReplay.modules?.join(' / ') || '-' }}</dd>
+              </div>
+            </dl>
 
-              <div class="dashboard-runtime-reload-history__summary">
-                <span class="dashboard-runtime-reload-history__summary-chip">当前 {{ runtimeReloadHistorySummary.total }} 条</span>
-                <span class="dashboard-runtime-reload-history__summary-chip dashboard-runtime-reload-history__summary-chip--success">
-                  成功 {{ runtimeReloadHistorySummary.success }}
-                </span>
-                <span class="dashboard-runtime-reload-history__summary-chip dashboard-runtime-reload-history__summary-chip--danger">
-                  失败 {{ runtimeReloadHistorySummary.failure }}
+            <p
+              v-if="latestRuntimeReloadReplay.lastReloadSummary?.error"
+              class="dashboard-runtime-reload-replay__error"
+            >
+              最近一次返回错误：{{ latestRuntimeReloadReplay.lastReloadSummary.error }}
+            </p>
+          </div>
+
+          <div v-if="runtimeReloadHistoryEntries.length" class="dashboard-runtime-reload-history mb-3 shrink-0">
+            <div class="dashboard-runtime-reload-history__header">
+              <div class="dashboard-runtime-reload-history__label">
+                <span class="dashboard-runtime-reload-history__title">近期热重载历史</span>
+                <span class="dashboard-runtime-reload-history__meta">
+                  保留最近 {{ runtimeReloadHistoryEntries.length }} 次执行记录
+                  <span v-if="runtimeReloadHistoryFilter"> · {{ getRuntimeReloadTargetLabel(runtimeReloadHistoryFilter) }}</span>
+                  <span v-if="runtimeReloadHistoryResultFilter"> · {{ runtimeReloadHistoryResultFilter === 'error' ? '仅失败' : '仅成功' }}</span>
+                  <span v-if="runtimeReloadHistorySourceFilter"> · {{ getRuntimeReloadSourceLabel(runtimeReloadHistorySourceFilter) }}</span>
                 </span>
               </div>
-
-              <div class="dashboard-runtime-reload-history__list">
-                <article
-                  v-for="item in runtimeReloadHistoryList"
-                  :key="getRuntimeReloadHistoryItemKey(item)"
-                  class="dashboard-runtime-reload-history__item"
+              <div class="dashboard-runtime-reload-history__controls">
+                <BaseSelect
+                  v-model="runtimeReloadHistoryFilter"
+                  :options="runtimeReloadHistoryFilterOptions"
+                  class="dashboard-runtime-reload-history__filter"
+                />
+                <BaseSelect
+                  v-model="runtimeReloadHistoryResultFilter"
+                  :options="runtimeReloadHistoryResultFilterOptions"
+                  class="dashboard-runtime-reload-history__filter"
+                />
+                <BaseSelect
+                  v-model="runtimeReloadHistorySourceFilter"
+                  :options="runtimeReloadHistorySourceFilterOptions"
+                  class="dashboard-runtime-reload-history__filter"
+                />
+                <BaseButton
+                  variant="outline"
+                  size="sm"
+                  class="dashboard-runtime-reload-history__export"
+                  @click="exportRuntimeReloadHistory"
                 >
-                  <div class="dashboard-runtime-reload-history__top">
-                    <div class="dashboard-runtime-reload-history__item-label">
-                      <span class="dashboard-runtime-reload-history__item-title">
-                        {{ getRuntimeReloadTargetLabel(item.target) }}
-                      </span>
-                      <span class="dashboard-runtime-reload-history__item-meta">
-                        {{ formatRuntimeReloadTimestamp(item.finishedAt || item.startedAt) }} · {{ getRuntimeReloadSourceLabel(item.source) }}
-                      </span>
-                    </div>
-                    <div class="dashboard-runtime-reload-history__badges">
-                      <span :class="getRuntimeReloadReplayResultClass(item.result)">
-                        {{ getRuntimeReloadReplayResultLabel(item.result) }}
-                      </span>
-                      <span :class="getRuntimeReloadRiskClass(item.riskLevel)">
-                        {{ getRuntimeReloadRiskLabel(item.riskLevel) }}
-                      </span>
-                      <span
-                        v-if="item.forced"
-                        class="dashboard-runtime-reload-modal__badge dashboard-runtime-reload-modal__badge--neutral"
-                      >
-                        强制执行
-                      </span>
-                      <BaseButton
-                        variant="outline"
-                        size="sm"
-                        class="dashboard-runtime-reload-history__toggle"
-                        @click="toggleRuntimeReloadHistoryDetail(item)"
-                      >
-                        {{ isRuntimeReloadHistoryExpanded(item) ? '收起 diff' : '查看 diff' }}
-                      </BaseButton>
-                    </div>
+                  导出 JSON
+                </BaseButton>
+              </div>
+            </div>
+
+            <div class="dashboard-runtime-reload-history__summary">
+              <span class="dashboard-runtime-reload-history__summary-chip">当前 {{ runtimeReloadHistorySummary.total }} 条</span>
+              <span class="dashboard-runtime-reload-history__summary-chip dashboard-runtime-reload-history__summary-chip--success">
+                成功 {{ runtimeReloadHistorySummary.success }}
+              </span>
+              <span class="dashboard-runtime-reload-history__summary-chip dashboard-runtime-reload-history__summary-chip--danger">
+                失败 {{ runtimeReloadHistorySummary.failure }}
+              </span>
+            </div>
+
+            <div class="dashboard-runtime-reload-history__list">
+              <article
+                v-for="item in runtimeReloadHistoryList"
+                :key="getRuntimeReloadHistoryItemKey(item)"
+                class="dashboard-runtime-reload-history__item"
+              >
+                <div class="dashboard-runtime-reload-history__top">
+                  <div class="dashboard-runtime-reload-history__item-label">
+                    <span class="dashboard-runtime-reload-history__item-title">
+                      {{ getRuntimeReloadTargetLabel(item.target) }}
+                    </span>
+                    <span class="dashboard-runtime-reload-history__item-meta">
+                      {{ formatRuntimeReloadTimestamp(item.finishedAt || item.startedAt) }} · {{ getRuntimeReloadSourceLabel(item.source) }}
+                    </span>
                   </div>
+                  <div class="dashboard-runtime-reload-history__badges">
+                    <span :class="getRuntimeReloadReplayResultClass(item.result)">
+                      {{ getRuntimeReloadReplayResultLabel(item.result) }}
+                    </span>
+                    <span :class="getRuntimeReloadRiskClass(item.riskLevel)">
+                      {{ getRuntimeReloadRiskLabel(item.riskLevel) }}
+                    </span>
+                    <span
+                      v-if="item.forced"
+                      class="dashboard-runtime-reload-modal__badge dashboard-runtime-reload-modal__badge--neutral"
+                    >
+                      强制执行
+                    </span>
+                    <BaseButton
+                      variant="outline"
+                      size="sm"
+                      class="dashboard-runtime-reload-history__toggle"
+                      @click="toggleRuntimeReloadHistoryDetail(item)"
+                    >
+                      {{ isRuntimeReloadHistoryExpanded(item) ? '收起 diff' : '查看 diff' }}
+                    </BaseButton>
+                  </div>
+                </div>
 
-                  <dl class="dashboard-runtime-reload-history__metrics">
-                    <div class="dashboard-runtime-reload-history__metric">
-                      <dt>耗时</dt>
-                      <dd>{{ formatRuntimeReloadDuration(item.durationMs) }}</dd>
-                    </div>
-                    <div class="dashboard-runtime-reload-history__metric">
-                      <dt>队列</dt>
-                      <dd>{{ formatRuntimeReloadQueueDelta(item.beforeTaskCount, item.afterTaskCount) }}</dd>
-                    </div>
-                    <div class="dashboard-runtime-reload-history__metric">
-                      <dt>运行中</dt>
-                      <dd>{{ formatRuntimeReloadQueueDelta(item.beforeRunningTaskCount, item.afterRunningTaskCount) }}</dd>
-                    </div>
-                    <div class="dashboard-runtime-reload-history__metric">
-                      <dt>统一调度</dt>
-                      <dd>
-                        {{
-                          item.affectsUnifiedScheduler
-                            ? (item.unifiedSchedulerResumed ? '已恢复' : '未恢复或无需恢复')
-                            : '未受影响'
-                        }}
-                      </dd>
-                    </div>
-                  </dl>
+                <dl class="dashboard-runtime-reload-history__metrics">
+                  <div class="dashboard-runtime-reload-history__metric">
+                    <dt>耗时</dt>
+                    <dd>{{ formatRuntimeReloadDuration(item.durationMs) }}</dd>
+                  </div>
+                  <div class="dashboard-runtime-reload-history__metric">
+                    <dt>队列</dt>
+                    <dd>{{ formatRuntimeReloadQueueDelta(item.beforeTaskCount, item.afterTaskCount) }}</dd>
+                  </div>
+                  <div class="dashboard-runtime-reload-history__metric">
+                    <dt>运行中</dt>
+                    <dd>{{ formatRuntimeReloadQueueDelta(item.beforeRunningTaskCount, item.afterRunningTaskCount) }}</dd>
+                  </div>
+                  <div class="dashboard-runtime-reload-history__metric">
+                    <dt>统一调度</dt>
+                    <dd>
+                      {{
+                        item.affectsUnifiedScheduler
+                          ? (item.unifiedSchedulerResumed ? '已恢复' : '未恢复或无需恢复')
+                          : '未受影响'
+                      }}
+                    </dd>
+                  </div>
+                </dl>
 
-                  <p class="dashboard-runtime-reload-history__modules">
-                    {{ item.modules?.join(' / ') || '-' }}
-                  </p>
+                <p class="dashboard-runtime-reload-history__modules">
+                  {{ item.modules?.join(' / ') || '-' }}
+                </p>
 
-                  <p
-                    v-if="item.error"
-                    class="dashboard-runtime-reload-history__error"
-                  >
-                    {{ item.error }}
-                  </p>
+                <p
+                  v-if="item.error"
+                  class="dashboard-runtime-reload-history__error"
+                >
+                  {{ item.error }}
+                </p>
+
+                <div
+                  v-if="isRuntimeReloadHistoryExpanded(item)"
+                  class="dashboard-runtime-reload-history__diff"
+                >
+                  <div class="dashboard-runtime-reload-history__diff-summary">
+                    <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--added">
+                      新增 {{ getRuntimeReloadHistoryTaskDiff(item).added.length }}
+                    </span>
+                    <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--removed">
+                      移除 {{ getRuntimeReloadHistoryTaskDiff(item).removed.length }}
+                    </span>
+                    <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--changed">
+                      状态变化 {{ getRuntimeReloadHistoryTaskDiff(item).changed.length }}
+                    </span>
+                  </div>
 
                   <div
-                    v-if="isRuntimeReloadHistoryExpanded(item)"
-                    class="dashboard-runtime-reload-history__diff"
+                    v-if="getRuntimeReloadHistoryTaskDiff(item).added.length"
+                    class="dashboard-runtime-reload-history__diff-group"
                   >
-                    <div class="dashboard-runtime-reload-history__diff-summary">
-                      <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--added">
-                        新增 {{ getRuntimeReloadHistoryTaskDiff(item).added.length }}
-                      </span>
-                      <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--removed">
-                        移除 {{ getRuntimeReloadHistoryTaskDiff(item).removed.length }}
-                      </span>
-                      <span class="dashboard-runtime-reload-history__diff-chip dashboard-runtime-reload-history__diff-chip--changed">
-                        状态变化 {{ getRuntimeReloadHistoryTaskDiff(item).changed.length }}
-                      </span>
-                    </div>
-
-                    <div
-                      v-if="getRuntimeReloadHistoryTaskDiff(item).added.length"
-                      class="dashboard-runtime-reload-history__diff-group"
-                    >
-                      <p class="dashboard-runtime-reload-history__diff-title">新增任务</p>
-                      <div class="dashboard-runtime-reload-history__task-list">
-                        <span
-                          v-for="task in getRuntimeReloadHistoryTaskDiff(item).added"
-                          :key="`added-${task.name}`"
-                          class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--added"
-                        >
-                          {{ task.name }} · {{ getRuntimeReloadTaskKindLabel(task.kind) }} · {{ task.running ? '执行中' : '等待中' }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="getRuntimeReloadHistoryTaskDiff(item).removed.length"
-                      class="dashboard-runtime-reload-history__diff-group"
-                    >
-                      <p class="dashboard-runtime-reload-history__diff-title">移除任务</p>
-                      <div class="dashboard-runtime-reload-history__task-list">
-                        <span
-                          v-for="task in getRuntimeReloadHistoryTaskDiff(item).removed"
-                          :key="`removed-${task.name}`"
-                          class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--removed"
-                        >
-                          {{ task.name }} · {{ getRuntimeReloadTaskKindLabel(task.kind) }} · {{ task.running ? '执行中' : '等待中' }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="getRuntimeReloadHistoryTaskDiff(item).changed.length"
-                      class="dashboard-runtime-reload-history__diff-group"
-                    >
-                      <p class="dashboard-runtime-reload-history__diff-title">状态变化</p>
-                      <div class="dashboard-runtime-reload-history__task-list">
-                        <span
-                          v-for="task in getRuntimeReloadHistoryTaskDiff(item).changed"
-                          :key="`changed-${task.name}`"
-                          class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--changed"
-                        >
-                          {{ task.name }} · {{ task.summary }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <p
-                      v-if="!getRuntimeReloadHistoryTaskDiff(item).added.length && !getRuntimeReloadHistoryTaskDiff(item).removed.length && !getRuntimeReloadHistoryTaskDiff(item).changed.length"
-                      class="dashboard-runtime-reload-history__diff-empty"
-                    >
-                      任务名和运行状态没有可见变化，当前这次重载主要是模块实例与监听器重建。
+                    <p class="dashboard-runtime-reload-history__diff-title">
+                      新增任务
                     </p>
+                    <div class="dashboard-runtime-reload-history__task-list">
+                      <span
+                        v-for="task in getRuntimeReloadHistoryTaskDiff(item).added"
+                        :key="`added-${task.name}`"
+                        class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--added"
+                      >
+                        {{ task.name }} · {{ getRuntimeReloadTaskKindLabel(task.kind) }} · {{ task.running ? '执行中' : '等待中' }}
+                      </span>
+                    </div>
                   </div>
-                </article>
-              </div>
 
-              <p v-if="!runtimeReloadHistoryList.length" class="dashboard-runtime-reload-history__empty">
-                当前筛选下没有更多历史记录；上方回放卡片展示的是最新一条。
-              </p>
+                  <div
+                    v-if="getRuntimeReloadHistoryTaskDiff(item).removed.length"
+                    class="dashboard-runtime-reload-history__diff-group"
+                  >
+                    <p class="dashboard-runtime-reload-history__diff-title">
+                      移除任务
+                    </p>
+                    <div class="dashboard-runtime-reload-history__task-list">
+                      <span
+                        v-for="task in getRuntimeReloadHistoryTaskDiff(item).removed"
+                        :key="`removed-${task.name}`"
+                        class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--removed"
+                      >
+                        {{ task.name }} · {{ getRuntimeReloadTaskKindLabel(task.kind) }} · {{ task.running ? '执行中' : '等待中' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="getRuntimeReloadHistoryTaskDiff(item).changed.length"
+                    class="dashboard-runtime-reload-history__diff-group"
+                  >
+                    <p class="dashboard-runtime-reload-history__diff-title">
+                      状态变化
+                    </p>
+                    <div class="dashboard-runtime-reload-history__task-list">
+                      <span
+                        v-for="task in getRuntimeReloadHistoryTaskDiff(item).changed"
+                        :key="`changed-${task.name}`"
+                        class="dashboard-runtime-reload-history__task-pill dashboard-runtime-reload-history__task-pill--changed"
+                      >
+                        {{ task.name }} · {{ task.summary }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p
+                    v-if="!getRuntimeReloadHistoryTaskDiff(item).added.length && !getRuntimeReloadHistoryTaskDiff(item).removed.length && !getRuntimeReloadHistoryTaskDiff(item).changed.length"
+                    class="dashboard-runtime-reload-history__diff-empty"
+                  >
+                    任务名和运行状态没有可见变化，当前这次重载主要是模块实例与监听器重建。
+                  </p>
+                </div>
+              </article>
             </div>
 
-	          <div v-if="!schedulerPreview" class="glass-text-muted flex flex-1 items-center justify-center py-6 text-center text-sm">
-	            <div v-if="!status?.connection?.connected">
-	              账号未连接，无法获取任务队列
+            <p v-if="!runtimeReloadHistoryList.length" class="dashboard-runtime-reload-history__empty">
+              当前筛选下没有更多历史记录；上方回放卡片展示的是最新一条。
+            </p>
+          </div>
+
+          <div v-if="!schedulerPreview" class="glass-text-muted flex flex-1 items-center justify-center py-6 text-center text-sm">
+            <div v-if="!status?.connection?.connected">
+              账号未连接，无法获取任务队列
             </div>
             <div v-else>
               正在加载任务队列...
@@ -2538,26 +2584,49 @@ async function handleDashboardTrialRenew() {
           </template>
         </div>
 
-        <!-- 今日统计（保持 2 列，压缩间距） -->
-        <div class="glass-panel flex min-h-0 flex-1 flex-col rounded-lg p-4 shadow">
-          <h3 class="glass-text-main mb-3 flex shrink-0 items-center gap-2 text-base font-medium">
-            <div class="i-carbon-chart-column" />
-            <span>今日统计</span>
-          </h3>
-          <div class="grid grid-cols-2 content-start gap-1.5 lg:grid-cols-3 xl:grid-cols-4">
+        <!-- 今日统计（紧凑矩阵，保留现有图标） -->
+        <div class="glass-panel dashboard-stats-panel flex shrink-0 flex-col rounded-lg p-4 shadow">
+          <div class="dashboard-stats-panel__header">
+            <div class="dashboard-stats-panel__heading">
+              <h3 class="glass-text-main flex shrink-0 items-center gap-2 text-base font-medium">
+                <div class="i-carbon-chart-column" />
+                <span>今日统计</span>
+              </h3>
+              <p class="dashboard-stats-panel__desc">
+                保留当前图标识别，压缩统计区空白，把更多可视高度留给上方任务队列。
+              </p>
+            </div>
+            <div class="dashboard-stats-summary">
+              <span class="dashboard-stats-summary__pill dashboard-stats-summary__pill--active">
+                已触发 {{ activeOperationCount }}
+              </span>
+              <span class="dashboard-stats-summary__pill">
+                总动作 {{ totalOperationCount }}
+              </span>
+            </div>
+          </div>
+          <div class="dashboard-stats-grid">
             <div
-              v-for="(val, key) in (status?.operations || {})"
-              :key="key"
-              class="dashboard-stat-card flex items-center justify-between rounded-xl px-3 py-2 transition-colors"
+              v-for="item in operationEntries"
+              :key="item.key"
+              class="dashboard-stat-card dashboard-stat-card--compact transition-colors"
+              :class="{ 'dashboard-stat-card--active': item.value > 0 }"
             >
-              <div class="flex items-center gap-2">
-                <div class="text-sm" :class="[getOpIcon(key), getOpColor(key)]" />
-                <div class="glass-text-muted text-xs">
-                  {{ getOpName(key) }}
-                </div>
+              <div class="dashboard-stat-card__icon-shell">
+                <div class="dashboard-stat-card__icon" :class="[getOpIcon(item.key), getOpColor(item.key)]" />
               </div>
-              <div class="text-sm font-bold">
-                {{ val }}
+              <div class="dashboard-stat-card__body">
+                <div class="dashboard-stat-card__label">
+                  {{ item.label }}
+                </div>
+                <div class="dashboard-stat-card__value-row">
+                  <div class="dashboard-stat-card__value">
+                    {{ item.value }}
+                  </div>
+                  <div class="dashboard-stat-card__unit">
+                    次
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2691,6 +2760,8 @@ async function handleDashboardTrialRenew() {
 <style scoped>
 .dashboard-page {
   color: var(--ui-text-1);
+  min-height: 0;
+  gap: 1.5rem;
 }
 
 .dashboard-page
@@ -2744,6 +2815,68 @@ async function handleDashboardTrialRenew() {
   z-index: 12;
   display: grid;
   gap: 0.75rem;
+}
+
+.dashboard-log-header,
+.dashboard-log-heading,
+.dashboard-log-toolbar-fields {
+  min-width: 0;
+}
+
+.dashboard-log-heading {
+  line-height: 1.1;
+}
+
+.dashboard-log-toolbar-fields {
+  gap: 0.5rem;
+}
+
+.dashboard-log-toolbar-fields > * {
+  min-width: 0;
+}
+
+.dashboard-log-toolbar-fields :deep(.base-select-trigger),
+.dashboard-log-toolbar-fields :deep(.base-input) {
+  min-height: 2.5rem;
+}
+
+.dashboard-log-toolbar-fields :deep(.base-select-trigger),
+.dashboard-log-toolbar-fields :deep(.base-input),
+.dashboard-log-toolbar-fields :deep(.base-input::placeholder) {
+  font-size: 0.8rem;
+}
+
+.dashboard-log-toolbar-fields :deep(.base-select-arrow) {
+  font-size: 0.95rem;
+}
+
+.dashboard-status-grid,
+.dashboard-top-card {
+  min-width: 0;
+}
+
+.dashboard-top-card__account-name,
+.dashboard-top-card__asset-value,
+.dashboard-top-card__metric-value,
+.dashboard-top-card__check-value {
+  line-height: 1.1;
+}
+
+.dashboard-top-card__uptime,
+.dashboard-top-card__check-value {
+  white-space: nowrap;
+}
+
+.dashboard-main-panels,
+.dashboard-log-column,
+.dashboard-log-panel {
+  min-height: 0;
+}
+
+.dashboard-right-column {
+  min-height: 0;
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .dashboard-task-panel {
@@ -3332,6 +3465,16 @@ async function handleDashboardTrialRenew() {
   border: 1px solid color-mix(in srgb, var(--ui-status-info) 26%, transparent);
   background: color-mix(in srgb, var(--ui-status-info) 10%, var(--ui-bg-surface));
   color: color-mix(in srgb, var(--ui-status-info) 68%, var(--ui-text-1) 32%);
+  overflow: hidden;
+  text-wrap: pretty;
+}
+
+.dashboard-log-list {
+  scrollbar-gutter: stable;
+}
+
+.dashboard-log-entry {
+  line-height: 1.5;
 }
 
 .dashboard-log-message--danger {
@@ -3360,6 +3503,57 @@ async function handleDashboardTrialRenew() {
   gap: 0.55rem;
 }
 
+.dashboard-stats-panel {
+  gap: 0.72rem;
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 74%, transparent);
+}
+
+.dashboard-stats-panel__header,
+.dashboard-stats-panel__heading {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.dashboard-stats-panel__desc {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.32;
+  color: var(--ui-text-3);
+}
+
+.dashboard-stats-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.dashboard-stats-summary__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.18rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  background: color-mix(in srgb, var(--ui-bg-surface) 80%, transparent);
+  color: var(--ui-text-2);
+}
+
+.dashboard-stats-summary__pill--active {
+  background: color-mix(in srgb, var(--ui-status-success) 12%, transparent);
+  color: color-mix(in srgb, var(--ui-status-success) 76%, var(--ui-text-1) 24%);
+}
+
+.dashboard-stats-grid {
+  display: grid;
+  --dashboard-stats-min-width: 8.2rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--dashboard-stats-min-width)), 1fr));
+  gap: 0.45rem;
+}
+
 .dashboard-task-card {
   display: grid;
   min-width: 0;
@@ -3368,7 +3562,10 @@ async function handleDashboardTrialRenew() {
   border-radius: 1rem;
   background: color-mix(in srgb, var(--ui-bg-surface) 68%, transparent);
   padding: 0.68rem 0.88rem;
-  transition: background-color var(--ui-motion-base), border-color var(--ui-motion-base), transform var(--ui-motion-base);
+  transition:
+    background-color var(--ui-motion-base),
+    border-color var(--ui-motion-base),
+    transform var(--ui-motion-base);
 }
 
 .dashboard-task-card:hover {
@@ -3545,6 +3742,79 @@ async function handleDashboardTrialRenew() {
   background: color-mix(in srgb, var(--ui-bg-surface) 68%, transparent);
 }
 
+.dashboard-stat-card--compact {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+  min-height: 3.15rem;
+  padding: 0.55rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 70%, transparent);
+  border-radius: 1rem;
+}
+
+.dashboard-stat-card--active {
+  border-color: color-mix(in srgb, var(--ui-status-success) 22%, var(--ui-border-subtle) 78%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-success) 10%, transparent);
+}
+
+.dashboard-stat-card__icon-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.95rem;
+  height: 1.95rem;
+  flex: 0 0 auto;
+  border-radius: 0.72rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 86%, transparent);
+}
+
+.dashboard-stat-card__icon {
+  font-size: 0.92rem;
+}
+
+.dashboard-stat-card__body {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 0.55rem;
+}
+
+.dashboard-stat-card__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--ui-text-2);
+}
+
+.dashboard-stat-card__value-row {
+  display: flex;
+  align-items: baseline;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 0.22rem;
+  white-space: nowrap;
+}
+
+.dashboard-stat-card__value {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ui-text-1);
+}
+
+.dashboard-stat-card__unit {
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--ui-text-3);
+}
+
 .dashboard-op-tone--brand {
   color: var(--ui-brand-500);
 }
@@ -3601,7 +3871,9 @@ async function handleDashboardTrialRenew() {
 
 @media (min-width: 768px) {
   .dashboard-task-panel {
-    height: clamp(15.5rem, 30vh, 19rem);
+    flex: 1 1 auto;
+    min-height: clamp(15rem, 34vh, 25rem);
+    height: auto;
   }
 
   .dashboard-task-panel__header {
@@ -3718,6 +3990,615 @@ async function handleDashboardTrialRenew() {
   .dashboard-task-card__action {
     grid-column: auto;
     justify-content: flex-end;
+  }
+
+  .dashboard-stats-panel {
+    flex: 0 0 auto;
+  }
+
+  .dashboard-stats-panel__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .dashboard-stats-summary {
+    justify-content: flex-end;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard-stats-grid {
+    --dashboard-stats-min-width: 7.6rem;
+  }
+}
+
+/* Height-constrained wide desktop: keep the 4 summary cards on one row. */
+@media (min-width: 1180px) and (max-height: 980px) {
+  .dashboard-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Compact desktop dashboard profile. */
+@media (min-width: 768px) and (max-height: 980px) {
+  /* Page rhythm */
+  .dashboard-page {
+    gap: 0.85rem;
+    padding-top: 0.8rem;
+  }
+
+  .dashboard-status-grid {
+    gap: 0.58rem;
+  }
+
+  .dashboard-trial-banner {
+    gap: 0.65rem;
+    padding: 0.72rem 0.9rem !important;
+  }
+
+  .dashboard-trial-copy {
+    gap: 0.45rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
+  .dashboard-trial-action {
+    padding: 0.42rem 0.85rem !important;
+    font-size: 0.76rem;
+  }
+
+  /* Top summary cards */
+  .dashboard-top-card {
+    padding: 0.78rem !important;
+  }
+
+  .dashboard-top-card__account-name {
+    margin-bottom: 0.25rem !important;
+    font-size: 1.02rem;
+  }
+
+  .dashboard-top-card__progress-row,
+  .dashboard-top-card__progress-meta {
+    font-size: 0.68rem;
+  }
+
+  .dashboard-exp-track {
+    height: 0.32rem !important;
+  }
+
+  .dashboard-level-badge {
+    padding: 0.16rem 0.46rem !important;
+    font-size: 0.64rem !important;
+  }
+
+  .dashboard-top-card__asset-value {
+    font-size: 1.48rem;
+  }
+
+  .dashboard-top-card__delta {
+    font-size: 0.56rem !important;
+    line-height: 1.1;
+  }
+
+  .dashboard-top-card__footer {
+    margin-top: 0.72rem !important;
+    padding-top: 0.46rem !important;
+  }
+
+  .dashboard-top-card__uptime {
+    font-size: 0.68rem;
+  }
+
+  .dashboard-top-card__title {
+    margin-bottom: 0.3rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .dashboard-top-card__metric-grid {
+    gap: 0.5rem !important;
+  }
+
+  .dashboard-top-card__metric-value {
+    font-size: 0.92rem;
+  }
+
+  .dashboard-top-card__divider {
+    margin-block: 0.58rem !important;
+  }
+
+  .dashboard-top-card__checks {
+    margin-top: 0.42rem !important;
+    gap: 0.55rem !important;
+  }
+
+  .dashboard-top-card__check-value {
+    font-size: 0.9rem;
+  }
+
+  /* Main split layout */
+  .dashboard-main-panels {
+    gap: 0.65rem;
+  }
+
+  .dashboard-right-column {
+    overflow-y: auto;
+    padding-right: 0.12rem;
+  }
+
+  .dashboard-log-panel,
+  .dashboard-task-panel,
+  .dashboard-stats-panel {
+    padding: 0.9rem;
+  }
+
+  .dashboard-log-toolbar {
+    gap: 0.55rem;
+  }
+
+  .dashboard-log-header {
+    margin-bottom: 0.55rem !important;
+    gap: 0.55rem;
+  }
+
+  .dashboard-log-heading {
+    gap: 0.42rem;
+    font-size: 0.9rem !important;
+  }
+
+  .dashboard-log-toolbar-fields {
+    gap: 0.34rem;
+  }
+
+  .dashboard-log-toolbar-fields :deep(.base-select-trigger),
+  .dashboard-log-toolbar-fields :deep(.base-input) {
+    min-height: 2.14rem;
+    padding: 0.34rem 0.72rem;
+    font-size: 0.74rem;
+  }
+
+  .dashboard-log-toolbar-fields :deep(.base-select-arrow) {
+    font-size: 0.82rem;
+  }
+
+  .dashboard-log-toolbar-fields :deep(.ui-btn) {
+    min-height: 2.14rem;
+    padding: 0.36rem 0.62rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .dashboard-log-chip-row {
+    gap: 0.22rem;
+  }
+
+  .dashboard-log-chip {
+    padding: 0.22rem 0.5rem;
+    font-size: 0.64rem;
+  }
+
+  .dashboard-log-note {
+    margin-bottom: 0.45rem !important;
+    padding: 0.55rem 0.72rem !important;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .dashboard-log-list {
+    padding: 0.72rem !important;
+    font-size: 0.68rem;
+    line-height: 1.42;
+  }
+
+  .dashboard-log-entry {
+    margin-bottom: 0.4rem !important;
+    line-height: 1.42;
+  }
+
+  .dashboard-log-list .dashboard-log-tag,
+  .dashboard-log-list .dashboard-log-event {
+    padding: 0.12rem 0.34rem !important;
+    font-size: 0.62rem !important;
+  }
+
+  /* Task queue header + task cards */
+  .dashboard-task-panel {
+    min-height: clamp(13rem, 29vh, 21rem);
+  }
+
+  .dashboard-task-panel__header {
+    margin-bottom: 0.2rem !important;
+  }
+
+  .dashboard-task-panel__desc {
+    display: none !important;
+  }
+
+  .dashboard-task-meta {
+    gap: 0.22rem;
+  }
+
+  .dashboard-task-pill {
+    min-height: 1.24rem;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.64rem;
+  }
+
+  .dashboard-toggle-btn {
+    padding-inline: 0.42rem !important;
+    font-size: 0.56rem !important;
+  }
+
+  .dashboard-task-list {
+    gap: 0.4rem;
+  }
+
+  .dashboard-task-card {
+    gap: 0.42rem;
+    padding: 0.52rem 0.66rem;
+    border-radius: 0.82rem;
+  }
+
+  .dashboard-task-card__badges {
+    gap: 0.22rem;
+  }
+
+  .dashboard-task-card__title-row {
+    gap: 0.36rem;
+  }
+
+  .dashboard-task-card__title {
+    font-size: 0.84rem;
+    line-height: 1.18;
+  }
+
+  .dashboard-task-card__summary {
+    font-size: 0.66rem;
+  }
+
+  .dashboard-task-card__side {
+    grid-template-columns: repeat(3, auto);
+    gap: 0.28rem 0.5rem;
+  }
+
+  .dashboard-task-metric {
+    gap: 0.24rem;
+  }
+
+  .dashboard-task-metric__label {
+    font-size: 0.6rem;
+  }
+
+  .dashboard-task-metric__value {
+    font-size: 0.8rem;
+  }
+
+  .dashboard-task-card__action {
+    align-items: center;
+  }
+
+  .dashboard-task-view {
+    padding: 0.14rem 0.42rem !important;
+    font-size: 0.62rem !important;
+  }
+
+  /* Runtime reload surfaces */
+  .dashboard-runtime-reload-row {
+    gap: 0.45rem;
+    padding: 0.58rem 0.68rem;
+    border-radius: 0.85rem;
+  }
+
+  .dashboard-runtime-reload-row__title {
+    font-size: 0.74rem;
+  }
+
+  .dashboard-runtime-reload-row__desc,
+  .dashboard-runtime-reload-row__hint {
+    display: none;
+  }
+
+  .dashboard-runtime-reload-row__actions {
+    gap: 0.34rem;
+  }
+
+  .dashboard-runtime-reload-btn {
+    min-width: auto;
+  }
+
+  .dashboard-runtime-reload-replay {
+    gap: 0.55rem;
+    padding: 0.64rem 0.74rem;
+    border-radius: 0.9rem;
+  }
+
+  .dashboard-runtime-reload-replay__header {
+    gap: 0.4rem;
+  }
+
+  .dashboard-runtime-reload-replay__title,
+  .dashboard-runtime-reload-history__title {
+    font-size: 0.75rem;
+  }
+
+  .dashboard-runtime-reload-replay__meta,
+  .dashboard-runtime-reload-history__meta {
+    font-size: 0.66rem;
+    line-height: 1.25;
+  }
+
+  .dashboard-runtime-reload-replay__badges,
+  .dashboard-runtime-reload-history__badges,
+  .dashboard-runtime-reload-history__summary,
+  .dashboard-runtime-reload-history__diff-summary,
+  .dashboard-runtime-reload-history__task-list,
+  .dashboard-runtime-reload-modal__badges {
+    gap: 0.3rem;
+  }
+
+  .dashboard-runtime-reload-replay__grid,
+  .dashboard-runtime-reload-history,
+  .dashboard-runtime-reload-history__list,
+  .dashboard-runtime-reload-history__metrics,
+  .dashboard-runtime-reload-history__diff {
+    gap: 0.45rem;
+  }
+
+  .dashboard-runtime-reload-replay__item dt,
+  .dashboard-runtime-reload-history__metric dt,
+  .dashboard-runtime-reload-history__diff-title {
+    font-size: 0.64rem;
+  }
+
+  .dashboard-runtime-reload-replay__item dd,
+  .dashboard-runtime-reload-history__metric dd,
+  .dashboard-runtime-reload-history__modules,
+  .dashboard-runtime-reload-history__error,
+  .dashboard-runtime-reload-history__diff-empty {
+    font-size: 0.7rem;
+    line-height: 1.32;
+  }
+
+  .dashboard-runtime-reload-replay__error {
+    padding: 0.52rem 0.66rem;
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .dashboard-runtime-reload-history__filter {
+    min-width: 6.9rem;
+  }
+
+  .dashboard-runtime-reload-history__controls {
+    gap: 0.36rem;
+  }
+
+  .dashboard-runtime-reload-history__summary-chip,
+  .dashboard-runtime-reload-history__diff-chip,
+  .dashboard-runtime-reload-history__task-pill,
+  .dashboard-runtime-reload-modal__badge {
+    min-height: 1.34rem;
+    padding: 0.16rem 0.5rem;
+    font-size: 0.64rem;
+  }
+
+  .dashboard-runtime-reload-history__item {
+    gap: 0.45rem;
+    padding: 0.62rem 0.72rem;
+    border-radius: 0.86rem;
+  }
+
+  .dashboard-runtime-reload-history__item-title {
+    font-size: 0.72rem;
+  }
+
+  .dashboard-runtime-reload-history__item-meta {
+    font-size: 0.66rem;
+    line-height: 1.25;
+  }
+
+  .dashboard-runtime-reload-history__modules {
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .dashboard-runtime-reload-history__toggle,
+  .dashboard-runtime-reload-history__export {
+    min-width: auto;
+  }
+
+  /* Daily stats */
+  .dashboard-stats-panel {
+    gap: 0.58rem;
+  }
+
+  .dashboard-stats-panel__desc {
+    display: none;
+  }
+
+  .dashboard-stats-grid {
+    --dashboard-stats-min-width: 7.6rem;
+    gap: 0.38rem;
+  }
+
+  .dashboard-stat-card--compact {
+    min-height: 2.85rem;
+    padding: 0.46rem 0.62rem;
+  }
+
+  .dashboard-stat-card__icon-shell {
+    width: 1.78rem;
+    height: 1.78rem;
+  }
+
+  .dashboard-stat-card__label {
+    font-size: 0.68rem;
+  }
+
+  .dashboard-stat-card__value {
+    font-size: 0.92rem;
+  }
+
+  .dashboard-stat-card__unit {
+    font-size: 0.58rem;
+  }
+}
+
+/* Ultra-compact desktop dashboard profile. */
+@media (min-width: 768px) and (max-height: 860px) {
+  /* Page rhythm */
+  .dashboard-page {
+    gap: 0.72rem;
+    padding-top: 0.55rem;
+  }
+
+  .dashboard-status-grid {
+    gap: 0.46rem;
+  }
+
+  .dashboard-trial-banner {
+    gap: 0.5rem;
+    padding: 0.6rem 0.8rem !important;
+  }
+
+  .dashboard-trial-copy {
+    font-size: 0.74rem;
+  }
+
+  .dashboard-trial-action {
+    padding: 0.36rem 0.72rem !important;
+    font-size: 0.7rem;
+  }
+
+  .dashboard-main-panels {
+    gap: 0.55rem;
+  }
+
+  .dashboard-log-panel {
+    padding: 0.78rem;
+  }
+
+  .dashboard-log-header {
+    margin-bottom: 0.42rem !important;
+    gap: 0.4rem;
+  }
+
+  .dashboard-log-heading {
+    gap: 0.34rem;
+    font-size: 0.84rem !important;
+  }
+
+  .dashboard-log-toolbar {
+    gap: 0.26rem;
+  }
+
+  .dashboard-log-chip-row {
+    display: none;
+  }
+
+  .dashboard-log-note {
+    margin-bottom: 0.34rem !important;
+    padding: 0.38rem 0.54rem !important;
+    font-size: 0.64rem;
+    line-height: 1.28;
+    -webkit-line-clamp: 1;
+  }
+
+  .dashboard-log-list {
+    padding: 0.58rem !important;
+    font-size: 0.65rem;
+    line-height: 1.36;
+  }
+
+  .dashboard-log-entry {
+    margin-bottom: 0.28rem !important;
+    line-height: 1.36;
+  }
+
+  .dashboard-log-list .dashboard-log-tag,
+  .dashboard-log-list .dashboard-log-event {
+    padding: 0.1rem 0.28rem !important;
+    font-size: 0.58rem !important;
+  }
+
+  /* Task cards: preserve title + countdown, trim secondary noise. */
+  .dashboard-task-card {
+    gap: 0.34rem;
+    padding: 0.44rem 0.56rem;
+  }
+
+  .dashboard-task-card__badges > :first-child {
+    display: none;
+  }
+
+  .dashboard-task-card__summary,
+  .dashboard-task-metric__label {
+    display: none;
+  }
+
+  .dashboard-task-card__title-row {
+    gap: 0.18rem;
+  }
+
+  .dashboard-task-card__title {
+    font-size: 0.78rem;
+  }
+
+  .dashboard-task-card__side {
+    gap: 0.18rem 0.42rem;
+  }
+
+  .dashboard-task-metric__value {
+    font-size: 0.74rem;
+  }
+
+  .dashboard-task-view {
+    padding: 0.1rem 0.34rem !important;
+    font-size: 0.58rem !important;
+  }
+
+  /* Runtime reload: trim metadata before sacrificing the list itself. */
+  .dashboard-runtime-reload-replay__meta,
+  .dashboard-runtime-reload-history__meta,
+  .dashboard-runtime-reload-history__summary {
+    display: none;
+  }
+
+  .dashboard-runtime-reload-row {
+    padding: 0.48rem 0.58rem;
+  }
+
+  .dashboard-runtime-reload-replay {
+    padding: 0.54rem 0.64rem;
+  }
+
+  .dashboard-runtime-reload-history__controls {
+    gap: 0.28rem;
+  }
+
+  .dashboard-runtime-reload-history__filter {
+    min-width: 6.2rem;
+  }
+
+  .dashboard-runtime-reload-history__item {
+    padding: 0.54rem 0.62rem;
+  }
+}
+
+@media (min-width: 768px) and (max-height: 760px) {
+  .dashboard-log-toolbar-fields :deep(.base-select-trigger),
+  .dashboard-log-toolbar-fields :deep(.base-input),
+  .dashboard-log-toolbar-fields :deep(.ui-btn) {
+    min-height: 1.98rem;
+  }
+
+  .dashboard-log-note {
+    display: none;
   }
 }
 </style>

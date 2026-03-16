@@ -70,6 +70,7 @@ function createDeps(overrides = {}) {
                 modeScope: { zoneScope: 'all', requiresGameFriend: false, fallbackBehavior: 'merge' },
                 plantingFallbackStrategy: 'inventory',
                 inventoryPlanting: { mode: 'global', globalKeepCount: 2, reserveRules: [] },
+                qqHighRiskWindow: { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0, lastAutoDisabledNoticeAt: 0 },
                 workflowConfig: { farm: { enabled: true, minInterval: 45, maxInterval: 90, nodes: [] } },
             }),
         },
@@ -292,7 +293,9 @@ test('settings get route keeps ownership middleware and returns merged automatio
             getFriendQuietHours: () => ({ enabled: true, start: 1, end: 7 }),
             getAutomation: () => ({ enabled: true, cycle: 120 }),
             getUI: () => ({ theme: 'green', siteTitle: '御农' }),
-            getConfigSnapshot: () => ({}),
+            getConfigSnapshot: () => ({
+                qqHighRiskWindow: { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0, lastAutoDisabledNoticeAt: 0 },
+            }),
         },
     });
 
@@ -334,6 +337,7 @@ test('settings get route keeps ownership middleware and returns merged automatio
                 forceGetAllEnabled: false,
             },
             stakeoutSteal: { enabled: false, delaySec: 3 },
+            qqHighRiskWindow: { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0, lastAutoDisabledNoticeAt: 0 },
             workflowConfig: {
                 farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] },
                 friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] },

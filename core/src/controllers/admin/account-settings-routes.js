@@ -217,6 +217,10 @@ function registerAccountSettingsRoutes({
                 ? store.getTradeConfig(id)
                 : DEFAULT_TRADE_CONFIG;
             const fullSnapshot = store.getConfigSnapshot(id);
+            const provider = getProvider();
+            if (provider && typeof provider.flushQqHighRiskAutoDisableNotice === 'function') {
+                await provider.flushQqHighRiskAutoDisableNotice(id);
+            }
             const workflowConfig = fullSnapshot.workflowConfig || DEFAULT_WORKFLOW_CONFIG;
 
             res.json({
@@ -238,6 +242,7 @@ function registerAccountSettingsRoutes({
                     friendQuietHours,
                     automation,
                     stakeoutSteal,
+                    qqHighRiskWindow: fullSnapshot.qqHighRiskWindow,
                     workflowConfig,
                     tradeConfig,
                     reportConfig,

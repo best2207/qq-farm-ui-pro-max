@@ -295,19 +295,19 @@ async function handleChangePassword() {
   <div v-if="currentUser" class="user-info-card glass-panel overflow-hidden rounded-xl shadow-md">
     <!-- 卡片头部及详情合并 -->
     <div class="user-info-card-header px-4 py-3 backdrop-blur-sm sm:px-6 sm:py-4">
-      <div class="flex flex-col items-start justify-between gap-4 xl:flex-row xl:items-center">
+      <div class="user-info-layout flex flex-col items-start justify-between gap-4 xl:flex-row xl:items-center">
         <!-- 第1部分：头像和用户名 -->
-        <div class="flex shrink-0 items-center gap-3">
+        <div class="user-info-identity flex shrink-0 items-center gap-3">
           <div class="user-info-avatar h-10 w-10 flex items-center justify-center rounded-full">
             <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
             </svg>
           </div>
-          <div>
+          <div class="user-info-identity-copy">
             <h3 class="user-info-title text-base font-semibold leading-tight">
               {{ currentUser.username }}
             </h3>
-            <div class="mt-1 flex items-center gap-2">
+            <div class="user-info-identity-meta mt-1 flex items-center gap-2">
               <span class="rounded-full px-1.5 py-0.5 text-[10px] leading-none" :class="userStatus.class">
                 {{ userStatus.label }}
               </span>
@@ -319,7 +319,7 @@ async function handleChangePassword() {
         </div>
 
         <!-- 第2部分：卡密详情 -->
-        <div class="user-info-meta flex flex-1 flex-wrap items-center gap-x-6 gap-y-2 text-sm xl:justify-center">
+        <div class="user-info-meta user-info-meta-grid flex flex-1 flex-wrap items-center gap-x-6 gap-y-2 text-sm xl:justify-center">
           <div class="flex items-center gap-1.5">
             <span class="user-info-meta-label">卡密:</span>
             <span class="user-info-meta-value font-medium">{{ cardTypeDetail.label }}</span>
@@ -337,7 +337,7 @@ async function handleChangePassword() {
         </div>
 
         <!-- 第3部分：按钮组 -->
-        <div class="flex shrink-0 items-center gap-2">
+        <div class="user-info-actions flex shrink-0 items-center gap-2">
           <button class="user-info-action flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors" @click="showRenewModal = true">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             续费
@@ -365,8 +365,8 @@ async function handleChangePassword() {
       </div>
 
       <!-- 到期预警提示 -->
-      <div v-if="expiryWarning" class="user-info-warning mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm" :class="expiryWarning.class">
-        <div class="flex items-center gap-2">
+      <div v-if="expiryWarning" class="user-info-warning user-info-warning-row mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm" :class="expiryWarning.class">
+        <div class="user-info-warning-copy flex items-center gap-2">
           <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
           </svg>
@@ -468,6 +468,16 @@ async function handleChangePassword() {
   color: var(--ui-text-1);
 }
 
+.user-info-layout,
+.user-info-identity,
+.user-info-identity-copy,
+.user-info-meta-grid,
+.user-info-actions,
+.user-info-warning-row,
+.user-info-warning-copy {
+  min-width: 0;
+}
+
 .user-info-card-header {
   background: linear-gradient(
     120deg,
@@ -559,5 +569,156 @@ async function handleChangePassword() {
 
 .user-info-card :is(.text-red-600, .dark\:text-red-400) {
   color: var(--ui-status-danger);
+}
+
+/* Compact desktop header profile. */
+@media (min-width: 768px) and (max-height: 980px) {
+  /* Main banner */
+  .user-info-card-header {
+    padding: 0.9rem 1rem !important;
+  }
+
+  .user-info-layout {
+    gap: 0.9rem;
+  }
+
+  .user-info-avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .user-info-avatar svg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .user-info-title {
+    font-size: 0.98rem;
+  }
+
+  .user-info-identity-meta {
+    margin-top: 0.32rem !important;
+    gap: 0.38rem;
+  }
+
+  .user-info-status,
+  .user-info-role {
+    font-size: 0.58rem !important;
+  }
+
+  .user-info-meta-grid {
+    gap: 0.4rem 1rem !important;
+    font-size: 0.74rem;
+  }
+
+  .user-info-actions {
+    gap: 0.38rem;
+  }
+
+  .user-info-action {
+    gap: 0.28rem;
+    padding: 0.42rem 0.68rem !important;
+    font-size: 0.76rem;
+  }
+
+  .user-info-action-icon {
+    padding: 0.42rem !important;
+  }
+
+  .user-info-action svg,
+  .user-info-action-icon svg,
+  .user-info-action > div {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .user-info-divider {
+    margin-inline: 0.12rem !important;
+    height: 1.2rem !important;
+  }
+
+  /* Expiry warning row */
+  .user-info-warning-row {
+    margin-top: 0.75rem !important;
+    padding: 0.58rem 0.78rem !important;
+    font-size: 0.7rem !important;
+    line-height: 1.3;
+  }
+
+  .user-info-warning-copy {
+    min-width: 0;
+  }
+
+  .user-info-warning-copy span:last-child {
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .user-info-warning-action {
+    padding: 0.38rem 0.65rem !important;
+    font-size: 0.68rem !important;
+  }
+}
+
+/* Keep banner horizontal a little earlier on wide-but-short desktops. */
+@media (min-width: 1180px) and (max-height: 980px) {
+  .user-info-layout {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .user-info-meta-grid {
+    justify-content: center;
+  }
+}
+
+/* Ultra-compact desktop header profile. */
+@media (min-width: 768px) and (max-height: 860px) {
+  /* Main banner */
+  .user-info-card-header {
+    padding: 0.75rem 0.9rem !important;
+  }
+
+  .user-info-layout {
+    gap: 0.72rem;
+  }
+
+  .user-info-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .user-info-title {
+    font-size: 0.92rem;
+  }
+
+  .user-info-meta-grid {
+    gap: 0.34rem 0.82rem !important;
+    font-size: 0.68rem;
+  }
+
+  .user-info-action {
+    padding: 0.36rem 0.58rem !important;
+    font-size: 0.7rem;
+  }
+
+  .user-info-action-icon {
+    padding: 0.34rem !important;
+  }
+
+  /* Expiry warning row */
+  .user-info-warning-row {
+    margin-top: 0.58rem !important;
+    padding: 0.48rem 0.68rem !important;
+    font-size: 0.64rem !important;
+  }
+
+  .user-info-warning-action {
+    padding: 0.32rem 0.52rem !important;
+    font-size: 0.62rem !important;
+  }
 }
 </style>

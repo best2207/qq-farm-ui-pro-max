@@ -26,6 +26,7 @@ export interface AutomationConfig {
   friend_help?: boolean
   friend_bad?: boolean
   friend_auto_accept?: boolean
+  qqFriendFetchMultiChain?: boolean
   open_server_gift?: boolean
 }
 
@@ -69,6 +70,13 @@ export interface InventoryPlantingConfig {
 export interface StakeoutStealConfig {
   enabled?: boolean
   delaySec?: number
+}
+
+export interface QqHighRiskWindowConfig {
+  durationMinutes?: number
+  expiresAt?: number
+  lastIssuedAt?: number
+  lastAutoDisabledAt?: number
 }
 
 export interface FriendQuietHoursConfig {
@@ -417,6 +425,7 @@ export interface SettingsState {
   intervals: IntervalsConfig
   friendQuietHours: FriendQuietHoursConfig
   stakeoutSteal: StakeoutStealConfig
+  qqHighRiskWindow: QqHighRiskWindowConfig
   tradeConfig: TradeConfig
   automation: AutomationConfig
   reportConfig: ReportConfig
@@ -477,6 +486,7 @@ export const useSettingStore = defineStore('setting', () => {
     intervals: {},
     friendQuietHours: { enabled: false, start: '23:00', end: '07:00' },
     stakeoutSteal: { enabled: false, delaySec: 3 },
+    qqHighRiskWindow: { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0 },
     tradeConfig: createDefaultTradeConfig(),
     automation: {},
     reportConfig: {
@@ -532,7 +542,7 @@ export const useSettingStore = defineStore('setting', () => {
     },
     timingConfig: {
       heartbeatIntervalMs: 25000,
-      rateLimitIntervalMs: 334,
+      rateLimitIntervalMs: 600,
       ghostingProbability: 0.02,
       ghostingCooldownMin: 240,
       ghostingMinMin: 5,
@@ -545,7 +555,7 @@ export const useSettingStore = defineStore('setting', () => {
     },
     defaultTimingConfig: {
       heartbeatIntervalMs: 25000,
-      rateLimitIntervalMs: 334,
+      rateLimitIntervalMs: 600,
       ghostingProbability: 0.02,
       ghostingCooldownMin: 240,
       ghostingMinMin: 5,
@@ -605,6 +615,7 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.intervals = d.intervals || {}
         settings.value.friendQuietHours = d.friendQuietHours || { enabled: false, start: '23:00', end: '07:00' }
         settings.value.stakeoutSteal = d.stakeoutSteal || { enabled: false, delaySec: 3 }
+        settings.value.qqHighRiskWindow = d.qqHighRiskWindow || { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0 }
         settings.value.tradeConfig = normalizeTradeConfig(d.tradeConfig)
         settings.value.automation = d.automation || {}
         settings.value.reportConfig = d.reportConfig || {
@@ -668,6 +679,9 @@ export const useSettingStore = defineStore('setting', () => {
         intervals: newSettings.intervals,
         friendQuietHours: newSettings.friendQuietHours,
         stakeoutSteal: newSettings.stakeoutSteal,
+        qqHighRiskWindow: {
+          durationMinutes: Math.max(5, Math.min(180, Number.parseInt(String(newSettings.qqHighRiskWindow?.durationMinutes ?? 30), 10) || 30)),
+        },
         tradeConfig: normalizeTradeConfig(newSettings.tradeConfig),
         automation: newSettings.automation,
       }

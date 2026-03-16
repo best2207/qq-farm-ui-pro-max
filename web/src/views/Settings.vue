@@ -20,11 +20,14 @@ import { useAppStore } from '@/stores/app'
 import { useFarmStore } from '@/stores/farm'
 import { useFriendStore } from '@/stores/friend'
 import { useSettingStore } from '@/stores/setting'
+import { useToastStore } from '@/stores/toast'
 import { createDefaultTradeConfig, normalizeTradeConfig, normalizeTradeKeepFruitIds } from '@/utils/trade-config'
 import { DEFAULT_REPORT_HISTORY_VIEW_STATE, normalizeReportHistoryViewState } from '@/utils/view-preferences'
 
 const REPORT_HISTORY_VIEW_STORAGE_KEY = 'qq-farm-bot:report-history-view:v1'
 const REPORT_HISTORY_BROWSER_PREF_NOTE = '这里的筛选类型、筛选结果、关键字和排序方式会跟随当前登录用户同步到服务器；列表固定每页 3 条，超过后自动翻页。汇报记录本身仍来自数据库。'
+const QQ_HIGH_RISK_CONFIRM_PHRASE = '我已知晓风险'
+const QQ_HIGH_RISK_AUTO_DISABLE_SEEN_KEY_PREFIX = 'qq-farm-bot:qq-high-risk-auto-disable-seen:'
 
 interface WebAssetsHealthSnapshot {
   activeDir: string
@@ -153,6 +156,7 @@ appStore.fetchUIConfig()
 const accountStore = useAccountStore()
 const farmStore = useFarmStore()
 const friendStore = useFriendStore()
+const toast = useToastStore()
 const reportHistoryViewPrefs = loadReportHistoryViewPreferences()
 
 const { settings, loading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs } = storeToRefs(settingStore)
@@ -1770,6 +1774,36 @@ const currentAccountName = computed(() => {
   return acc ? (acc.name || acc.nick || acc.id) : null
 })
 
+const localSettings = ref<any>({})
+
+function isCurrentAccountQqValue() {
+  return String(currentAccountSnapshot.value?.platform || '').trim().toLowerCase() === 'qq'
+}
+
+function getQqHighRiskAutoDisableSeenKey(accountId: string) {
+  return `${QQ_HIGH_RISK_AUTO_DISABLE_SEEN_KEY_PREFIX}${accountId}`
+}
+
+function maybeNotifyQqHighRiskAutoDisable() {
+  const accountId = String(currentAccountId.value || '').trim()
+  if (!accountId || !isCurrentAccountQqValue())
+    return
+
+  const windowState = buildNormalizedQqHighRiskWindow(localSettings.value?.qqHighRiskWindow)
+  const disabledAt = windowState.lastAutoDisabledAt
+  if (!disabledAt)
+    return
+
+  const storageKey = getQqHighRiskAutoDisableSeenKey(accountId)
+  const seenAt = Math.max(0, Number.parseInt(localStorage.getItem(storageKey) || '0', 10) || 0)
+  if (disabledAt <= seenAt)
+    return
+
+  localStorage.setItem(storageKey, String(disabledAt))
+  const accountLabel = String(currentAccountName.value || accountId)
+  toast.warning(`账号 ${accountLabel} 的 QQ 高风险临时窗口已到期，相关高风险开关已自动关闭。`, 6000)
+}
+
 const defaultModeScope = {
   zoneScope: 'same_zone_only',
   requiresGameFriend: true,
@@ -1795,6 +1829,121 @@ function getAccountZoneLabel(zone: string) {
 
 const currentAccountZoneLabel = computed(() => {
   return getAccountZoneLabel(resolveAccountZone(currentAccountSnapshot.value?.platform))
+})
+
+const isCurrentAccountQq = computed(() => {
+  return isCurrentAccountQqValue()
+})
+
+const qqHighRiskEnabledLabels = computed(() => {
+  if (!isCurrentAccountQq.value)
+    return []
+
+  const enabled: string[] = []
+  if (localSettings.value?.automation?.fertilizer_60s_anti_steal)
+    enabled.push('60秒施肥(防偷)')
+  if (localSettings.value?.automation?.fastHarvest)
+    enabled.push('成熟秒收取')
+  if (localSettings.value?.stakeoutSteal?.enabled)
+    enabled.push('精准蹲守偷菜')
+  if (localSettings.value?.automation?.qqFriendFetchMultiChain)
+    enabled.push('QQ 多链路好友拉取')
+  return enabled
+})
+
+function buildNormalizedQqHighRiskWindow(rawWindow: any) {
+  const durationMinutes = Math.max(5, Math.min(180, Number.parseInt(String(rawWindow?.durationMinutes ?? 30), 10) || 30))
+  return {
+    durationMinutes,
+    expiresAt: Math.max(0, Number.parseInt(String(rawWindow?.expiresAt ?? 0), 10) || 0),
+    lastIssuedAt: Math.max(0, Number.parseInt(String(rawWindow?.lastIssuedAt ?? 0), 10) || 0),
+    lastAutoDisabledAt: Math.max(0, Number.parseInt(String(rawWindow?.lastAutoDisabledAt ?? 0), 10) || 0),
+  }
+}
+
+function formatQqHighRiskDateTime(value: any) {
+  const timestamp = Math.max(0, Number(value) || 0)
+  if (!timestamp)
+    return '未激活'
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatQqHighRiskRemaining(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0)
+    return `${hours}小时 ${String(minutes).padStart(2, '0')}分 ${String(seconds).padStart(2, '0')}秒`
+  if (minutes > 0)
+    return `${minutes}分 ${String(seconds).padStart(2, '0')}秒`
+  return `${seconds}秒`
+}
+
+const qqHighRiskCountdownNow = ref(Date.now())
+let qqHighRiskCountdownTimer: ReturnType<typeof window.setInterval> | null = null
+
+const qqHighRiskRemainingMs = computed(() => {
+  const windowState = buildNormalizedQqHighRiskWindow(localSettings.value?.qqHighRiskWindow)
+  return Math.max(0, windowState.expiresAt - qqHighRiskCountdownNow.value)
+})
+
+const qqHighRiskRemainingText = computed(() => {
+  if (qqHighRiskRemainingMs.value <= 0)
+    return ''
+  return formatQqHighRiskRemaining(qqHighRiskRemainingMs.value)
+})
+
+function shouldRunQqHighRiskCountdown() {
+  if (!isCurrentAccountQq.value || typeof window === 'undefined')
+    return false
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+    return false
+  return qqHighRiskRemainingMs.value > 0
+}
+
+function stopQqHighRiskCountdown() {
+  if (qqHighRiskCountdownTimer !== null) {
+    window.clearInterval(qqHighRiskCountdownTimer)
+    qqHighRiskCountdownTimer = null
+  }
+}
+
+function syncQqHighRiskCountdown() {
+  qqHighRiskCountdownNow.value = Date.now()
+  if (!shouldRunQqHighRiskCountdown()) {
+    stopQqHighRiskCountdown()
+    return
+  }
+  if (qqHighRiskCountdownTimer !== null)
+    return
+
+  qqHighRiskCountdownTimer = window.setInterval(() => {
+    qqHighRiskCountdownNow.value = Date.now()
+    if (!shouldRunQqHighRiskCountdown())
+      stopQqHighRiskCountdown()
+  }, 1000)
+}
+
+const qqHighRiskWindowStatusText = computed(() => {
+  if (!isCurrentAccountQq.value)
+    return ''
+
+  const windowState = buildNormalizedQqHighRiskWindow(localSettings.value?.qqHighRiskWindow)
+  const hasEnabledItems = qqHighRiskEnabledLabels.value.length > 0
+  if (qqHighRiskRemainingMs.value > 0)
+    return `当前临时窗口截止 ${formatQqHighRiskDateTime(windowState.expiresAt)}，剩余 ${qqHighRiskRemainingText.value}，到期后后端会自动关闭这 4 项。`
+  if (hasEnabledItems)
+    return `当前高风险项已开启，但没有有效临时窗口；后端会在下一次读取配置时自动回退为关闭。`
+  if (windowState.lastAutoDisabledAt > 0)
+    return `当前没有高风险项开启。最近一次自动回退时间：${formatQqHighRiskDateTime(windowState.lastAutoDisabledAt)}。`
+  return `当前没有高风险项开启。新开启高风险项后，会获得 ${windowState.durationMinutes} 分钟的临时窗口。`
 })
 
 function buildNormalizedModeScope(rawScope: any) {
@@ -1914,6 +2063,13 @@ const defaultStakeoutSteal = {
   delaySec: 3,
 }
 
+const defaultQqHighRiskWindow = {
+  durationMinutes: 30,
+  expiresAt: 0,
+  lastIssuedAt: 0,
+  lastAutoDisabledAt: 0,
+}
+
 const defaultAutomationConfig = {
   farm: false,
   task: false,
@@ -1947,6 +2103,7 @@ const defaultAutomationConfig = {
   stealFriendFilterMode: 'blacklist',
   stealFriendFilterIds: [] as number[],
   friend_auto_accept: false,
+  qqFriendFetchMultiChain: false,
   fertilizer_60s_anti_steal: false,
   fertilizer_smart_phase: false,
   fastHarvest: false,
@@ -1988,6 +2145,7 @@ function buildAccountSettingsStateFromSources() {
       ...defaultStakeoutSteal,
       ...((currentSettings?.stakeoutSteal) || {}),
     },
+    qqHighRiskWindow: buildNormalizedQqHighRiskWindow(currentSettings?.qqHighRiskWindow),
     tradeConfig: normalizeTradeConfig(currentSettings?.tradeConfig),
     reportConfig: {
       ...defaultReportConfig,
@@ -2029,6 +2187,9 @@ function buildSettingsPayloadFromState(state: any, keepFruitIdsSource?: any) {
   payload.stakeoutSteal = {
     ...defaultStakeoutSteal,
     ...(payload.stakeoutSteal || {}),
+  }
+  payload.qqHighRiskWindow = {
+    durationMinutes: buildNormalizedQqHighRiskWindow(payload.qqHighRiskWindow).durationMinutes,
   }
   payload.tradeConfig = normalizeTradeConfig(payload.tradeConfig)
   payload.tradeConfig.sell.keepFruitIds = ids
@@ -2095,7 +2256,7 @@ const allVisibleReportLogsSelected = computed(() => (
   && reportLogs.value.every(item => selectedReportLogIds.value.includes(item.id))
 ))
 
-const localSettings = ref({
+localSettings.value = {
   accountMode: 'main' as 'main' | 'alt' | 'safe',
   harvestDelay: { min: 0, max: 0 },
   riskPromptEnabled: true,
@@ -2109,6 +2270,7 @@ const localSettings = ref({
   intervals: { ...defaultIntervals },
   friendQuietHours: { ...defaultFriendQuietHours },
   stakeoutSteal: { ...defaultStakeoutSteal },
+  qqHighRiskWindow: { ...defaultQqHighRiskWindow },
   tradeConfig: createDefaultTradeConfig(),
   reportConfig: { ...defaultReportConfig },
   automation: {
@@ -2116,7 +2278,7 @@ const localSettings = ref({
     stealFilterPlantIds: [...defaultAutomationConfig.stealFilterPlantIds],
     stealFriendFilterIds: [...defaultAutomationConfig.stealFriendFilterIds],
   },
-})
+}
 const tradeKeepFruitIdsText = ref('')
 
 const currentModeExecutionMeta = computed(() => {
@@ -2182,7 +2344,7 @@ const localOffline = ref({
 
 const localTiming = ref({
   heartbeatIntervalMs: 25000,
-  rateLimitIntervalMs: 334,
+  rateLimitIntervalMs: 600,
   ghostingProbability: 0.02,
   ghostingCooldownMin: 240,
   ghostingMinMin: 5,
@@ -2351,6 +2513,7 @@ async function loadData() {
     await settingStore.fetchSettings(currentAccountId.value)
     await refreshReportLogs()
     syncLocalSettings()
+    maybeNotifyQqHighRiskAutoDisable()
     // Always fetch seeds to ensure correct locked status for current account
     await Promise.allSettled([
       farmStore.fetchSeeds(currentAccountId.value),
@@ -2396,10 +2559,16 @@ onMounted(async () => {
   await loadData()
   enableReportHistoryViewSync()
   startSystemUpdateAutoRefresh()
+  if (typeof document !== 'undefined')
+    document.addEventListener('visibilitychange', syncQqHighRiskCountdown)
+  syncQqHighRiskCountdown()
 })
 
 onBeforeUnmount(() => {
   stopSystemUpdateAutoRefresh()
+  stopQqHighRiskCountdown()
+  if (typeof document !== 'undefined')
+    document.removeEventListener('visibilitychange', syncQqHighRiskCountdown)
 })
 
 // 【关键修复】仅监听 accountId 字符串值，而非 currentAccount 对象引用
@@ -2412,6 +2581,17 @@ watch(() => currentAccountId.value, () => {
   closeReportLogDetail()
   loadData()
 })
+
+watch(
+  () => [
+    currentAccountId.value,
+    isCurrentAccountQq.value,
+    buildNormalizedQqHighRiskWindow(localSettings.value?.qqHighRiskWindow).expiresAt,
+  ],
+  () => {
+    syncQqHighRiskCountdown()
+  },
+)
 
 watch(() => isAdmin.value, (enabled) => {
   if (enabled)
@@ -2861,8 +3041,11 @@ function addInventoryReserveRule() {
   })
 }
 
-function removeInventoryReserveRule(index: number) {
-  localSettings.value.inventoryPlanting.reserveRules.splice(index, 1)
+function removeInventoryReserveRule(index: number | string) {
+  const resolvedIndex = Number(index)
+  if (!Number.isInteger(resolvedIndex) || resolvedIndex < 0)
+    return
+  localSettings.value.inventoryPlanting.reserveRules.splice(resolvedIndex, 1)
 }
 
 const strategyPreviewLabel = ref<string | null>(null)
@@ -2926,6 +3109,11 @@ let diffConfirmAction: null | (() => Promise<void>) = null
 const shortIntervalRiskModalVisible = ref(false)
 const shortIntervalRiskItems = ref<string[]>([])
 let shortIntervalRiskConfirmAction: null | (() => Promise<void>) = null
+const qqHighRiskModalVisible = ref(false)
+const qqHighRiskModalItems = ref<Array<{ label: string, detail: string }>>([])
+const qqHighRiskConfirmText = ref('')
+let qqHighRiskConfirmAction: null | (() => Promise<void>) = null
+const qqHighRiskConfirmMatched = computed(() => qqHighRiskConfirmText.value.trim() === QQ_HIGH_RISK_CONFIRM_PHRASE)
 
 // 翻译映射
 const fieldLabels: Record<string, string> = {
@@ -2942,6 +3130,7 @@ const fieldLabels: Record<string, string> = {
   friend_bad: '自动捣乱',
   friend_auto_accept: '自动同意好友',
   friend_help_exp_limit: '经验上限停止帮忙',
+  qqFriendFetchMultiChain: 'QQ 多链路好友拉取',
   forceGetAllEnabled: '强制好友兼容模式',
   email: '自动领取邮件',
   fertilizer_gift: '自动填充化肥',
@@ -2972,6 +3161,7 @@ const fieldLabels: Record<string, string> = {
   bagSeedPriority: '背包种子优先顺序',
   bagSeedFallbackStrategy: '第二优先策略',
   inventoryPlanting: '库存种植',
+  qqHighRiskWindow: 'QQ 高风险自动回退窗口',
 }
 
 const diffFieldLabels: Record<string, string> = {
@@ -3004,6 +3194,7 @@ const diffFieldLabels: Record<string, string> = {
   'friendQuietHours.end': '静默结束时间',
   'stakeoutSteal.enabled': '精准蹲守偷菜',
   'stakeoutSteal.delaySec': '蹲守延迟',
+  'qqHighRiskWindow.durationMinutes': 'QQ 高风险自动回退时长',
   'tradeConfig.sell.keepMinEachFruit': '每种果实至少保留',
   'tradeConfig.sell.batchSize': '出售批大小',
   'tradeConfig.sell.keepFruitIds': '强制保留果实 ID',
@@ -3093,6 +3284,8 @@ function formatDiffValue(path: string, value: any) {
     return maskSecretValue(value)
   if (path.startsWith('intervals.') || path.startsWith('harvestDelay.') || path === 'stakeoutSteal.delaySec')
     return `${value} 秒`
+  if (path === 'qqHighRiskWindow.durationMinutes')
+    return `${value} 分钟`
   if (path === 'automation.fertilizer_buy_limit')
     return `${value} 袋`
   if (path === 'automation.fertilizer_buy_threshold_normal' || path === 'automation.fertilizer_buy_threshold_organic')
@@ -3115,6 +3308,10 @@ function formatDiffValue(path: string, value: any) {
 
 function isPlainObject(value: any) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function getValueByPath(source: any, path: string) {
+  return path.split('.').reduce((acc, key) => acc?.[key], source)
 }
 
 function normalizeLeafForCompare(value: any, path = '') {
@@ -3178,6 +3375,13 @@ function closeShortIntervalRiskModal() {
   shortIntervalRiskItems.value = []
 }
 
+function closeQqHighRiskModal() {
+  qqHighRiskModalVisible.value = false
+  qqHighRiskConfirmAction = null
+  qqHighRiskModalItems.value = []
+  qqHighRiskConfirmText.value = ''
+}
+
 function openShortIntervalRiskModal(
   items: string[],
   onConfirm: () => Promise<void>,
@@ -3185,6 +3389,16 @@ function openShortIntervalRiskModal(
   shortIntervalRiskItems.value = [...items]
   shortIntervalRiskConfirmAction = onConfirm
   shortIntervalRiskModalVisible.value = true
+}
+
+function openQqHighRiskModal(
+  items: Array<{ label: string, detail: string }>,
+  onConfirm: () => Promise<void>,
+) {
+  qqHighRiskModalItems.value = items.map(item => ({ ...item }))
+  qqHighRiskConfirmText.value = ''
+  qqHighRiskConfirmAction = onConfirm
+  qqHighRiskModalVisible.value = true
 }
 
 function openDiffModal(
@@ -3218,6 +3432,75 @@ async function handleShortIntervalRiskModalConfirm() {
     await action()
 }
 
+async function handleQqHighRiskModalConfirm() {
+  const action = qqHighRiskConfirmAction
+  closeQqHighRiskModal()
+  if (action)
+    await action()
+}
+
+function collectQqHighRiskActivationItems(payload: any) {
+  if (!isCurrentAccountQq.value || !settings.value)
+    return []
+
+  const previousPayload = buildSettingsPayloadFromState(buildAccountSettingsStateFromSources())
+  const definitions = [
+    {
+      path: 'automation.fertilizer_60s_anti_steal',
+      label: '60秒施肥(防偷)',
+      detail: '会在成熟前集中施肥并抢收，形成非常强的临界时点请求特征。',
+    },
+    {
+      path: 'automation.fastHarvest',
+      label: '成熟秒收取',
+      detail: '会提前预设精确收获时机，容易表现出近乎固定的秒级操作节奏。',
+    },
+    {
+      path: 'stakeoutSteal.enabled',
+      label: '精准蹲守偷菜',
+      detail: '会围绕好友成熟时间做精确蹲点，属于典型的自动化蹲守行为。',
+    },
+    {
+      path: 'automation.qqFriendFetchMultiChain',
+      label: 'QQ 多链路好友拉取',
+      detail: '会恢复旧版多接口探测链路，显著扩大 QQ 侧好友列表接口探测面。',
+    },
+  ]
+
+  return definitions.filter((item) => {
+    const beforeEnabled = Boolean(getValueByPath(previousPayload, item.path))
+    const afterEnabled = Boolean(getValueByPath(payload, item.path))
+    return !beforeEnabled && afterEnabled
+  })
+}
+
+async function runAccountSettingsRiskConfirmations(
+  payload: any,
+  onConfirm: (options?: { acknowledgeShortIntervalRisk?: boolean }) => Promise<any>,
+) {
+  const qqRiskItems = collectQqHighRiskActivationItems(payload)
+  const shortIntervalItems = isAdmin.value ? [] : collectShortIntervalRiskItems(payload)
+
+  const continueWithShortIntervalRisk = async () => {
+    if (shortIntervalItems.length === 0)
+      return await onConfirm()
+
+    openShortIntervalRiskModal(shortIntervalItems, async () => {
+      await onConfirm({ acknowledgeShortIntervalRisk: true })
+    })
+    return null
+  }
+
+  if (qqRiskItems.length > 0) {
+    openQqHighRiskModal(qqRiskItems, async () => {
+      await continueWithShortIntervalRisk()
+    })
+    return null
+  }
+
+  return await continueWithShortIntervalRisk()
+}
+
 async function persistAccountSettings(
   successMessage: string | null = '账号设置已保存',
   options: {
@@ -3246,14 +3529,9 @@ async function persistAccountSettings(
 
 async function persistAccountSettingsWithRiskConfirm(successMessage: string | null = '账号设置已保存') {
   const payload = buildSettingsPayload()
-  const riskItems = isAdmin.value ? [] : collectShortIntervalRiskItems(payload)
-  if (riskItems.length === 0)
-    return await persistAccountSettings(successMessage)
-
-  openShortIntervalRiskModal(riskItems, async () => {
-    await persistAccountSettings(successMessage, { acknowledgeShortIntervalRisk: true })
+  return await runAccountSettingsRiskConfirmations(payload, async (options) => {
+    return await persistAccountSettings(successMessage, options || {})
   })
-  return null
 }
 
 async function saveAccountSettings() {
@@ -3283,21 +3561,13 @@ async function runAfterEnsuringAccountSettingsSaved(
 ) {
   const execute = async () => {
     const payload = buildSettingsPayload()
-    const riskItems = isAdmin.value ? [] : collectShortIntervalRiskItems(payload)
-    if (riskItems.length > 0) {
-      openShortIntervalRiskModal(riskItems, async () => {
-        const saveRes = await persistAccountSettings(null, { acknowledgeShortIntervalRisk: true })
-        if (!saveRes?.ok)
-          return
-        await action()
-      })
-      return
-    }
-
-    const saveRes = await persistAccountSettings(null)
-    if (!saveRes.ok)
-      return
-    await action()
+    await runAccountSettingsRiskConfirmations(payload, async (saveOptions) => {
+      const result = await persistAccountSettings(null, saveOptions || {})
+      if (!result?.ok)
+        return result
+      await action()
+      return result
+    })
   }
 
   const changes = getAccountSettingsDiffItems()
@@ -4689,6 +4959,52 @@ async function restoreTimingDefaults() {
 
             <!-- Auto Control Content -->
             <div class="flex-1 p-6 space-y-8">
+              <div v-if="isCurrentAccountQq" class="settings-risk-alert rounded-2xl p-4 text-sm">
+                <div class="flex items-start gap-3">
+                  <div class="i-carbon-warning-alt mt-0.5 text-lg" />
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="font-semibold">QQ 高风险功能提醒</span>
+                      <BaseBadge surface="meta" :tone="qqHighRiskEnabledLabels.length ? 'danger' : 'warning'">
+                        已开启 {{ qqHighRiskEnabledLabels.length }}/4
+                      </BaseBadge>
+                      <BaseBadge v-if="qqHighRiskRemainingMs > 0" surface="meta" tone="warning">
+                        剩余 {{ qqHighRiskRemainingText }}
+                      </BaseBadge>
+                    </div>
+                    <p class="leading-relaxed">
+                      以下 4 个开关会显著增加腾讯侧的临界时点请求、好友接口探测或精确蹲守行为。默认建议保持关闭，只在确认可接受风险时短时开启。
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px]">
+                      <span class="settings-risk-item">60秒施肥(防偷)</span>
+                      <span class="settings-risk-item">成熟秒收取</span>
+                      <span class="settings-risk-item">精准蹲守偷菜</span>
+                      <span class="settings-risk-item">QQ 多链路好友拉取</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,180px)_1fr]">
+                      <BaseInput
+                        v-model.number="localSettings.qqHighRiskWindow.durationMinutes"
+                        label="自动回退时长 (分钟)"
+                        type="number"
+                        min="5"
+                        max="180"
+                      />
+                      <div class="settings-system-warning-alert rounded-xl p-3 text-xs leading-relaxed">
+                        <p>
+                          保存时如果你新开启了任一高风险项，后端只会签发一个临时窗口。窗口到期后，即使设置页没有打开，也会自动把这 4 项回退为关闭。
+                        </p>
+                        <p class="mt-2 font-medium">
+                          当前窗口状态：{{ qqHighRiskWindowStatusText }}
+                        </p>
+                      </div>
+                    </div>
+                    <p class="text-xs">
+                      当前开启：{{ qqHighRiskEnabledLabels.length ? qqHighRiskEnabledLabels.join('、') : '无' }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- 分组网格 -->
               <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 md:grid-cols-2">
                 <!-- 分组 1: 农场基础操作 -->
@@ -4797,8 +5113,21 @@ async function restoreTimingDefaults() {
                         </p>
                       </div>
                     </div>
-                    <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="核心防盗功能。在果实成熟前60秒内自动施肥催熟并瞬间收获，将被偷窗口压缩到接近0。需消耗化肥，主号必开。" recommend="on" />
-                    <BaseSwitch v-model="localSettings.automation.fastHarvest" label="成熟秒收取" hint="在作物进入成熟前预设定时任务，约提前 200ms 发起收获请求，尽量压缩被偷窗口。和 60 秒施肥防偷可并存。" recommend="conditional" />
+                    <div class="space-y-4" :class="isCurrentAccountQq ? 'settings-system-warning-alert rounded-xl p-3' : ''">
+                      <div v-if="isCurrentAccountQq" class="flex items-start gap-2 text-xs">
+                        <div class="i-carbon-warning-alt mt-0.5" />
+                        <div class="leading-relaxed space-y-1">
+                          <p class="font-semibold tracking-wide uppercase">
+                            QQ 高风险精确控制
+                          </p>
+                          <p>
+                            这一组会制造“成熟前”和“成熟瞬间”的强特征操作节奏。即使前端打开，QQ 平台默认也会被后端安全守卫拦截，除非你显式放开环境变量。
+                          </p>
+                        </div>
+                      </div>
+                      <BaseSwitch v-model="localSettings.automation.fertilizer_60s_anti_steal" label="60秒施肥(防偷)" hint="临近成熟前集中施肥并抢收，风控风险较高；QQ 平台默认由后端安全守卫拦截，只有显式放开环境变量才会执行。" recommend="off" />
+                      <BaseSwitch v-model="localSettings.automation.fastHarvest" label="成熟秒收取" hint="成熟前预设精确收获任务，风控风险较高；QQ 平台默认由后端安全守卫拦截，只有显式放开环境变量才会执行。" recommend="off" />
+                    </div>
                     <BaseSwitch v-model="localSettings.automation.fertilizer_smart_phase" label="智能二季施肥" hint="开启后，二季作物刚种植时不会马上浪费化肥，而是等到耗时最长的黄金阶段再自动进行延期施肥，实现单果经验/金钱收益最大化。" recommend="conditional" />
                     <div class="settings-section-divider pt-2">
                       <div class="settings-automation-scope mb-2 rounded-md px-2.5 py-1.5 text-xs">
@@ -4829,45 +5158,97 @@ async function restoreTimingDefaults() {
                   <BaseTooltip text="只有在主开关【自动好友互动】开启时此策略组才会生效，控制在好友农场的具体行为。" />
                 </h4>
                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2" :class="{ 'opacity-40 pointer-events-none select-none': !localSettings.automation.friend }">
-                  <!-- 蹲守开关：独立占一格 -->
-                  <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间，到点精准出击偷取高价值果实。" recommend="conditional" />
-                  <!-- 蹲守延迟设置：独立占一格，仅在开启后显示内容 -->
-                  <div class="inline-flex flex-col gap-1">
-                    <template v-if="localSettings.stakeoutSteal.enabled">
-                      <label class="inline-flex items-center gap-2">
-                        <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
-                        <div class="settings-stakeout-delay flex items-center gap-1.5 rounded-md px-2 py-1">
-                          <input
-                            v-model.number="localSettings.stakeoutSteal.delaySec"
-                            type="number"
-                            min="0"
-                            max="60"
-                            class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
-                          >
-                          <span class="glass-text-muted text-xs font-bold">秒</span>
-                        </div>
-                      </label>
-                      <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
-                        成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
-                        <BaseBadge surface="meta" tone="warning" class="recommend-badge">
-                          推荐 3 秒
-                        </BaseBadge>
-                      </p>
-                    </template>
-                    <template v-else>
-                      <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
-                      <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
-                        请先开启左侧「精准蹲守偷菜」开关。
-                      </p>
-                    </template>
+                  <div
+                    v-if="isCurrentAccountQq"
+                    class="settings-system-warning-alert rounded-xl p-4 lg:col-span-4 md:col-span-2"
+                  >
+                    <div class="flex items-start gap-2 text-xs">
+                      <div class="i-carbon-warning-alt mt-0.5" />
+                      <div class="leading-relaxed space-y-1">
+                        <p class="font-semibold tracking-wide uppercase">
+                          QQ 高风险好友探测
+                        </p>
+                        <p>
+                          这一组会触发精确蹲守或扩大好友列表接口探测面，是当前 QQ 账号最容易误开的社交高风险项。默认建议保持关闭。
+                        </p>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 mt-4 gap-4 lg:grid-cols-3">
+                      <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间并精确蹲点偷取，风控风险较高；QQ 平台默认由后端安全守卫拦截。" recommend="off" />
+                      <div class="inline-flex flex-col gap-1">
+                        <template v-if="localSettings.stakeoutSteal.enabled">
+                          <label class="inline-flex items-center gap-2">
+                            <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
+                            <div class="settings-stakeout-delay flex items-center gap-1.5 rounded-md px-2 py-1">
+                              <input
+                                v-model.number="localSettings.stakeoutSteal.delaySec"
+                                type="number"
+                                min="0"
+                                max="60"
+                                class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
+                              >
+                              <span class="glass-text-muted text-xs font-bold">秒</span>
+                            </div>
+                          </label>
+                          <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                            成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
+                            <BaseBadge surface="meta" tone="warning" class="recommend-badge">
+                              推荐 3 秒
+                            </BaseBadge>
+                          </p>
+                        </template>
+                        <template v-else>
+                          <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
+                          <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                            请先开启左侧「精准蹲守偷菜」开关。
+                          </p>
+                        </template>
+                      </div>
+                      <BaseSwitch v-model="localSettings.automation.qqFriendFetchMultiChain" label="QQ 多链路好友拉取" hint="默认关闭。开启后恢复旧版 QQ 好友列表探测逻辑，会重新启用 SyncAll 失败后的 GetGameFriends / GetAll / 缓存补链，成功率可能更高，但会明显增加腾讯侧接口探测面。" recommend="off" />
+                    </div>
                   </div>
+
+                  <template v-else>
+                    <!-- 蹲守开关：独立占一格 -->
+                    <BaseSwitch v-model="localSettings.stakeoutSteal.enabled" label="精准蹲守偷菜" hint="自动记录好友作物成熟时间并精确蹲点偷取，风控风险较高；QQ 平台默认由后端安全守卫拦截。" recommend="off" />
+                    <!-- 蹲守延迟设置：独立占一格，仅在开启后显示内容 -->
+                    <div class="inline-flex flex-col gap-1">
+                      <template v-if="localSettings.stakeoutSteal.enabled">
+                        <label class="inline-flex items-center gap-2">
+                          <span class="glass-text-main select-none text-sm font-medium">蹲守延迟</span>
+                          <div class="settings-stakeout-delay flex items-center gap-1.5 rounded-md px-2 py-1">
+                            <input
+                              v-model.number="localSettings.stakeoutSteal.delaySec"
+                              type="number"
+                              min="0"
+                              max="60"
+                              class="glass-text-main w-12 bg-transparent text-center text-sm font-bold outline-none"
+                            >
+                            <span class="glass-text-muted text-xs font-bold">秒</span>
+                          </div>
+                        </label>
+                        <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                          成熟后等待几秒再偷，模拟真人操作节奏，推荐 3~10 秒。
+                          <BaseBadge surface="meta" tone="warning" class="recommend-badge">
+                            推荐 3 秒
+                          </BaseBadge>
+                        </p>
+                      </template>
+                      <template v-else>
+                        <span class="glass-text-muted select-none text-sm">蹲守延迟设置</span>
+                        <p class="hint-text glass-text-muted ml-1 text-[10px] leading-tight opacity-70">
+                          请先开启左侧「精准蹲守偷菜」开关。
+                        </p>
+                      </template>
+                    </div>
+                  </template>
 
                   <BaseSwitch v-model="localSettings.automation.friend_steal" label="自动偷菜" hint="访问好友农场时自动偷取成熟果实，是金币收入的重要补充来源。" recommend="on" />
                   <BaseSwitch v-model="localSettings.automation.friend_help" label="自动帮忙" hint="访问好友农场时自动帮忙浇水/除草/除虫，可获得经验奖励。" recommend="on" />
                   <BaseSwitch v-model="localSettings.automation.friend_bad" label="自动捣乱" hint="访问好友农场时自动放虫/放草。有社交风险，好友可能拉黑你，小号专用。" recommend="off" />
                   <BaseSwitch v-model="localSettings.automation.friend_auto_accept" label="自动同意好友" hint="自动同意所有好友申请。好友越多偷菜机会越多，但也增加被偷风险。" recommend="conditional" />
                   <BaseSwitch v-model="localSettings.automation.friend_help_exp_limit" label="经验上限停止帮忙" hint="当日帮忙经验达到系统上限后自动停止，避免做无用功浪费请求配额。" recommend="on" />
-                  <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="如果发现好友列表一直为空（多见于微信最新环境），请开启此项强制尝试 GetAll 拉取。" recommend="conditional" />
+                  <BaseSwitch v-model="localSettings.automation.forceGetAllEnabled" label="强效兼容尝试" hint="主要用于微信环境的好友列表兼容。QQ 当前默认走保守单链路 SyncAll，这个开关在 QQ 下会被后端忽略。" recommend="conditional" />
                 </div>
               </div>
 
@@ -6226,7 +6607,7 @@ async function restoreTimingDefaults() {
                   type="number"
                   min="100"
                   step="1"
-                  hint="请求指纹匀速器。3QPS = 334ms"
+                  hint="QQ 建议不低于 600ms；过低更容易触发频率风控。"
                 />
               </div>
 
@@ -8013,6 +8394,44 @@ async function restoreTimingDefaults() {
           </div>
           <p class="settings-system-warning-note text-[10px] italic">
             提示：确认后系统会立即应用这些高风险时间配置，请仅在你明确理解风险时继续。
+          </p>
+        </div>
+      </ConfirmModal>
+
+      <ConfirmModal
+        :show="qqHighRiskModalVisible"
+        title="确认开启 QQ 高风险功能"
+        confirm-text="确认仍然保存"
+        :confirm-disabled="!qqHighRiskConfirmMatched"
+        cancel-text="返回调整"
+        type="danger"
+        @confirm="handleQqHighRiskModalConfirm"
+        @cancel="closeQqHighRiskModal"
+      >
+        <div class="text-left space-y-4">
+          <p class="glass-text-muted text-sm leading-relaxed">
+            检测到你正在为 QQ 账号新开启以下高风险自动化功能，继续保存会明显提高腾讯侧风控命中概率。此次保存只会签发 {{ buildNormalizedQqHighRiskWindow(localSettings.qqHighRiskWindow).durationMinutes }} 分钟的临时窗口，到期后后端会自动关闭这些开关：
+          </p>
+          <div class="settings-system-diff-panel max-h-60 overflow-y-auto rounded-xl p-2">
+            <div v-for="item in qqHighRiskModalItems" :key="item.label" class="settings-system-diff-row p-2 text-xs">
+              <div class="settings-risk-item">
+                {{ item.label }}
+              </div>
+              <p class="glass-text-muted mt-1 leading-relaxed">
+                {{ item.detail }}
+              </p>
+            </div>
+          </div>
+          <BaseInput
+            v-model="qqHighRiskConfirmText"
+            label="确认词"
+            type="text"
+            :placeholder="QQ_HIGH_RISK_CONFIRM_PHRASE"
+            :hint="`请输入“${QQ_HIGH_RISK_CONFIRM_PHRASE}”后才能继续保存。`"
+          />
+          <p class="settings-system-warning-note text-[10px] italic">
+            建议只在临时排查或短时试验时开启；如果你不确定，保持关闭会更稳妥。
+            当前状态：{{ qqHighRiskConfirmMatched ? '确认词已匹配，可继续保存。' : '确认词未匹配。' }}
           </p>
         </div>
       </ConfirmModal>

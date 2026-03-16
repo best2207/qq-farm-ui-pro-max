@@ -56,6 +56,7 @@ test('QQ getAllFriends falls back to direct GetGameFriends when SyncAll is self-
             getStealFilterConfig: () => ({ enabled: false, mode: 'blacklist', plantIds: [] }),
             getStealFriendFilterConfig: () => ({ enabled: false, mode: 'blacklist', friendIds: [] }),
             getStakeoutStealConfig: () => ({ enabled: false, delaySec: 3 }),
+            getAutomation: () => ({ qqFriendFetchMultiChain: true }),
             getConfigSnapshot: () => ({}),
             getForceGetAllConfig: () => ({ enabled: false }),
         }),

@@ -4,6 +4,7 @@ defineProps<{
   title?: string
   message?: string
   confirmText?: string
+  confirmDisabled?: boolean
   cancelText?: string
   type?: 'danger' | 'primary'
   isAlert?: boolean
@@ -64,7 +65,7 @@ const emit = defineEmits<{
             :class="type === 'danger'
               ? 'confirm-modal-primary-danger'
               : 'confirm-modal-primary-brand'"
-            :disabled="loading"
+            :disabled="loading || confirmDisabled"
             @click="emit('confirm')"
           >
             <div v-if="loading" class="i-svg-spinners-ring-resize text-lg" />

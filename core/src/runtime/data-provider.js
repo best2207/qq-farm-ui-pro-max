@@ -72,6 +72,41 @@ function createDataProvider(options) {
         }
     }
 
+    async function flushQqHighRiskAutoDisableNotice(accountId, fallbackAccountName = '') {
+        if (!accountId || !store || typeof store.consumeQqHighRiskAutoDisableNotice !== 'function') {
+            return null;
+        }
+
+        const notice = store.consumeQqHighRiskAutoDisableNotice(accountId);
+        if (!notice) {
+            return null;
+        }
+
+        let accountName = String(fallbackAccountName || '').trim();
+        if (!accountName) {
+            const account = await findAccountByAnyRef(accountId);
+            accountName = String(account && (account.name || account.nick || account.id) || accountId).trim();
+        }
+
+        const labelText = Array.isArray(notice.labels) && notice.labels.length > 0
+            ? notice.labels.join('、')
+            : 'QQ 高风险自动化功能';
+        addAccountLog(
+            'qq_high_risk_auto_disabled',
+            `账号 ${accountName || accountId} 的 QQ 高风险临时窗口已到期，已自动关闭：${labelText}`,
+            accountId,
+            accountName,
+            {
+                module: 'safety',
+                event: 'qq_high_risk_auto_disabled',
+                autoDisabledAt: notice.autoDisabledAt,
+                durationMinutes: notice.durationMinutes,
+                labels: notice.labels,
+            },
+        );
+        return notice;
+    }
+
     async function applyAccountModeWithinSettings(accountId, requestedMode) {
         const mode = String(requestedMode || '').trim();
         if (!mode) {
@@ -132,6 +167,7 @@ function createDataProvider(options) {
         getStatus: async (accountRef) => {
             const accountId = await resolveAccountRefId(accountRef);
             if (!accountId) return buildDefaultStatus('');
+            await flushQqHighRiskAutoDisableNotice(accountId);
             const w = workers[accountId];
             if (!w || !w.status) {
                 const list = await getStoredAccountsList();
@@ -167,6 +203,7 @@ function createDataProvider(options) {
 
         getAccountLogs: (limit) => accountLogs.slice(-limit).reverse(),
         addAccountLog: (action, msg, accountId, accountName, extra) => addAccountLog(action, msg, accountId, accountName, extra),
+        flushQqHighRiskAutoDisableNotice,
 
         // 透传方法
         getLands: async (accountRef) => callWorkerApi(await resolveAccountRefId(accountRef), 'getLands'),
@@ -277,6 +314,9 @@ function createDataProvider(options) {
             if (body.stakeoutSteal !== undefined) {
                 snapshot.stakeoutSteal = body.stakeoutSteal;
             }
+            if (body.qqHighRiskWindow !== undefined) {
+                snapshot.qqHighRiskWindow = body.qqHighRiskWindow;
+            }
             if (automation.skipStealRadishEnabled !== undefined) {
                 snapshot.skipStealRadish = { enabled: !!automation.skipStealRadishEnabled };
             }
@@ -317,6 +357,7 @@ function createDataProvider(options) {
                 inventoryPlanting: store.getConfigSnapshot(accountId).inventoryPlanting,
                 intervals: store.getIntervals(accountId),
                 friendQuietHours: store.getFriendQuietHours(accountId),
+                qqHighRiskWindow: store.getConfigSnapshot(accountId).qqHighRiskWindow,
                 tradeConfig: store.getTradeConfig ? store.getTradeConfig(accountId) : {},
                 reportConfig: store.getReportConfig ? store.getReportConfig(accountId) : {},
                 configRevision: rev,

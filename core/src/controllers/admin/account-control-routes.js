@@ -30,6 +30,13 @@ function registerFriendBlacklistRoutes({
     });
 }
 
+function isAccountMarkedBanned(account) {
+    const wsError = account && account.wsError && typeof account.wsError === 'object' ? account.wsError : null;
+    const code = Number(wsError && wsError.code) || 0;
+    const message = String(wsError && wsError.message || '').trim();
+    return code === 1000016 || /已被封禁|账号已被封禁|封禁/.test(message);
+}
+
 function registerAccountControlRoutes({
     app,
     accountOwnershipRequired,
@@ -76,7 +83,13 @@ function registerAccountControlRoutes({
 
     app.post('/api/accounts/:id/start', accountOwnershipRequired, async (req, res) => {
         try {
-            const ok = await getProvider().startAccount(req.params.id);
+            const resolvedId = await resolveAccId(req.params.id) || String(req.params.id || '');
+            const accounts = await getAccountList();
+            const account = accounts.find(item => String(item && item.id || '') === resolvedId);
+            if (isAccountMarkedBanned(account)) {
+                return res.status(409).json({ ok: false, error: '该账号已被服务端封禁，已阻止启动。请保持停用或更换账号。' });
+            }
+            const ok = await getProvider().startAccount(resolvedId);
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }
@@ -100,7 +113,13 @@ function registerAccountControlRoutes({
 
     app.post('/api/accounts/:id/restart', accountOwnershipRequired, async (req, res) => {
         try {
-            const ok = await getProvider().restartAccount(req.params.id);
+            const resolvedId = await resolveAccId(req.params.id) || String(req.params.id || '');
+            const accounts = await getAccountList();
+            const account = accounts.find(item => String(item && item.id || '') === resolvedId);
+            if (isAccountMarkedBanned(account)) {
+                return res.status(409).json({ ok: false, error: '该账号已被服务端封禁，已阻止重启。请保持停用或更换账号。' });
+            }
+            const ok = await getProvider().restartAccount(resolvedId);
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }

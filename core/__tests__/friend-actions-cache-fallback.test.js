@@ -55,6 +55,7 @@ test('getAllFriends falls back to cached friends when QQ GetAll returns paramete
             getStealFilterConfig: () => ({ enabled: false, mode: 'blacklist', plantIds: [] }),
             getStealFriendFilterConfig: () => ({ enabled: false, mode: 'blacklist', friendIds: [] }),
             getStakeoutStealConfig: () => ({ enabled: false, delaySec: 3 }),
+            getAutomation: () => ({ qqFriendFetchMultiChain: true }),
             getConfigSnapshot: () => ({}),
             getForceGetAllConfig: () => ({ enabled: false }),
         }),

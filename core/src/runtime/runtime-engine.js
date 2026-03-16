@@ -19,6 +19,13 @@ function requiresRelogin(account) {
   return Number(account && account.wsError && account.wsError.code) === 400
 }
 
+function isBannedAccount(account) {
+  const wsError = account && account.wsError && typeof account.wsError === 'object' ? account.wsError : null
+  const code = Number(wsError && wsError.code) || 0
+  const message = String(wsError && wsError.message || '').trim()
+  return code === 1000016 || /已被封禁|账号已被封禁|封禁/.test(message)
+}
+
 function createRuntimeEngine(options = {}) {
   const processRef = options.processRef || process
   const mainEntryPath = options.mainEntryPath || path.join(__dirname, '../../client.js')
@@ -169,14 +176,16 @@ function createRuntimeEngine(options = {}) {
     let hasMore = true
     let totalStarted = 0
     let totalSkippedRelogin = 0
+    let totalSkippedBanned = 0
 
     log('系统', `正在准备分批唤醒账号群...`)
 
     while (hasMore) {
       const data = await store.getAccountsFullPaged(page, pageSize)
       const accounts = (data.accounts || [])
-      const startableAccounts = accounts.filter(acc => !requiresRelogin(acc))
-      const skippedReloginCount = accounts.length - startableAccounts.length
+      const startableAccounts = accounts.filter(acc => !requiresRelogin(acc) && !isBannedAccount(acc))
+      const skippedReloginCount = accounts.filter(acc => requiresRelogin(acc)).length
+      const skippedBannedCount = accounts.filter(acc => isBannedAccount(acc)).length
 
       if (startableAccounts.length > 0) {
         log('系统', `[启动批次 ${page}] 正在拉起 ${startableAccounts.length} 个账号...`)
@@ -187,6 +196,10 @@ function createRuntimeEngine(options = {}) {
       if (skippedReloginCount > 0) {
         totalSkippedRelogin += skippedReloginCount
         log('系统', `[启动批次 ${page}] 跳过 ${skippedReloginCount} 个登录已失效账号，等待重新登录`)
+      }
+      if (skippedBannedCount > 0) {
+        totalSkippedBanned += skippedBannedCount
+        log('系统', `[启动批次 ${page}] 跳过 ${skippedBannedCount} 个已封禁账号，保持停用`)
       }
 
       if (data.total <= page * pageSize || accounts.length === 0) {
@@ -199,8 +212,11 @@ function createRuntimeEngine(options = {}) {
     }
 
     if (totalStarted === 0) {
-      if (totalSkippedRelogin > 0) {
-        log('系统', `本次未自动启动任何账号，已跳过 ${totalSkippedRelogin} 个需要重新登录的账号`)
+      if (totalSkippedRelogin > 0 || totalSkippedBanned > 0) {
+        const reasons = []
+        if (totalSkippedRelogin > 0) reasons.push(`${totalSkippedRelogin} 个需要重新登录`)
+        if (totalSkippedBanned > 0) reasons.push(`${totalSkippedBanned} 个已封禁`)
+        log('系统', `本次未自动启动任何账号，已跳过 ${reasons.join('，')} 的账号`)
       } else {
         log('系统', '未发现账号，请访问管理面板添加账号')
       }
@@ -208,6 +224,9 @@ function createRuntimeEngine(options = {}) {
       log('系统', `所有批次下发完成，共唤醒 ${totalStarted} 个账号！`)
       if (totalSkippedRelogin > 0) {
         log('系统', `另有 ${totalSkippedRelogin} 个账号因登录已失效被跳过，避免重复拉起`)
+      }
+      if (totalSkippedBanned > 0) {
+        log('系统', `另有 ${totalSkippedBanned} 个账号因已封禁被跳过，避免重复撞线`)
       }
     }
   }

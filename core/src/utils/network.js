@@ -31,6 +31,7 @@ const verboseWsConnectLogsEnabled = String(process.env.FARM_VERBOSE_WS_CONNECT |
 const verboseLoginDetailsEnabled = String(process.env.FARM_VERBOSE_LOGIN_DETAILS || '') === '1';
 const HEARTBEAT_SILENCE_TIMEOUT_MS = 60 * 1000;
 const HEARTBEAT_MAX_MISS = 2;
+const QQ_MIN_RATE_LIMIT_MS = Math.max(334, Number.parseInt(process.env.FARM_QQ_MIN_RATE_LIMIT_MS, 10) || 600);
 
 function getNetworkScheduler() {
     if (!networkScheduler) {
@@ -83,6 +84,10 @@ function normalizeRuntimeText(value) {
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
     if (typeof value === 'bigint') return String(value);
     return '';
+}
+
+function isQQRuntimePlatform() {
+    return String((userState && userState.platform) || CONFIG.platform || '').trim().toLowerCase() === 'qq';
 }
 
 function normalizeRuntimeQQUin(value) {
@@ -194,11 +199,20 @@ async function sendMsg(serviceName, methodName, bodyBytes, callback) {
 }
 
 // ============ 令牌桶限流器 (Token Bucket Rate Limiter) ============
-// 强制所有异步业务请求按固定速率(3 QPS = 每帧间隔 333ms)依次发出
+// 强制所有异步业务请求按固定速率依次发出
 // 目的: 防止触发腾讯服务器的高频 QPS 风控检测
 // 从全局时间参数配置动态读取，管理员可通过面板调整
 function getRateLimitIntervalMs() {
-    try { return store.getTimingConfig().rateLimitIntervalMs || 334; } catch { return 334; }
+    const fallback = isQQRuntimePlatform() ? QQ_MIN_RATE_LIMIT_MS : 334;
+    try {
+        const configured = Number(store.getTimingConfig().rateLimitIntervalMs);
+        if (!Number.isFinite(configured) || configured <= 0) {
+            return fallback;
+        }
+        return isQQRuntimePlatform() ? Math.max(QQ_MIN_RATE_LIMIT_MS, configured) : configured;
+    } catch {
+        return fallback;
+    }
 }
 let lastSendTimestamp = 0;          // 上次实际发送时间戳
 const normalQueue = [];             // 常规排队中的发送任务

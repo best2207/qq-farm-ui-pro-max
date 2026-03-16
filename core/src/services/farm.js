@@ -21,10 +21,36 @@ const { cacheFriendSeeds, buildFriendSeedsFromLands, resolveFriendSeedAccountId 
 const { resolveVisitorIdentity } = require('./visitor-identity');
 const farmPhaseLogger = createModuleLogger('farm-phase');
 const verbosePhaseDebugEnabled = String(process.env.FARM_VERBOSE_PHASE_DEBUG || '') === '1';
+const HIGH_RISK_QQ_GUARD_TTL_MS = 5 * 60 * 1000;
+const highRiskQqGuardLogState = new Map();
 
 function logFarmPhaseDebug(message, meta = {}) {
     if (!verbosePhaseDebugEnabled) return;
     farmPhaseLogger.info(message, meta);
+}
+
+function isQQPlatform() {
+    return String(CONFIG.platform || '').trim().toLowerCase() === 'qq';
+}
+
+function isQQHighRiskAutomationAllowed() {
+    if (!isQQPlatform()) return true;
+    const text = String(process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION || '').trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'yes' || text === 'on';
+}
+
+function logQQHighRiskGuard(cacheKey, message, meta = {}) {
+    if (!isQQPlatform()) return;
+    const now = Date.now();
+    const previous = highRiskQqGuardLogState.get(cacheKey) || 0;
+    if (now - previous < HIGH_RISK_QQ_GUARD_TTL_MS) return;
+    highRiskQqGuardLogState.set(cacheKey, now);
+    logWarn('安全', message, {
+        module: 'farm',
+        event: 'qq_high_risk_guard',
+        result: 'blocked',
+        ...meta,
+    });
 }
 
 // ============ 内部状态 ============
@@ -50,6 +76,7 @@ const LANDS_CACHE_TTL_MS = 500;
 const FAST_HARVEST_WINDOW_SEC = 60;
 const FAST_HARVEST_ADVANCE_MS = 200;
 const FAST_HARVEST_TASK_PREFIX = 'fast_harvest_land_';
+const ANTI_STEAL_TASK_PREFIX = 'anti_steal_land_';
 const OCCUPIED_LAND_RECHECK_COOLDOWN_MS = 3 * 60 * 1000;
 const occupiedLandPlantCooldowns = new Map();
 const smartPhaseFertilizeMarks = new Map();
@@ -602,7 +629,7 @@ async function fertilize(landIds, fertilizerId = NORMAL_FERTILIZER_ID) {
             // 施肥失败（可能肥料不足），停止继续
             break;
         }
-        // 令牌桶已在底层做了 334ms 间隔限流，无需额外 sleep
+        // 令牌桶已在底层做了统一间隔限流，无需额外 sleep
     }
     return successCount;
 }
@@ -887,6 +914,13 @@ function getFastHarvestTaskId(landId) {
     return `${FAST_HARVEST_TASK_PREFIX}${toNum(landId)}`;
 }
 
+function clearScheduledTasksByPrefix(prefix) {
+    for (const taskName of getFarmScheduler().getTaskNames()) {
+        if (!String(taskName || '').startsWith(prefix)) continue;
+        getFarmScheduler().clear(taskName);
+    }
+}
+
 function getLandUpgradeTarget() {
     const raw = Number.parseInt(getAutomation().landUpgradeTarget, 10);
     return Math.max(0, Math.min(6, Number.isFinite(raw) ? raw : 6));
@@ -896,6 +930,13 @@ async function executeFastHarvest(item) {
     const landId = toNum(item && item.landId);
     const plantLabel = item && item.plantName ? item.plantName : `土地#${landId}`;
     if (landId <= 0) return;
+    if (!isQQHighRiskAutomationAllowed()) {
+        logQQHighRiskGuard('fast_harvest_execute', 'QQ 平台默认已关闭“成熟秒收取”，避免在成熟瞬间发起高风险定时请求。', {
+            landId,
+            plantLabel,
+        });
+        return;
+    }
 
     try {
         const reply = await harvestUrgent([landId]);
@@ -964,6 +1005,12 @@ const ANTI_STEAL_MAX_MATURE_SEC = 75;
 
 async function antiStealHarvest(landId) {
     if (!landId) return;
+    if (!isQQHighRiskAutomationAllowed()) {
+        logQQHighRiskGuard('anti_steal_execute', 'QQ 平台默认已关闭“60 秒施肥(防偷)”，避免成熟前集中施肥加急抢收。', {
+            landId: toNum(landId),
+        });
+        return;
+    }
     try {
         // [P0] 风控休眠绝对互斥屏障
         const state = getUserState();
@@ -2132,9 +2179,25 @@ function analyzeLands(lands) {
     const accountMode = fullCfg.accountMode || 'main';
     const effectiveMode = String(modePolicy.effectiveMode || accountMode || 'main').trim().toLowerCase() || 'main';
     const autoCfg = getAutomation() || {};
-    const fastHarvestEnabled = !!autoCfg.fastHarvest && effectiveMode === 'main';
+    const qqHighRiskAutomationAllowed = isQQHighRiskAutomationAllowed();
+    const fastHarvestConfigured = !!autoCfg.fastHarvest && effectiveMode === 'main';
+    const fastHarvestEnabled = fastHarvestConfigured && qqHighRiskAutomationAllowed;
+    const antiStealConfigured = !!isAutomationOn('fertilizer_60s_anti_steal') && effectiveMode === 'main' && !isSuspended;
     const landUpgradeTarget = getLandUpgradeTarget();
     const landsMap = buildLandMap(lands);
+
+    if (!fastHarvestEnabled) {
+        clearScheduledTasksByPrefix(FAST_HARVEST_TASK_PREFIX);
+        if (fastHarvestConfigured && !qqHighRiskAutomationAllowed) {
+            logQQHighRiskGuard('fast_harvest_schedule', 'QQ 平台默认已关闭“成熟秒收取”，不再预埋成熟瞬间的收获任务。');
+        }
+    }
+    if (!antiStealConfigured || !qqHighRiskAutomationAllowed) {
+        clearScheduledTasksByPrefix(ANTI_STEAL_TASK_PREFIX);
+        if (antiStealConfigured && !qqHighRiskAutomationAllowed) {
+            logQQHighRiskGuard('anti_steal_schedule', 'QQ 平台默认已关闭“60 秒施肥(防偷)”，不再预埋临近成熟的高风险任务。');
+        }
+    }
 
     for (const land of lands) {
         const id = toNum(land.id);
@@ -2256,7 +2319,7 @@ function analyzeLands(lands) {
 
         // 防偷60秒注册逻辑（🔧 优化：state / isSuspended 已在循环外预计算）
         // P0 (风控阻断) 与 P1/P2 (小号/避险模式阻断)
-        if (isAutomationOn('fertilizer_60s_anti_steal') && effectiveMode === 'main' && !isSuspended) {
+        if (antiStealConfigured && qqHighRiskAutomationAllowed) {
             const maturePhase = Array.isArray(plant.phases)
                 ? plant.phases.find((p) => p && toNum(p.phase) === PlantPhase.MATURE)
                 : null;
@@ -2267,7 +2330,7 @@ function analyzeLands(lands) {
             // 如果正好等于 60，就立刻唤醒
             if (matureInSec > 0 && matureInSec <= 600) {
                 const targetWaitSec = Math.max(0, matureInSec - 60);
-                const timerId = `anti_steal_land_${id}`;
+                const timerId = `${ANTI_STEAL_TASK_PREFIX}${id}`;
                 // 使用 farmScheduler 预埋
                 if (!getFarmScheduler().has(timerId)) {
                     log('防偷', `土地#${id} 将在 ${targetWaitSec} 秒后 (剩余60秒时) 触发防偷抢收`);

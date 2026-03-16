@@ -18,6 +18,8 @@ const FRIENDS_LIST_DEBUG_LOG_TTL_MS = 5 * 60 * 1000;
 const _friendsListDebugLogCache = new Map();
 const PERIODIC_STATUS_LOG_TTL_MS = 5 * 60 * 1000;
 const _periodicStatusLogCache = new Map();
+const HIGH_RISK_QQ_GUARD_TTL_MS = 5 * 60 * 1000;
+const _highRiskQqGuardLogCache = new Map();
 let consecutiveErrors = 0;
 
 function _logFriendsListDebug(cacheKey, message, level = 'info') {
@@ -57,6 +59,50 @@ function _logPeriodicStatus(cacheKey, message, options = {}) {
 
 function _clearPeriodicStatus(...keys) {
     keys.forEach(key => _periodicStatusLogCache.delete(key));
+}
+
+function isQQPlatform() {
+    return String(CONFIG.platform || '').trim().toLowerCase() === 'qq';
+}
+
+function isQQHighRiskAutomationAllowed() {
+    if (!isQQPlatform()) return true;
+    const text = String(process.env.FARM_ALLOW_HIGH_RISK_QQ_AUTOMATION || '').trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'yes' || text === 'on';
+}
+
+function logQQHighRiskGuard(cacheKey, message, meta = {}) {
+    if (!isQQPlatform()) return;
+    const now = Date.now();
+    const prev = _highRiskQqGuardLogCache.get(cacheKey) || 0;
+    if (now - prev < HIGH_RISK_QQ_GUARD_TTL_MS) {
+        return;
+    }
+    _highRiskQqGuardLogCache.set(cacheKey, now);
+    logWarn('安全', message, {
+        module: 'friend',
+        event: 'qq_high_risk_guard',
+        result: 'blocked',
+        ...meta,
+    });
+}
+
+function clearStakeoutTasks() {
+    for (const [taskKey] of state.activeStakeouts) {
+        if (state.friendScheduler) {
+            state.friendScheduler.clear(taskKey);
+        }
+        state.activeStakeouts.delete(taskKey);
+    }
+    if (!state.friendScheduler || typeof state.friendScheduler.getTaskNames !== 'function') {
+        return;
+    }
+    for (const taskName of state.friendScheduler.getTaskNames()) {
+        const normalized = String(taskName || '');
+        if (normalized.startsWith('stake_') || normalized.startsWith('stake_quiet_')) {
+            state.friendScheduler.clear(taskName);
+        }
+    }
 }
 
 function getDelayUntilFriendQuietHoursEndMs(now = new Date()) {
@@ -699,7 +745,17 @@ async function visitFriend(friend, totalActions, myGid, modePolicy = null) {
 
     // 4. 蹲守偷菜调度（在离开前评估即将成熟的地块）
     const stakeoutCfg = getStakeoutStealConfig();
-    if (stakeoutCfg.enabled && decision.shouldStealFriend(gid) && status.upcomingMature.length > 0) {
+    const stakeoutAllowed = stakeoutCfg.enabled
+        && decision.shouldStealFriend(gid)
+        && status.upcomingMature.length > 0
+        && isQQHighRiskAutomationAllowed();
+    if (stakeoutCfg.enabled && !isQQHighRiskAutomationAllowed()) {
+        logQQHighRiskGuard('stakeout_schedule', 'QQ 平台默认已关闭“精准蹲守偷菜”，不再预约精确成熟偷取任务。', {
+            friendName: name,
+            friendGid: gid,
+        });
+    }
+    if (stakeoutAllowed) {
         scheduleStakeout(gid, name, status.upcomingMature, stakeoutCfg.delaySec);
     }
 
@@ -741,7 +797,13 @@ async function checkFriends(mode = 'full') {
     const normalizedMode = new Set(['full', 'help', 'steal']).has(String(mode || '')) ? String(mode) : 'full';
     const modePolicy = getRuntimeAccountModePolicy();
     const effectiveMode = String(modePolicy.effectiveMode || modePolicy.accountMode || 'main').trim().toLowerCase() || 'main';
+    const stakeoutCfg = getStakeoutStealConfig();
+    const qqHighRiskAutomationAllowed = isQQHighRiskAutomationAllowed();
     _logModeScopePolicy(modePolicy);
+    if (!qqHighRiskAutomationAllowed && stakeoutCfg.enabled) {
+        clearStakeoutTasks();
+        logQQHighRiskGuard('stakeout_cleanup', 'QQ 平台默认已关闭“精准蹲守偷菜”，已清理待执行的蹲守任务。');
+    }
     const baseHelpEnabled = !!isAutomationOn('friend_help');
     const baseStealEnabled = !!isAutomationOn('friend_steal');
     const baseBadEnabled = !!isAutomationOn('friend_bad');
@@ -789,6 +851,25 @@ async function checkFriends(mode = 'full') {
     try {
         const friendsReply = await actions.getAllFriends();
         const friends = friendsReply.game_friends || [];
+        if (friendsReply && friendsReply._fromCache && friendsReply._qqConservativeSyncOnly) {
+            _logPeriodicStatus(
+                'friend_qq_conservative_cache_skip',
+                'QQ 保守好友链路：本轮未拿到实时好友列表，已跳过自动好友互动，避免按缓存名单盲目访问。',
+                {
+                    level: 'warn',
+                    tag: '安全',
+                    stateValue: `cached_skip:${friends.length}`,
+                    meta: {
+                        module: 'friend',
+                        event: 'qq_friend_fetch_guard',
+                        result: 'skip_cycle_by_cache',
+                        cachedCount: friends.length,
+                    },
+                },
+            );
+            return false;
+        }
+        _clearPeriodicStatus('friend_qq_conservative_cache_skip');
         if (friends.length === 0) {
             if (!platformAllowsAutoSteal && baseStealEnabled) {
                 _logPeriodicStatus(
@@ -846,28 +927,6 @@ async function checkFriends(mode = 'full') {
             }
         }
 
-        // ==========================================
-        // [防护级 - Noise Injection] 混入“无效参观”动作
-        // ==========================================
-        const unvisitedFriends = friends.filter(f => !visitedGids.has(toNum(f.gid)) && toNum(f.gid) !== state.gid && !blacklist.has(toNum(f.gid)) && f.name !== '小小农夫' && f.remark !== '小小农夫');
-        if (unvisitedFriends.length > 0 && Math.random() < 0.15) {
-            // 15% 几率挑 1 到 2 个根本不需要操作的好友“进去看看”
-            const noiseCount = Math.floor(Math.random() * 2) + 1;
-            for (let i = 0; i < noiseCount; i++) {
-                if (unvisitedFriends.length > 0) {
-                    const rIdx = Math.floor(Math.random() * unvisitedFriends.length);
-                    const f = unvisitedFriends.splice(rIdx, 1)[0];
-                    otherFriends.push({
-                        gid: toNum(f.gid),
-                        name: f.remark || f.name || `GID:${f.gid}`,
-                        isPriority: false,
-                        isNoise: true // 标记为噪音
-                    });
-                }
-            }
-        }
-        // ==========================================
-
         // 排序优化: 优先偷菜多的，其次是需要帮助多的
         priorityFriends.sort((a, b) => {
             if (b.stealNum !== a.stealNum) return b.stealNum - a.stealNum; // 偷菜优先
@@ -890,7 +949,7 @@ async function checkFriends(mode = 'full') {
             const friend = friendsToVisit[i];
 
             // 如果是仅捣乱的好友（帮忙/偷菜均未开启），且次数已用完，则停止
-            if (!friend.isPriority && !friend.isNoise && !helpEnabled && !stealEnabled && !actions.canOperate(10004) && !actions.canOperate(10003)) {
+            if (!friend.isPriority && !helpEnabled && !stealEnabled && !actions.canOperate(10004) && !actions.canOperate(10003)) {
                 break;
             }
 
@@ -901,7 +960,7 @@ async function checkFriends(mode = 'full') {
             }
 
             // 仿生延迟：模拟人类切换好友时的浏览思考行为 (1~5 秒随机)
-            // 令牌桶底层已有 334ms 限流，此处叠加人类行为模拟层
+            // 令牌桶底层已有统一限流，此处叠加额外缓冲，避免好友切换过于密集
             if (i < friendsToVisit.length - 1) {
                 await sleep(1000 + Math.floor(Math.random() * 4000));
             }
@@ -1138,6 +1197,13 @@ async function acceptFriendsWithRetry(gids) {
 }
 
 function scheduleStakeout(friendGid, friendName, upcomingMature, delaySec) {
+    if (!isQQHighRiskAutomationAllowed()) {
+        logQQHighRiskGuard('stakeout_schedule_direct', 'QQ 平台默认已关闭“精准蹲守偷菜”，不会继续创建蹲守任务。', {
+            friendName,
+            friendGid,
+        });
+        return;
+    }
     if (!upcomingMature || upcomingMature.length === 0) return;
 
     // 筛选: 只安排 4 小时内成熟的
@@ -1199,6 +1265,14 @@ function scheduleStakeout(friendGid, friendName, upcomingMature, delaySec) {
 }
 
 async function runStakeoutSteal(friendGid, friendName, targetLandIds, delaySec) {
+    if (!isQQHighRiskAutomationAllowed()) {
+        logQQHighRiskGuard('stakeout_execute', 'QQ 平台默认已关闭“精准蹲守偷菜”，已跳过本次精确偷取。', {
+            friendName,
+            friendGid,
+            targetLandIds,
+        });
+        return;
+    }
     if (decision.inFriendQuietHours()) {
         if (scheduleDeferredStakeout(friendGid, friendName, targetLandIds, delaySec)) {
             return;

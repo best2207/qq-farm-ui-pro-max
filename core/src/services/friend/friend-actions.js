@@ -1,14 +1,11 @@
 
-const { CONFIG, PlantPhase, PHASE_NAMES } = require('../../config/config');
-const { getPlantName, getPlantById, getSeedImageBySeedId } = require('../../config/gameConfig');
-const { isAutomationOn, getFriendQuietHours, getFriendBlacklist, setFriendBlacklist, getStealFilterConfig, getStealFriendFilterConfig, getStakeoutStealConfig, getConfigSnapshot, getForceGetAllConfig } = require('../../models/store');
+const { CONFIG } = require('../../config/config');
+const { isAutomationOn, getFriendBlacklist, getAutomation, getForceGetAllConfig } = require('../../models/store');
 const { sendMsgAsync, sendMsgAsyncUrgent, getUserState, networkEvents } = require('../../utils/network');
 const { types } = require('../../utils/proto');
-const { toLong, toNum, toTimeSec, getServerTimeSec, log, logWarn, sleep } = require('../../utils/utils');
-const { getCurrentPhase, setOperationLimitsCallback } = require('../farm');
+const { toLong, toNum, log, logWarn, sleep } = require('../../utils/utils');
 const { recordOperation } = require('../stats');
 const { sellAllFruits } = require('../warehouse');
-const { getPool } = require('../mysql-db');
 const { getCachedFriends, findReusableFriendsCache, mergeFriendsCache } = require('../database');
 const { isParamError } = require('../common');
 const { cacheFriendSeeds } = require('../friend-cache-seeds');
@@ -29,7 +26,9 @@ const GET_ALL_PARAM_ERROR_COOLDOWN_MS = 30 * 60 * 1000;
 const GET_GAME_FRIENDS_BATCH_SIZE = 35;
 const SHARED_FRIEND_CACHE_REUSE_COOLDOWN_MS = 60 * 1000;
 const VISITOR_FRIEND_SEED_COOLDOWN_MS = 60 * 1000;
+const QQ_CONSERVATIVE_FETCH_LOG_TTL_MS = 5 * 60 * 1000;
 const _friendFetchStateByAccount = new Map();
+const _qqConservativeFetchLogCache = new Map();
 
 
 function _resolveRuntimeAccountId(userState = null) {
@@ -42,6 +41,34 @@ function _resolveRuntimeAccountId(userState = null) {
     return resolved || null;
 }
 
+function _isQQPlatform() {
+    return String(CONFIG.platform || '').trim().toLowerCase() === 'qq';
+}
+
+function _isQQConservativeFriendFetchEnabled(accountId = null) {
+    if (!_isQQPlatform()) return false;
+    const automation = typeof getAutomation === 'function' ? getAutomation(accountId) : {};
+    const multiChainEnabled = !!(automation && automation.qqFriendFetchMultiChain);
+    const raw = process.env.FARM_QQ_FRIEND_FETCH_MULTI_CHAIN ?? '';
+    if (typeof raw === 'boolean') return !(multiChainEnabled || raw);
+    const text = String(raw || '').trim().toLowerCase();
+    return !(multiChainEnabled || text === '1' || text === 'true' || text === 'yes' || text === 'on');
+}
+
+function _logQQConservativeFetch(cacheKey, message, level = 'info', meta = {}) {
+    const now = Date.now();
+    const prev = _qqConservativeFetchLogCache.get(cacheKey) || 0;
+    if (now - prev < QQ_CONSERVATIVE_FETCH_LOG_TTL_MS) {
+        return;
+    }
+    _qqConservativeFetchLogCache.set(cacheKey, now);
+    if (level === 'warn') {
+        logWarn('好友', message, meta);
+        return;
+    }
+    log('好友', message, meta);
+}
+
 
 async function getAllFriends() {
     let reply;
@@ -52,6 +79,20 @@ async function getAllFriends() {
     const forceGetAll = getForceGetAllConfig(accountId).enabled;
     const isWeChat = !platformInst.allowSyncAll();
     const label = isWeChat ? '微信' : 'QQ';
+
+    if (_isQQConservativeFriendFetchEnabled(accountId)) {
+        reply = await _getAllViaConservativeQQSyncAll({
+            fetchState,
+            accountId,
+            label,
+            userState,
+            forceGetAll,
+        });
+        if (reply && reply.game_friends && networkEvents) {
+            networkEvents.emit('friends_updated', reply.game_friends);
+        }
+        return reply;
+    }
 
     if (!forceGetAll && fetchState.modeSource === 'forced') {
         resetGetAllMode(accountId);
@@ -161,6 +202,60 @@ async function getAllFriends() {
     }
 
     return reply;
+}
+
+async function _getAllViaConservativeQQSyncAll(options = {}) {
+    const fetchState = options.fetchState || null;
+    const accountId = options.accountId || null;
+    const userState = options.userState || null;
+    const label = options.label || 'QQ';
+    const forceGetAll = !!options.forceGetAll;
+
+    _setFriendFetchMode(fetchState, FRIEND_FETCH_MODE.SYNC_ALL, `${label} 保守模式固定使用 SyncAll，关闭额外探测链路`, 'qq_conservative');
+    if (forceGetAll) {
+        _logQQConservativeFetch('force_get_all_ignored', 'QQ 保守好友链路已启用，已忽略“强效兼容尝试”，避免额外触发 GetAll/GetGameFriends 探测。', 'warn', {
+            module: 'friend',
+            event: 'qq_friend_fetch_guard',
+            result: 'force_get_all_ignored',
+        });
+    }
+
+    const syncReply = await _getAllViaSyncAll(false, { fetchState });
+    if (_hasUsableFriendEntries(syncReply, userState)) {
+        return {
+            ...syncReply,
+            _qqConservativeSyncOnly: true,
+        };
+    }
+
+    const cachedReply = await _getCachedFriendsReply(accountId, fetchState, {
+        userState,
+        allowVisitorSeed: true,
+    });
+    if (cachedReply) {
+        _logQQConservativeFetch('cache_fallback', 'QQ 保守好友链路：SyncAll 未拿到可用实时好友列表，本轮仅回退本地缓存，不再追加其他腾讯接口探测。', 'warn', {
+            module: 'friend',
+            event: 'qq_friend_fetch_guard',
+            result: 'cache_fallback',
+            cachedCount: Array.isArray(cachedReply.game_friends) ? cachedReply.game_friends.length : 0,
+        });
+        return {
+            ...cachedReply,
+            _qqConservativeSyncOnly: true,
+        };
+    }
+
+    _logQQConservativeFetch('empty_result', 'QQ 保守好友链路：SyncAll 未拿到可用实时好友列表，本轮直接停止追加探测。', 'warn', {
+        module: 'friend',
+        event: 'qq_friend_fetch_guard',
+        result: 'empty',
+    });
+    return {
+        game_friends: Array.isArray(syncReply && syncReply.game_friends) ? syncReply.game_friends : [],
+        invitations: Array.isArray(syncReply && syncReply.invitations) ? syncReply.invitations : [],
+        application_count: toNum(syncReply && syncReply.application_count),
+        _qqConservativeSyncOnly: true,
+    };
 }
 
 function resetGetAllMode(accountId = null) {
@@ -877,7 +972,7 @@ async function putPlantItems(friendGid, landIds, RequestType, ReplyType, method)
             updateOperationLimits(reply.operation_limits);
             ok++;
         } catch { /* ignore single failure */ }
-        // 令牌桶已在底层做了 334ms 间隔限流，无需额外 sleep
+        // 令牌桶已在底层做了统一间隔限流，无需额外 sleep
     }
     return ok;
 }
@@ -900,7 +995,7 @@ async function putPlantItemsDetailed(friendGid, landIds, RequestType, ReplyType,
         } catch (e) {
             failed.push({ landId, reason: e && e.message ? e.message : '未知错误' });
         }
-        // 令牌桶已在底层做了 334ms 间隔限流，无需额外 sleep
+        // 令牌桶已在底层做了统一间隔限流，无需额外 sleep
     }
     return { ok, failed };
 }

@@ -81,6 +81,15 @@ const DEFAULT_MODE_SCOPE = {
     requiresGameFriend: true,
     fallbackBehavior: 'standalone',
 };
+const QQ_HIGH_RISK_WINDOW_MIN_MINUTES = 5;
+const QQ_HIGH_RISK_WINDOW_MAX_MINUTES = 180;
+const DEFAULT_QQ_HIGH_RISK_WINDOW = {
+    durationMinutes: 30,
+    expiresAt: 0,
+    lastIssuedAt: 0,
+    lastAutoDisabledAt: 0,
+    lastAutoDisabledNoticeAt: 0,
+};
 const ACCOUNT_MODE_PRESETS = Object.freeze({
     main: {
         accountMode: 'main',
@@ -137,6 +146,7 @@ const DEFAULT_ACCOUNT_CONFIG = {
         friend_auto_accept: false,
         friend_three_phase: false,
         auto_blacklist_banned: true,
+        qqFriendFetchMultiChain: false,
         task: true,
         email: true,
         fertilizer_gift: false,
@@ -189,6 +199,7 @@ const DEFAULT_ACCOUNT_CONFIG = {
     stealFilter: { enabled: false, mode: 'blacklist', plantIds: [] },
     stealFriendFilter: { enabled: false, mode: 'blacklist', friendIds: [] },
     stakeoutSteal: { enabled: false, delaySec: 3 },
+    qqHighRiskWindow: { ...DEFAULT_QQ_HIGH_RISK_WINDOW },
     skipStealRadish: { enabled: false },
     forceGetAll: { enabled: false },
     workflowConfig: {
@@ -211,6 +222,7 @@ let accountFallbackConfig = {
     inventoryPlanting: { ...DEFAULT_ACCOUNT_CONFIG.inventoryPlanting, reserveRules: [] },
     intervals: { ...DEFAULT_ACCOUNT_CONFIG.intervals },
     friendQuietHours: { ...DEFAULT_ACCOUNT_CONFIG.friendQuietHours },
+    qqHighRiskWindow: { ...DEFAULT_ACCOUNT_CONFIG.qqHighRiskWindow },
 };
 
 const globalConfig = {
@@ -558,6 +570,185 @@ function normalizeAutomationValue(key, value, fallback) {
     return !!value;
 }
 
+function normalizeQqHighRiskWindow(rawWindow, fallbackWindow = DEFAULT_QQ_HIGH_RISK_WINDOW) {
+    const raw = (rawWindow && typeof rawWindow === 'object') ? rawWindow : {};
+    const fallback = (fallbackWindow && typeof fallbackWindow === 'object')
+        ? fallbackWindow
+        : DEFAULT_QQ_HIGH_RISK_WINDOW;
+    const durationMinutes = clampInteger(
+        raw.durationMinutes,
+        fallback.durationMinutes,
+        QQ_HIGH_RISK_WINDOW_MIN_MINUTES,
+        QQ_HIGH_RISK_WINDOW_MAX_MINUTES,
+    );
+    return {
+        durationMinutes,
+        expiresAt: Math.max(0, Number.parseInt(raw.expiresAt, 10) || Math.max(0, Number.parseInt(fallback.expiresAt, 10) || 0)),
+        lastIssuedAt: Math.max(0, Number.parseInt(raw.lastIssuedAt, 10) || Math.max(0, Number.parseInt(fallback.lastIssuedAt, 10) || 0)),
+        lastAutoDisabledAt: Math.max(0, Number.parseInt(raw.lastAutoDisabledAt, 10) || Math.max(0, Number.parseInt(fallback.lastAutoDisabledAt, 10) || 0)),
+        lastAutoDisabledNoticeAt: Math.max(0, Number.parseInt(raw.lastAutoDisabledNoticeAt, 10) || Math.max(0, Number.parseInt(fallback.lastAutoDisabledNoticeAt, 10) || 0)),
+    };
+}
+
+function resolveAccountPlatform(accountId) {
+    const id = resolveAccountId(accountId);
+    if (!id) return '';
+    const data = getAccounts();
+    const accounts = Array.isArray(data && data.accounts) ? data.accounts : [];
+    const account = accounts.find(item => String(item && item.id || '').trim() === id);
+    return String(account && account.platform || '').trim().toLowerCase();
+}
+
+function isQqAccount(accountId) {
+    return resolveAccountPlatform(accountId) === 'qq';
+}
+
+function getQqHighRiskState(cfg) {
+    const automation = (cfg && cfg.automation && typeof cfg.automation === 'object') ? cfg.automation : {};
+    const stakeoutSteal = (cfg && cfg.stakeoutSteal && typeof cfg.stakeoutSteal === 'object') ? cfg.stakeoutSteal : {};
+    return {
+        fertilizer_60s_anti_steal: !!automation.fertilizer_60s_anti_steal,
+        fastHarvest: !!automation.fastHarvest,
+        qqFriendFetchMultiChain: !!automation.qqFriendFetchMultiChain,
+        stakeoutSteal: !!stakeoutSteal.enabled,
+    };
+}
+
+function hasQqHighRiskEnabled(cfg) {
+    return Object.values(getQqHighRiskState(cfg)).some(Boolean);
+}
+
+function disableQqHighRiskFlags(cfg) {
+    if (!cfg || typeof cfg !== 'object') return cfg;
+    cfg.automation = {
+        ...(cfg.automation || {}),
+        fertilizer_60s_anti_steal: false,
+        fastHarvest: false,
+        qqFriendFetchMultiChain: false,
+    };
+    cfg.stakeoutSteal = {
+        ...(cfg.stakeoutSteal || DEFAULT_ACCOUNT_CONFIG.stakeoutSteal),
+        enabled: false,
+    };
+    return cfg;
+}
+
+function finalizeQqHighRiskWindow(accountId, current, next) {
+    const currentWindow = normalizeQqHighRiskWindow(current && current.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
+    const requestedWindow = normalizeQqHighRiskWindow(next && next.qqHighRiskWindow, currentWindow);
+    next.qqHighRiskWindow = {
+        ...currentWindow,
+        durationMinutes: requestedWindow.durationMinutes,
+    };
+
+    if (!accountId || !isQqAccount(accountId)) {
+        next.qqHighRiskWindow.expiresAt = 0;
+        return next;
+    }
+
+    const currentState = getQqHighRiskState(current);
+    const nextState = getQqHighRiskState(next);
+    const hasAnyEnabled = Object.values(nextState).some(Boolean);
+
+    if (!hasAnyEnabled) {
+        next.qqHighRiskWindow.expiresAt = 0;
+        return next;
+    }
+
+    const hasNewEnable = Object.keys(nextState).some((key) => !currentState[key] && nextState[key]);
+    if (hasNewEnable) {
+        const now = Date.now();
+        next.qqHighRiskWindow.lastIssuedAt = now;
+        next.qqHighRiskWindow.expiresAt = now + (next.qqHighRiskWindow.durationMinutes * 60 * 1000);
+        return next;
+    }
+
+    if (next.qqHighRiskWindow.expiresAt > 0 && next.qqHighRiskWindow.expiresAt <= Date.now()) {
+        disableQqHighRiskFlags(next);
+        next.qqHighRiskWindow.expiresAt = 0;
+        next.qqHighRiskWindow.lastAutoDisabledAt = Date.now();
+    }
+    return next;
+}
+
+function enforceQqHighRiskWindow(accountId, snapshot, options = {}) {
+    const id = resolveAccountId(accountId);
+    if (!id) return snapshot;
+
+    const cfg = cloneAccountConfig(snapshot || DEFAULT_ACCOUNT_CONFIG);
+    cfg.qqHighRiskWindow = normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
+
+    if (!isQqAccount(id)) {
+        cfg.qqHighRiskWindow.expiresAt = 0;
+        return cfg;
+    }
+
+    const hasAnyEnabled = hasQqHighRiskEnabled(cfg);
+    if (!hasAnyEnabled) {
+        if (cfg.qqHighRiskWindow.expiresAt > 0) {
+            cfg.qqHighRiskWindow.expiresAt = 0;
+        }
+        return cfg;
+    }
+
+    if (cfg.qqHighRiskWindow.expiresAt > Date.now()) {
+        return cfg;
+    }
+
+    const expiredAt = cfg.qqHighRiskWindow.expiresAt || cfg.qqHighRiskWindow.lastIssuedAt || 0;
+    disableQqHighRiskFlags(cfg);
+    cfg.qqHighRiskWindow.expiresAt = 0;
+    cfg.qqHighRiskWindow.lastAutoDisabledAt = Date.now();
+
+    if (options.persist !== false) {
+        setAccountConfigSnapshot(id, cfg, false);
+        saveGlobalConfig();
+        getStoreLogger().warn('QQ 高风险临时窗口已到期，已自动回退配置', {
+            accountId: id,
+            expiredAt,
+            autoDisabledAt: cfg.qqHighRiskWindow.lastAutoDisabledAt,
+        });
+    }
+
+    return cfg;
+}
+
+function consumeQqHighRiskAutoDisableNotice(accountId) {
+    ensureStoreFallbackLoaded();
+    const id = resolveAccountId(accountId);
+    if (!id) return null;
+
+    const snapshot = getAccountConfigSnapshot(id);
+    const windowState = normalizeQqHighRiskWindow(snapshot.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
+    if (!windowState.lastAutoDisabledAt) {
+        return null;
+    }
+    if (windowState.lastAutoDisabledNoticeAt >= windowState.lastAutoDisabledAt) {
+        return null;
+    }
+
+    const stored = normalizeAccountConfig(globalConfig.accountConfigs[id], accountFallbackConfig);
+    stored.qqHighRiskWindow = {
+        ...normalizeQqHighRiskWindow(stored.qqHighRiskWindow, windowState),
+        lastAutoDisabledNoticeAt: windowState.lastAutoDisabledAt,
+    };
+    setAccountConfigSnapshot(id, stored, false);
+    saveGlobalConfig();
+
+    return {
+        accountId: id,
+        autoDisabledAt: windowState.lastAutoDisabledAt,
+        lastIssuedAt: windowState.lastIssuedAt,
+        durationMinutes: windowState.durationMinutes,
+        labels: [
+            '60秒施肥(防偷)',
+            '成熟秒收取',
+            '精准蹲守偷菜',
+            'QQ 多链路好友拉取',
+        ],
+    };
+}
+
 function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const srcAutomation = (base && base.automation && typeof base.automation === 'object')
         ? base.automation
@@ -579,6 +770,7 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const stakeoutSteal = (base.stakeoutSteal && typeof base.stakeoutSteal === 'object')
         ? { enabled: !!base.stakeoutSteal.enabled, delaySec: Math.max(1, Number.parseInt(base.stakeoutSteal.delaySec, 10) || 3) }
         : DEFAULT_ACCOUNT_CONFIG.stakeoutSteal;
+    const qqHighRiskWindow = normalizeQqHighRiskWindow(base.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
     const skipStealRadish = (base.skipStealRadish && typeof base.skipStealRadish === 'object')
         ? { enabled: !!base.skipStealRadish.enabled }
         : DEFAULT_ACCOUNT_CONFIG.skipStealRadish;
@@ -607,6 +799,7 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         stealFilter,
         stealFriendFilter,
         stakeoutSteal,
+        qqHighRiskWindow,
         skipStealRadish,
         forceGetAll,
         workflowConfig: normalizeWorkflowConfig(base.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
@@ -721,6 +914,11 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
             delaySec: Math.max(1, Number.parseInt(src.stakeoutSteal.delaySec, 10) || 3),
         };
     }
+    if (src.qqHighRiskWindow && typeof src.qqHighRiskWindow === 'object') {
+        cfg.qqHighRiskWindow = normalizeQqHighRiskWindow(src.qqHighRiskWindow, cfg.qqHighRiskWindow || DEFAULT_QQ_HIGH_RISK_WINDOW);
+    } else {
+        cfg.qqHighRiskWindow = normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
+    }
     if (src.skipStealRadish && typeof src.skipStealRadish === 'object') {
         cfg.skipStealRadish = { enabled: !!src.skipStealRadish.enabled };
     }
@@ -758,7 +956,8 @@ function getAccountConfigSnapshot(accountId) {
     ensureStoreFallbackLoaded();
     const id = resolveAccountId(accountId);
     if (!id) return cloneAccountConfig(accountFallbackConfig);
-    return normalizeAccountConfig(globalConfig.accountConfigs[id], accountFallbackConfig);
+    const normalized = normalizeAccountConfig(globalConfig.accountConfigs[id], accountFallbackConfig);
+    return enforceQqHighRiskWindow(id, normalized);
 }
 
 function setAccountConfigSnapshot(accountId, nextConfig, persist = true) {
@@ -887,6 +1086,7 @@ async function loadGlobalConfigFromDB() {
                 stealFilter: adv.stealFilter,
                 stealFriendFilter: adv.stealFriendFilter,
                 stakeoutSteal: adv.stakeoutSteal,
+                qqHighRiskWindow: adv.qqHighRiskWindow,
                 skipStealRadish: adv.skipStealRadish,
                 forceGetAll: adv.forceGetAll,
                 workflowConfig: adv.workflowConfig,
@@ -1157,6 +1357,7 @@ async function saveGlobalConfigImmediate() {
                         stealFilter: cfg.stealFilter || { enabled: false, mode: 'blacklist', plantIds: [] },
                         stealFriendFilter: cfg.stealFriendFilter || { enabled: false, mode: 'blacklist', friendIds: [] },
                         stakeoutSteal: cfg.stakeoutSteal || { enabled: false, delaySec: 3 },
+                        qqHighRiskWindow: normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW),
                         skipStealRadish: cfg.skipStealRadish || { enabled: false },
                         forceGetAll: cfg.forceGetAll || { enabled: false },
                         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
@@ -1279,6 +1480,7 @@ function getConfigSnapshot(accountId) {
         stealFilter: { ...(cfg.stealFilter || DEFAULT_ACCOUNT_CONFIG.stealFilter) },
         stealFriendFilter: { ...(cfg.stealFriendFilter || DEFAULT_ACCOUNT_CONFIG.stealFriendFilter) },
         stakeoutSteal: { ...(cfg.stakeoutSteal || DEFAULT_ACCOUNT_CONFIG.stakeoutSteal) },
+        qqHighRiskWindow: normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW),
         skipStealRadish: { ...(cfg.skipStealRadish || DEFAULT_ACCOUNT_CONFIG.skipStealRadish) },
         forceGetAll: { ...(cfg.forceGetAll || DEFAULT_ACCOUNT_CONFIG.forceGetAll) },
         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
@@ -1398,6 +1600,15 @@ function applyConfigSnapshot(snapshot, options = {}) {
         };
     }
 
+    if (cfg.qqHighRiskWindow && typeof cfg.qqHighRiskWindow === 'object') {
+        next.qqHighRiskWindow = {
+            ...normalizeQqHighRiskWindow(next.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW),
+            durationMinutes: normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, next.qqHighRiskWindow || DEFAULT_QQ_HIGH_RISK_WINDOW).durationMinutes,
+        };
+    } else {
+        next.qqHighRiskWindow = normalizeQqHighRiskWindow(next.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW);
+    }
+
     if (cfg.skipStealRadish && typeof cfg.skipStealRadish === 'object') {
         next.skipStealRadish = { enabled: !!cfg.skipStealRadish.enabled };
     }
@@ -1421,6 +1632,8 @@ function applyConfigSnapshot(snapshot, options = {}) {
     if (cfg.reportState && typeof cfg.reportState === 'object') {
         next.reportState = normalizeReportState(cfg.reportState, next.reportState || DEFAULT_ACCOUNT_CONFIG.reportState);
     }
+
+    finalizeQqHighRiskWindow(accountId, current, next);
 
     setAccountConfigSnapshot(accountId, next, false);
     if (persist) saveGlobalConfig();
@@ -2429,7 +2642,7 @@ const DEFAULT_TIMING_CONFIG = {
     ghostingMinMin: 5,              // 最短打盹时长（分钟）
     ghostingMaxMin: 10,             // 最长打盹时长（分钟）
     // 令牌桶限流参数
-    rateLimitIntervalMs: 334,       // 两次 WS 请求之间的最小间隔（毫秒）
+    rateLimitIntervalMs: 600,       // 两次 WS 请求之间的最小间隔（毫秒）
     // 邀请码处理延迟
     inviteRequestDelay: 2000,       // 邀请码逐条处理间隔（毫秒）
     // 调度器引擎
@@ -2616,6 +2829,7 @@ module.exports = {
     setReportConfig,
     getReportState,
     setReportState,
+    consumeQqHighRiskAutoDisableNotice,
     getUI,
     setUITheme,
     getOfflineReminder,
