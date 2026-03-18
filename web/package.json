@@ -1,12 +1,13 @@
 {
   "name": "qq-farm-bot-web",
   "type": "module",
-  "version": "4.5.23",
+  "version": "4.5.24",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "build:runtime": "vue-tsc -b && WEB_DIST_DIR=dist-runtime vite build",
+    "farm-tools:sync": "python3 public/nc_local_version/scraper.py",
     "check:ui-appearance": "node scripts/check-ui-appearance.mjs",
     "lint:check": "eslint \"src/**/*.{ts,vue}\" \"__tests__/**/*.mjs\" \"eslint.config.js\"",
     "lint": "eslint \"src/**/*.{ts,vue}\" --fix",

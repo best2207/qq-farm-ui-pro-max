@@ -170,6 +170,11 @@ function getPersonalTabClass(tab: PersonalTab) {
 }
 
 @media (max-width: 767px) {
+  .personal-page {
+    height: auto;
+    min-height: auto;
+  }
+
   .personal-toolbar {
     padding: 0.875rem;
     border: 1px solid var(--ui-border-subtle);
@@ -182,6 +187,22 @@ function getPersonalTabClass(tab: PersonalTab) {
 
   .personal-tab-bar-desktop {
     display: none !important;
+  }
+
+  .personal-tab-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .personal-tab {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .personal-content {
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }
 

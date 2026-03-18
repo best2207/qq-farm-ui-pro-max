@@ -58,6 +58,7 @@ let lastAccountSavedAt = 0
 // QR 登录进行中标志：保存账号后 15 秒内忽略所有 wsError
 let qrLoginInProgress = false
 let qrLoginTimer: ReturnType<typeof setTimeout> | null = null
+let wsErrorAutoOpenArmed = false
 
 const systemConnected = ref(true)
 const serverUptimeBase = ref(0)
@@ -150,6 +151,9 @@ onMounted(async () => {
   loadCurrentUser()
   checkUnread()
   farmToolsStore.checkAvailability()
+  window.setTimeout(() => {
+    wsErrorAutoOpenArmed = true
+  }, 1500)
 })
 
 onBeforeUnmount(() => {
@@ -172,6 +176,10 @@ watch(() => currentAccount.value?.id || currentAccount.value?.uin || '', (newVal
   if (newVal === oldVal)
     return
   const accountRef = currentAccount.value?.id || currentAccount.value?.uin
+  const existingWsErrorAt = Number(currentAccount.value?.wsError?.at) || 0
+  if (accountRef && existingWsErrorAt) {
+    wsErrorNotifiedAt.value[String(accountRef)] = Math.max(wsErrorNotifiedAt.value[String(accountRef)] || 0, existingWsErrorAt)
+  }
   statusStore.connectRealtime(String(accountRef || ''))
   refreshStatusFallback()
 }, { immediate: true })
@@ -195,6 +203,12 @@ watch(() => status.value?.wsError, (wsError: any) => {
 
   const errAt = Number(wsError.at) || 0
   const accId = String(currentAccount.value.id || currentAccount.value.uin || '')
+  if (!wsErrorAutoOpenArmed) {
+    if (accId && errAt) {
+      wsErrorNotifiedAt.value[accId] = Math.max(wsErrorNotifiedAt.value[accId] || 0, errAt)
+    }
+    return
+  }
   const lastNotified = wsErrorNotifiedAt.value[accId] || 0
   if (errAt <= lastNotified)
     return

@@ -28,7 +28,7 @@ const summaryAttrs = computed<Record<string, any>>(() => ({
   class: [
     props.variant === 'pill'
       ? 'selection-summary-pill rounded-full px-3 py-1 text-xs'
-      : 'glass-text-muted text-xs font-medium',
+      : 'selection-summary-text glass-text-muted text-xs font-medium',
     attrs.class,
   ],
 }))
@@ -57,5 +57,13 @@ const segments = computed(() => {
   border: 1px solid var(--ui-border-subtle);
   background: color-mix(in srgb, var(--ui-bg-surface) 52%, transparent);
   color: var(--ui-text-2);
+}
+
+.selection-summary-text {
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 </style>

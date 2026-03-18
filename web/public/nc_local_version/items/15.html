@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="../static/植物.ico">
+  <title>💎 充值货币 · QQ经典农场资源库</title>
+  <script src="../static/js/tailwindcss-3.4.17.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            farm: {
+              50:  '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0',
+              300: '#86efac', 400: '#4ade80', 500: '#22c55e',
+              600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d',
+            },
+            soil: { 400: '#a16207', 500: '#854d0e', 600: '#713f12' }
+          },
+          fontFamily: { sans: ['"Microsoft YaHei"','Segoe UI','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 滚动条美化 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--glass-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* 侧边栏链接激活态 */
+    .nav-item.active { background: var(--glass-bg); }
+    .nav-item.active .nav-dot { opacity: 1; }
+    .nav-dot { opacity: 0; width: 4px; border-radius: 2px; background: rgb(var(--color-primary-400)); }
+
+    /* 卡片悬浮 */
+    .card-hover { transition: transform .2s, box-shadow .2s; }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+
+    /* 渐变文字 */
+    .grad-text {
+      background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-primary-600)));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* 道具图标容器 */
+    .item-icon {
+      width: 64px; height: 64px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--glass-bg), var(--glass-border));
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .item-icon img { width: 100%; height: 100%; object-fit: contain; }
+    .item-icon .no-img { font-size: 1.8rem; }
+
+    /* 稀有度颜色 */
+    .rarity-1 { color: #9ca3af; }
+    .rarity-2 { color: rgb(var(--color-primary-500)); }
+    .rarity-3 { color: #3b82f6; }
+    .rarity-4 { color: #a855f7; }
+    .rarity-5 { color: #f59e0b; }
+
+    /* 动画 */
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .fade-in { animation: fadeInUp .35s ease both; }
+
+    /* 植物卡片图片区 */
+    .plant-img-wrap {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, rgba(var(--color-primary-200), 0.3), rgba(var(--color-primary-300), 0.4));
+      border-radius: 12px;
+      display: flex; align-items:center; justify-content:center;
+      flex-shrink: 0; overflow:hidden;
+    }
+    .plant-img-wrap img { width:100%; height:100%; object-fit:contain; }
+
+    /* ══ 冻结导航项 ══ */
+    .frozen-nav {
+      color: var(--text-muted) !important;
+      cursor: not-allowed !important;
+      opacity: 0.45;
+    }
+    .frozen-nav:hover {
+      background: transparent !important;
+    }
+    .frozen-nav .frozen-name {
+      text-decoration: line-through;
+      text-decoration-color: var(--text-muted);
+      text-decoration-thickness: 1px;
+    }
+    .frozen-nav .frozen-emoji {
+      filter: grayscale(1);
+      opacity: 0.5;
+    }
+
+    /* ══ Toast 提示 ══ */
+    #toast-container {
+      position: fixed;
+      top: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+    .toast-msg {
+      background: rgba(30, 41, 59, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-bg);
+      color: var(--glass-bg);
+      padding: 0.65rem 1.5rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-1rem) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0) scale(1); }
+      to   { opacity: 0; transform: translateY(-1rem) scale(0.95); }
+    }
+  </style>
+  
+<style>
+  .seed-card .seed-info-row { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+  .seed-card .info-tag { white-space: nowrap; font-size: 11px; line-height: 1.6; }
+  .seed-card .info-tag .val { font-weight: 700; }
+  .income-highlight { color: rgb(var(--color-primary-600)); }
+  .buy-tag { color: #b45309; }
+  .sell-tag { color: #0369a1; }
+  .exp-tag { color: #7c3aed; }
+  .filter-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 8px center;
+    padding-right: 24px;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 5px 28px 5px 10px;
+    font-size: 12px;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-select:hover { border-color: rgb(var(--color-primary-300)); }
+  .filter-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(74,222,128,0.3); border-color: rgb(var(--color-primary-400)); }
+  .seed-card.stage-low { border-color: rgb(var(--color-primary-300)); border-width: 2px; }
+  .seed-card.stage-high { border-color: #fb923c; border-width: 2px; }
+</style>
+
+</head>
+<body class="bg-transparent text-slate-800 dark:text-slate-200 font-sans">
+
+<!-- Toast 容器 -->
+<div id="toast-container"></div>
+
+<!-- ════ 移动端顶部导航栏 ════ -->
+<header class="lg:hidden sticky top-0 z-50 bg-slate-900 text-white flex items-center justify-between px-4 h-14 flex-shrink-0 shadow-lg">
+  <button id="menu-btn" onclick="openSidebar()" class="p-2 rounded-lg hover:bg-white/10 transition" aria-label="菜单">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+  <a href="../index.html" class="flex items-center gap-2">
+    <span class="text-xl">🌾</span>
+    <span class="font-bold text-sm">QQ经典农场</span>
+  </a>
+  <div class="w-9"></div>
+</header>
+
+<!-- 移动端侧边栏遮罩 -->
+<div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/50 hidden" onclick="closeSidebar()"></div>
+
+<div class="flex lg:h-screen lg:overflow-hidden">
+
+  <!-- ════ 侧边栏 ════ -->
+  <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-72 lg:w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 overflow-y-auto -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+    <!-- Logo -->
+    <div class="px-5 py-5 border-b border-slate-700/50">
+      <a href="../index.html" class="flex items-center gap-3 group">
+        <span class="text-2xl">🌾</span>
+        <div>
+          <div class="font-bold text-base leading-tight grad-text">QQ经典农场</div>
+          <div class="text-xs text-slate-400 mt-0.5">道具图鉴</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- 导航 -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="../index.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🏠</span><span class="text-sm font-medium">首页</span>
+      </a>
+      <a href="../calculator.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🧮</span><span class="text-sm font-medium">经验计算器</span>
+      </a>
+      <a href="../levels.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">💰</span><span class="text-sm font-medium">氪金计算器</span>
+      </a>
+      <a href="../mutation.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🧬</span><span class="text-sm font-medium">变异计算器</span>
+      </a>
+
+      <div class="pt-3 pb-1 px-3">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">图鉴</div>
+      </div>
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2.5 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg frozen-emoji">📋</span><span class="text-sm font-medium frozen-name">总览</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      <a href="../plants.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🌿</span><span class="text-sm font-medium">作物图鉴</span>
+        <span class="ml-auto text-xs text-slate-500">108</span>
+      </a>
+      <a href="../lands.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🏞️</span><span class="text-sm font-medium">土地图鉴</span>
+        <span class="ml-auto text-xs text-slate-500">24</span>
+      </a>
+
+      <!-- 道具分类 -->
+      <div class="pt-3 pb-1 px-3">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">商店道具</div>
+      </div>
+      
+      
+      <a href="../items/05.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🌱</span>
+        <span class="text-sm truncate">种子</span>
+        <span class="ml-auto text-xs text-slate-500">108</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🔑</span>
+        <span class="text-sm truncate frozen-name">种子解锁卡</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎁</span>
+        <span class="text-sm truncate frozen-name">礼包与宝箱</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎀</span>
+        <span class="text-sm truncate frozen-name">自选礼包</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="../items/02.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">💰</span>
+        <span class="text-sm truncate">货币与计数</span>
+        <span class="ml-auto text-xs text-slate-500">9</span>
+      </a>
+      
+      
+      
+      <a href="../items/04.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🛠️</span>
+        <span class="text-sm truncate">操作工具</span>
+        <span class="ml-auto text-xs text-slate-500">8</span>
+      </a>
+      
+      
+      
+      <a href="../items/07.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🧪</span>
+        <span class="text-sm truncate">化肥道具</span>
+        <span class="ml-auto text-xs text-slate-500">8</span>
+      </a>
+      
+      
+      
+      <a href="../items/17.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">✨</span>
+        <span class="text-sm truncate">黄金果实</span>
+        <span class="ml-auto text-xs text-slate-500">7</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎨</span>
+        <span class="text-sm truncate frozen-name">头像框与装饰</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="../items/08.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🐕</span>
+        <span class="text-sm truncate">狗与看门犬</span>
+        <span class="ml-auto text-xs text-slate-500">4</span>
+      </a>
+      
+      
+      
+      <a href="../items/09.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🦴</span>
+        <span class="text-sm truncate">狗粮</span>
+        <span class="ml-auto text-xs text-slate-500">3</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">📖</span>
+        <span class="text-sm truncate frozen-name">图鉴点数</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="../items/01.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🔧</span>
+        <span class="text-sm truncate">系统占位</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+      
+      <a href="../items/03.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">⭐</span>
+        <span class="text-sm truncate">经验与成长</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">⚡</span>
+        <span class="text-sm truncate frozen-name">活跃点数</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="../items/15.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition active" onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">💎</span>
+        <span class="text-sm truncate">充值货币</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+    </nav>
+
+
+  </aside>
+
+  <!-- ════ 主内容 ════ -->
+  <main class="flex-1 min-h-screen lg:min-h-0 overflow-y-auto bg-slate-100/70 w-full">
+    
+<!-- 标题栏 -->
+<div class="bg-white/80 backdrop-blur border-b border-slate-200/60 px-4 sm:px-8 py-4 sm:py-5 flex items-center gap-3 sm:gap-4">
+  <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style="background: #6366f122;">
+    💎
+  </div>
+  <div>
+    <h1 class="text-xl font-bold text-slate-800">充值货币</h1>
+    <p class="text-sm text-slate-400 mt-0.5">仅展示已上架且小于100级作物 · 共 1 个道具</p>
+  </div>
+</div>
+
+<!-- 工具栏 -->
+<div class="px-4 sm:px-8 py-3 bg-white/60 backdrop-blur border-b border-slate-200/60 flex items-center gap-3 flex-wrap">
+  <input id="filter-input" type="text" placeholder="在此分类内过滤…"
+    class="border border-slate-200 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-0 sm:flex-none sm:w-64 focus:outline-none focus:ring-2 focus:ring-farm-400"
+    oninput="filterItems(this.value)">
+  <span class="text-xs text-slate-400" id="count-label">1 个道具</span>
+</div>
+
+<!-- 种子筛选栏 -->
+
+
+<!-- 道具卡片网格 -->
+<div class="px-4 sm:px-8 py-6 min-h-[60vh]">
+
+  
+  
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4" id="items-grid">
+    
+    <div class="item-card card-hover rounded-2xl border bg-white border-slate-200/60 shadow-sm hover:shadow-lg p-4 flex flex-col items-center cursor-pointer fade-in relative"
+         data-name="钻石" data-id="1004" data-desc="农场充值货币，可用于在商城购买物品。"
+         onclick="openModal(0)">
+      <div class="absolute top-2 right-2 text-slate-300 hover:text-slate-500 transition text-xs" title="点击查看详情">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </div>
+      
+      <div class="item-icon w-16 h-16 mb-3 ">
+        
+        <img src="../images/extraRes_icon_diamond.png" alt="钻石" class="object-contain w-full h-full"
+             onerror="this.closest('.item-icon').innerHTML='<div class=\'w-full h-full flex items-center justify-center text-3xl\'>❓</div>'">
+        
+      </div>
+      <div class="text-center">
+        <div class="text-xs font-semibold leading-tight line-clamp-2"
+             style="color:#334155">钻石</div>
+        <div class="text-xs text-slate-400 mt-1 line-clamp-2">钻石</div>
+        
+      </div>
+    </div>
+    
+  </div>
+  
+
+</div>
+
+<!-- 道具详情弹窗 -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center">
+  <div class="absolute inset-0 bg-black/50" onclick="closeModal()"></div>
+  <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+    <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl">✕</button>
+    <div class="flex gap-4 items-start">
+      <div class="item-icon w-20 h-20 shrink-0" id="modal-icon"></div>
+      <div class="flex-1 min-w-0">
+        <h3 class="text-lg font-bold text-slate-800" id="modal-name"></h3>
+        <div class="text-xs text-slate-400 font-mono mt-0.5" id="modal-id"></div>
+        <div id="modal-badges" class="flex flex-wrap gap-1.5 mt-2"></div>
+      </div>
+    </div>
+    <!-- 种子专属详情面板 -->
+    <div id="modal-seed-panel" class="hidden mt-4">
+      <div class="grid grid-cols-2 gap-2" id="modal-seed-stats"></div>
+      <div id="modal-grow-phases" class="mt-3"></div>
+    </div>
+    <!-- 黄金果实成长阶段面板 -->
+    <div id="modal-gold-panel" class="hidden mt-4">
+      <h4 class="text-sm font-bold text-amber-700 mb-3">✨ 成长阶段（黄金变异）</h4>
+      <div id="modal-gold-phases" class="flex gap-2 overflow-x-auto pb-2"></div>
+    </div>
+    <div class="mt-4 text-sm text-slate-600 leading-relaxed" id="modal-desc"></div>
+    <div class="mt-4 bg-slate-50 rounded-xl p-4 text-xs font-mono text-slate-500 space-y-1 max-h-48 overflow-y-auto" id="modal-extra"></div>
+  </div>
+</div>
+
+  </main>
+
+</div>
+
+<script>
+// Toast 提示
+function showFrozenToast() {
+  var container = document.getElementById('toast-container');
+  if (container.children.length > 0) return;
+  var toast = document.createElement('div');
+  toast.className = 'toast-msg';
+  toast.innerHTML = '🚧 整改中，暂停访问';
+  container.appendChild(toast);
+  setTimeout(function() { toast.remove(); }, 2000);
+}
+
+// 侧边栏激活状态
+document.querySelectorAll('.nav-item').forEach(el => {
+  const href = el.getAttribute('href');
+  if (!href) return;
+  const path = window.location.pathname;
+  if ((href === '/' && path === '/') ||
+      (href !== '/' && path.startsWith(href))) {
+    el.classList.add('active');
+  } else {
+    el.classList.remove('active');
+  }
+});
+
+// 移动端侧边栏
+function openSidebar() {
+  document.getElementById('sidebar').classList.remove('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+// 大屏时确保侧边栏可见
+window.addEventListener('resize', () => {
+  if (window.innerWidth >= 1024) {
+    document.getElementById('sidebar-backdrop').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+});
+</script>
+
+
+<script>
+const ITEMS = [{"_icon_file": "extraRes_icon_diamond.png", "asset_name": null, "can_use": null, "desc": "\u519c\u573a\u5145\u503c\u8d27\u5e01\uff0c\u53ef\u7528\u4e8e\u5728\u5546\u57ce\u8d2d\u4e70\u7269\u54c1\u3002", "duration": null, "effectDesc": "\u94bb\u77f3", "icon_res": "gui/texture/icon/icon_diamond/spriteFrame", "id": 1004, "interaction_type": null, "jumps": "[33]", "layer": null, "level": null, "max_count": 9999999999999, "max_own": 9999999999999, "name": "\u94bb\u77f3", "price": null, "price_id": null, "rarity": 5, "rarity_color": null, "target_id": null, "trait_id ": null, "type": 15}];
+const IS_SEED = false;
+const IS_GOLD_FRUIT = false;
+let currentSeasonFilter = '';  // 当前季度过滤值
+
+const SEED_KEYS_HIDDEN = new Set([
+  'id','name','desc','icon_res','_icon_file','icon_res_big','icon_res_select',
+  'type','storeType','rarity_color','_unlisted','_no_card_img','jumps',
+  '_fruit_sell_price','_seasons','_exp','_fruit_count','_season_income',
+  '_grow_phases','_land_level','_mutant','_exp_per_minute',
+  'price','level','layer','rarity','interaction_type','effectDesc',
+  'asset_name','price_id','target_id','max_count','max_own','can_use',
+  'trait_id ','ware_scale'
+]);
+const GENERIC_KEYS_HIDDEN = new Set([
+  'id','name','desc','icon_res','_icon_file','icon_res_big',
+  'icon_res_select','type','storeType','rarity_color','_unlisted','_no_card_img','jumps',
+  '_fruit_sell_price'
+]);
+const FIELD_LABELS = {
+  'price': '购买价格', 'level': '解锁等级', 'layer': '品级分组', 'rarity': '稀有度',
+  'interaction_type': '交互类型', 'effectDesc': '效果描述', 'asset_name': '资源名',
+  'max_count': '最大持有数', 'max_own': '最大拥有数', 'coin': '金币',
+  'price_id': '货币类型', 'target_id': '目标ID', 'can_use': '是否可用'
+};
+
+function fmtTime(secs) {
+  if (!secs || secs <= 0) return '成熟';
+  if (secs < 60) return secs + '秒';
+  if (secs < 3600) return Math.floor(secs / 60) + '分';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return m ? h + '时' + m + '分' : h + '时';
+}
+
+function openModal(idx) {
+  const it = ITEMS[idx];
+  const modal = document.getElementById('modal');
+  modal.style.display = 'flex';
+  const nameEl = document.getElementById('modal-name');
+  let displayName = it.name || '未知道具';
+  if (IS_SEED) displayName = displayName.replace('种子', '');
+  nameEl.textContent = displayName;
+  nameEl.style.color = it.rarity_color ? '#' + it.rarity_color : '';
+  document.getElementById('modal-id').textContent = 'ID: ' + (it.id || '-');
+  const iconEl = document.getElementById('modal-icon');
+  iconEl.innerHTML = it._icon_file
+    ? `<img src="../images/${it._icon_file}" alt="" class="object-contain w-full h-full"
+         onerror="this.closest('.item-icon').innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-4xl\\'>❓</div>'">`
+    : '<div class="w-full h-full flex items-center justify-center text-4xl">❓</div>';
+
+  const badges = document.getElementById('modal-badges');
+  badges.innerHTML = '';
+  const addBadge = (bg, fg, icon, text) => {
+    badges.innerHTML += `<span class="${bg} ${fg} text-xs px-2 py-0.5 rounded-lg font-medium">${icon} ${text}</span>`;
+  };
+  if (it._unlisted) addBadge('bg-slate-200','text-slate-500','⛔','未上架');
+  if (it.level) addBadge('bg-slate-100','text-slate-600','🎯','Lv.' + it.level);
+  if (it.rarity) addBadge('bg-purple-50','text-purple-600','✦','稀有度 ' + it.rarity);
+
+  const seedPanel = document.getElementById('modal-seed-panel');
+  if (IS_SEED) {
+    seedPanel.classList.remove('hidden');
+    const stats = document.getElementById('modal-seed-stats');
+    let html = '';
+    const stat = (icon, label, value, color) =>
+      `<div class="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
+        <span class="text-base">${icon}</span>
+        <div><div class="text-xs text-slate-400">${label}</div><div class="text-sm font-bold ${color}">${value}</div></div>
+      </div>`;
+    if (it.price != null) html += stat('💰','购买价格', it.price, 'text-amber-600');
+    if (it.layer != null) html += stat('📊','品级分组', it.layer + ' 品', 'text-blue-600');
+    if (it._fruit_sell_price != null) html += stat('🏪','单个售价', it._fruit_sell_price, 'text-sky-600');
+    if (it._fruit_count != null) html += stat('📦','每季产量', it._fruit_count, 'text-slate-700');
+    if (it._seasons != null) html += stat('🔄','可收获季数', it._seasons + ' 季', 'text-slate-700');
+    if (it._exp != null) {
+      const growExp = it._exp;
+      const harvestExp = 1;
+      const totalExp = growExp + harvestExp;
+      html += stat('⭐','生长经验', growExp, 'text-purple-600');
+      html += stat('🌾','铲除经验', harvestExp, 'text-amber-500');
+      html += stat('🎯','总经验/季', totalExp, 'text-purple-700');
+    }
+    if (it._exp_per_minute != null) html += stat('⚡','每分钟经验', parseFloat(it._exp_per_minute.toFixed(8)), 'text-purple-500');
+    if (it._season_income != null) html += stat('🪙','每季收入', it._season_income.toLocaleString(), 'text-green-600');
+    if (it._season_income && it._seasons) {
+      const total = it._season_income * it._seasons;
+      html += stat('🏆','总收入', total.toLocaleString(), 'text-green-700');
+    }
+    if (it._season_income && it._seasons && it.price != null) {
+      const profit = it._season_income * it._seasons - it.price;
+      html += stat('📈','每季净利润', (profit > 0 ? '+' : '') + profit.toLocaleString(), profit >= 0 ? 'text-green-700' : 'text-red-500');
+    }
+    stats.innerHTML = html;
+
+    const phasesEl = document.getElementById('modal-grow-phases');
+    if (it._grow_phases) {
+      const parts = it._grow_phases.split(';').filter(p => p.trim());
+      // 解析每个阶段的时间
+      const parsed = parts.map(p => {
+        const [name, secs] = p.split(':');
+        return { name: name.trim(), secs: parseInt(secs || 0) };
+      });
+      // 找出非成熟阶段中的最低用时（排除0秒）
+      const nonMatureSecs = parsed.filter(p => p.secs > 0 && p.name !== '成熟').map(p => p.secs);
+      const minSecs = nonMatureSecs.length ? Math.min(...nonMatureSecs) : 0;
+      let phtml = '<div class="text-xs text-slate-400 mb-1.5">🌱 生长阶段</div><div class="flex flex-wrap gap-1.5">';
+      parsed.forEach(p => {
+        let bg, fg, timeFg;
+        if (p.secs === 0) {
+          // 成熟阶段 - 金色
+          bg = 'bg-amber-50'; fg = 'text-amber-700'; timeFg = 'text-amber-400';
+        } else if (p.secs <= minSecs) {
+          // 最低用时 - 绿色
+          bg = 'bg-farm-50'; fg = 'text-farm-700'; timeFg = 'text-farm-400';
+        } else {
+          // 更高用时 - 浅红色
+          bg = 'bg-red-50'; fg = 'text-red-600'; timeFg = 'text-red-400';
+        }
+        phtml += `<span class="${bg} ${fg} text-xs px-2 py-1 rounded-lg">${p.name} <span class="${timeFg}">${fmtTime(p.secs)}</span></span>`;
+      });
+      phtml += '</div>';
+      const totalSecs = parsed.reduce((sum, p) => sum + (isNaN(p.secs) ? 0 : p.secs), 0);
+      if (totalSecs > 0) phtml += `<div class="text-xs text-slate-400 mt-1">总时长: ${fmtTime(totalSecs)}</div>`;
+      if (it._mutant) phtml += `<div class="text-xs text-amber-500 mt-1.5">🧬 变异: ${it._mutant}</div>`;
+      phasesEl.innerHTML = phtml;
+    } else {
+      phasesEl.innerHTML = '';
+    }
+  } else {
+    seedPanel.classList.add('hidden');
+    if (it.price != null) addBadge('bg-yellow-100','text-yellow-700','💰', it.price);
+    if (it.coin != null) addBadge('bg-amber-100','text-amber-700','🪙', it.coin);
+    // 黄金果实成长阶段展示
+    var goldPanel = document.getElementById('modal-gold-panel');
+    if (IS_GOLD_FRUIT && it._phases && it._phases.length) {
+      goldPanel.classList.remove('hidden');
+      var gpEl = document.getElementById('modal-gold-phases');
+      gpEl.innerHTML = '';
+      var gphases = it._phases;
+      for (var gi = 0; gi < gphases.length; gi++) {
+        var gph = gphases[gi];
+        var secs = gph.seconds || 0;
+        var timeStr;
+        if (secs === 0) { timeStr = '✅ 成熟'; }
+        else if (secs < 60) { timeStr = secs + '秒'; }
+        else if (secs < 3600) {
+          var gm = Math.floor(secs / 60); var gs = secs % 60;
+          timeStr = gs > 0 ? gm + '分' + gs + '秒' : gm + '分钟';
+        } else {
+          var gh = Math.floor(secs / 3600);
+          var gm2 = Math.floor((secs % 3600) / 60);
+          timeStr = gm2 > 0 ? gh + '时' + gm2 + '分' : gh + '小时';
+        }
+        var card = document.createElement('div');
+        card.className = 'flex-shrink-0 flex flex-col items-center gap-1.5 w-20';
+        var imgBox = document.createElement('div');
+        imgBox.className = 'w-16 h-16 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-100 flex items-center justify-center overflow-hidden border border-amber-200';
+        if (gph.img) {
+          var gimg = document.createElement('img');
+          gimg.src = '../images/' + gph.img;
+          gimg.alt = gph.name || '';
+          gimg.className = 'w-full h-full object-contain p-1';
+          gimg.onerror = function() { this.parentElement.innerHTML = '<div class="text-2xl">✨</div>'; };
+          imgBox.appendChild(gimg);
+        } else { imgBox.innerHTML = '<div class="text-2xl">✨</div>'; }
+        card.appendChild(imgBox);
+        var gnameEl = document.createElement('div');
+        gnameEl.className = 'text-xs font-semibold text-amber-700 text-center leading-tight';
+        gnameEl.textContent = gph.name || '';
+        card.appendChild(gnameEl);
+        var gtimeEl = document.createElement('div');
+        gtimeEl.className = 'text-xs text-slate-400 text-center';
+        gtimeEl.textContent = timeStr;
+        card.appendChild(gtimeEl);
+        gpEl.appendChild(card);
+        if (gi < gphases.length - 1) {
+          var garrow = document.createElement('div');
+          garrow.className = 'flex-shrink-0 flex items-center text-amber-300 self-start pt-5 text-xl';
+          garrow.textContent = '›';
+          gpEl.appendChild(garrow);
+        }
+      }
+    } else {
+      goldPanel.classList.add('hidden');
+    }
+  }
+
+  document.getElementById('modal-desc').innerHTML = colorize(it.desc || '<span class="text-slate-400">暂无描述</span>');
+
+  const extra = document.getElementById('modal-extra');
+  const keysHidden = IS_SEED ? SEED_KEYS_HIDDEN : GENERIC_KEYS_HIDDEN;
+  const lines = [];
+  for (const [k, v] of Object.entries(it)) {
+    if (keysHidden.has(k) || v === null || v === undefined || v === '') continue;
+    const label = FIELD_LABELS[k] || k;
+    const val = typeof v === 'object' ? JSON.stringify(v) : v;
+    lines.push(`<div><span class="text-slate-400">${label}:</span> ${val}</div>`);
+  }
+  extra.innerHTML = lines.length ? lines.join('') : '<span class="text-slate-300">无额外字段</span>';
+}
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+function colorize(s) {
+  return String(s).replace(/<color=(#?[0-9A-Fa-f]{3,8})>(.*?)<\/color>/g,
+    (_, c, t) => `<span style="color:#${c.replace(/^#/,'')}">${t}</span>`);
+}
+
+// 季度过滤函数
+function filterBySeason(btn) {
+  // 移除其他按钮的 active 状态
+  document.querySelectorAll('.season-filter-btn').forEach(b => b.classList.remove('active', 'bg-farm-50', 'border-farm-400', 'text-farm-700'));
+  // 设置当前按钮为 active
+  btn.classList.add('active', 'bg-farm-50', 'border-farm-400', 'text-farm-700');
+  // 更新过滤值
+  currentSeasonFilter = btn.dataset.seasons;
+  // 重新应用文本过滤
+  filterItems(document.getElementById('filter-input').value);
+}
+
+function filterItems(q) {
+  q = q.trim().toLowerCase();
+  const cards = document.querySelectorAll('.item-card');
+  let shown = 0;
+  // 等级筛选
+  const levelMinEl = document.getElementById('level-min-input');
+  const levelMaxEl = document.getElementById('level-max-input');
+  const minLevel = (levelMinEl && levelMinEl.value) ? parseInt(levelMinEl.value, 10) : 0;
+  const maxLevel = (levelMaxEl && levelMaxEl.value) ? parseInt(levelMaxEl.value, 10) : Infinity;
+  cards.forEach(c => {
+    // 文本过滤
+    const textMatch = !q || c.dataset.name.toLowerCase().includes(q)
+      || c.dataset.id.toLowerCase().includes(q)
+      || c.dataset.desc.toLowerCase().includes(q);
+    // 季度过滤 + 等级过滤 + 阶段过滤（仅在种子模式）
+    let seasonMatch = true;
+    let levelMatch = true;
+    let stageMatch = true;
+    if (IS_SEED) {
+      const idx = ITEMS.findIndex(it => it.id == c.dataset.id);
+      if (idx >= 0) {
+        const item = ITEMS[idx];
+        if (currentSeasonFilter) {
+          const seasons = item._seasons;
+          if (currentSeasonFilter === '1') {
+            seasonMatch = seasons === 1;
+          } else if (currentSeasonFilter === '2') {
+            seasonMatch = seasons === 2;
+          } else if (currentSeasonFilter === '3') {
+            seasonMatch = seasons >= 3;
+          }
+        }
+        if (minLevel > 0 || maxLevel < Infinity) {
+          const lv = item.level || 0;
+          levelMatch = lv >= minLevel && lv <= maxLevel;
+        }
+        const stageSel = document.getElementById('stage-select');
+        const stageVal = stageSel ? stageSel.value : '';
+        if (stageVal) {
+          const sc = item._growth_stage_count || 0;
+          if (stageVal === '6+') {
+            stageMatch = sc >= 6;
+          } else {
+            stageMatch = sc === parseInt(stageVal, 10);
+          }
+        }
+      }
+    }
+    const match = textMatch && seasonMatch && levelMatch && stageMatch;
+    c.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  document.getElementById('count-label').textContent = shown + ' 个道具';
+  // 排序逻辑
+  const sortSel = document.getElementById('sort-select');
+  const sortVal = sortSel ? sortSel.value : '';
+  if (sortVal && IS_SEED) {
+    const grid = document.getElementById('items-grid');
+    const visibleCards = Array.from(grid.querySelectorAll('.item-card')).filter(c => c.style.display !== 'none');
+    const hiddenCards = Array.from(grid.querySelectorAll('.item-card')).filter(c => c.style.display === 'none');
+    visibleCards.sort((a, b) => {
+      const idxA = ITEMS.findIndex(it => it.id == a.dataset.id);
+      const idxB = ITEMS.findIndex(it => it.id == b.dataset.id);
+      const valA = idxA >= 0 ? (ITEMS[idxA]._exp_per_minute || 0) : 0;
+      const valB = idxB >= 0 ? (ITEMS[idxB]._exp_per_minute || 0) : 0;
+      return sortVal === 'exp-desc' ? valB - valA : valA - valB;
+    });
+    visibleCards.forEach(c => grid.appendChild(c));
+    hiddenCards.forEach(c => grid.appendChild(c));
+  }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+// 自动关闭toolip提示框
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.exp-tip-trigger') && !e.target.closest('.stage-tip-trigger')) {
+    document.querySelectorAll('.exp-tip, .stage-tip').forEach(tip => tip.classList.add('hidden'));
+  }
+});
+</script>
+
+</body>
+</html>

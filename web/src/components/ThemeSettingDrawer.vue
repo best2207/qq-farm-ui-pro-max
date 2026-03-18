@@ -52,9 +52,11 @@ function getThemeCardClass(themeKey: string) {
         </h2>
         <button
           class="theme-drawer-close rounded-md p-1.5 transition-colors"
+          type="button"
+          aria-label="关闭项目配置"
           @click="emit('close')"
         >
-          <div class="i-carbon-close text-lg" />
+          <div class="i-carbon-close pointer-events-none text-lg" />
         </button>
       </div>
 
@@ -214,7 +216,15 @@ function getThemeCardClass(themeKey: string) {
 }
 
 .theme-drawer-close {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
   color: var(--ui-text-2) !important;
+  touch-action: manipulation;
 }
 
 .theme-drawer-close:hover {

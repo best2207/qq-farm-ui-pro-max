@@ -58,7 +58,7 @@ onErrorCaptured((error, _instance, info) => {
 </script>
 
 <template>
-  <div class="workspace-shell w-screen flex overflow-hidden bg-transparent" :class="workspaceShellClass" style="height: 100dvh;">
+  <div class="workspace-shell max-w-full w-full flex overflow-hidden bg-transparent" :class="workspaceShellClass" style="height: 100dvh;">
     <div class="workspace-shell__wash" />
     <div class="workspace-shell__glow workspace-shell__glow--left" />
     <div class="workspace-shell__glow workspace-shell__glow--right" />
@@ -336,6 +336,9 @@ onErrorCaptured((error, _instance, info) => {
     calc(var(--workspace-gutter-inline) + env(safe-area-inset-right, 0px))
     calc(var(--workspace-gutter-block) + env(safe-area-inset-bottom, 0px))
     calc(var(--workspace-gutter-inline) + env(safe-area-inset-left, 0px));
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   scrollbar-gutter: stable;
 }
 
@@ -487,6 +490,43 @@ onErrorCaptured((error, _instance, info) => {
     padding-top: calc(
       var(--workspace-gutter-block) + var(--workspace-floating-clearance) + env(safe-area-inset-top, 0px)
     );
+  }
+}
+
+@media (max-width: 767px) {
+  .workspace-shell {
+    min-height: 100svh;
+    height: auto !important;
+    overflow: visible;
+  }
+
+  .layout-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: color-mix(in srgb, var(--workspace-panel-bg) 96%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .workspace-shell main,
+  .workspace-shell .workspace-scroll {
+    overflow: visible;
+  }
+
+  .workspace-scroll {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding-top: calc(
+      var(--workspace-gutter-block) + var(--workspace-floating-clearance) + 0.25rem + env(safe-area-inset-top, 0px)
+    );
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: auto;
+  }
+
+  .workspace-content-shell,
+  .workspace-route-stage {
+    min-height: auto;
   }
 }
 

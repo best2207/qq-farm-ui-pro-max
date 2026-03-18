@@ -61,8 +61,9 @@ export function getQQAvatarUrl(uin: string, size = 100): string {
 
 /** 获取平台默认头像 URL，无则返回 null（显示图标） */
 export function getPlatformDefaultAvatarUrl(acc: AccountLike, size = 100): string | null {
-  if (isQQPlatform(acc) && acc.uin != null) {
-    return getQQAvatarUrl(String(acc.uin), size)
+  const normalizedUin = String(acc.uin ?? '').trim()
+  if (isQQPlatform(acc) && normalizedUin) {
+    return getQQAvatarUrl(normalizedUin, size)
   }
   // 微信等平台无稳定默认 URL，返回 null 以显示默认图标
   return null

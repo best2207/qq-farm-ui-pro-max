@@ -3878,6 +3878,39 @@ async function handleDashboardTrialRenew() {
   box-shadow: 0 0 0 0.18rem color-mix(in srgb, var(--ui-status-warning) 25%, transparent);
 }
 
+@media (max-width: 767px) {
+  .dashboard-page {
+    gap: 1rem;
+    padding-top: 0.25rem;
+  }
+
+  .dashboard-log-toolbar-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-log-toolbar-fields.ui-bulk-actions,
+  .dashboard-log-chip-row {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .dashboard-log-toolbar-fields > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-log-toolbar-fields :deep(.ui-btn),
+  .dashboard-log-toolbar-fields :deep(.base-select-trigger),
+  .dashboard-log-toolbar-fields :deep(.base-input) {
+    width: 100%;
+  }
+
+  .dashboard-log-toolbar-fields :deep(.ui-btn) {
+    justify-content: center;
+  }
+}
+
 @media (min-width: 768px) {
   .dashboard-task-panel {
     flex: 1 1 auto;

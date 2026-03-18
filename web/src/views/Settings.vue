@@ -5751,7 +5751,7 @@ async function restoreTimingDefaults() {
                     />
                   </div>
 
-                  <div v-else class="settings-report-mail-panel rounded-2xl p-4 space-y-4">
+                  <form v-else class="settings-report-mail-panel rounded-2xl p-4 space-y-4" @submit.prevent>
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <BaseInput
                         v-model="localSettings.reportConfig.smtpHost"
@@ -5807,7 +5807,7 @@ async function restoreTimingDefaults() {
                       hint="465 端口通常开启；587 端口会自动尝试 STARTTLS。"
                       recommend="on"
                     />
-                  </div>
+                  </form>
 
                   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="settings-report-panel settings-report-panel-success rounded-xl p-4">
@@ -7444,7 +7444,7 @@ async function restoreTimingDefaults() {
 
           <div class="p-4 space-y-4">
             <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+              <form class="border border-white/10 rounded-lg bg-black/10 p-3" @submit.prevent>
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <BaseInput
                     v-model="thirdPartyApiConfig.wxApiKey"
@@ -7479,7 +7479,7 @@ async function restoreTimingDefaults() {
                     placeholder="请输入 aineishe.com 获取的 Token"
                   />
                 </div>
-              </div>
+              </form>
 
               <div class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
@@ -9214,22 +9214,14 @@ async function restoreTimingDefaults() {
   }
 
   .settings-primary-category-list {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
-    grid-template-columns: none;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .settings-primary-category-list::-webkit-scrollbar {
-    display: none;
   }
 
   .settings-primary-category-item {
-    min-width: 7.4rem;
-    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
   }
 
   .settings-primary-toolbar {
@@ -9246,9 +9238,20 @@ async function restoreTimingDefaults() {
   }
 
   .settings-primary-actions {
-    margin-inline: -0.25rem;
-    padding-inline: 0.25rem;
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
     padding-bottom: 0.125rem;
+  }
+
+  .settings-primary-actions > * {
+    min-width: 0;
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+
+  .settings-primary-actions .settings-footer-button {
+    flex-basis: 100%;
   }
 
   .settings-advanced-detail-nav {

@@ -979,7 +979,99 @@ onBeforeUnmount(() => {
             description="每条记录都包含动作、归类、时间、影响对象、失败对象和字段变化摘要，可直接打开详情或跳回来源页面。"
           />
 
-          <BaseDataTable class="mt-5" table-class="min-w-[1280px]">
+          <div class="mt-5 md:hidden space-y-4">
+            <div v-if="loading && !filteredLogs.length" class="operation-logs-empty-hint">
+              正在加载持久化操作日志...
+            </div>
+
+            <div v-else-if="!filteredLogs.length" class="operation-logs-empty-hint">
+              {{ visibleErrorMessage || '当前筛选条件下没有匹配的持久化操作记录。' }}
+            </div>
+
+            <div v-else class="ui-mobile-record-list">
+              <article
+                v-for="item in filteredLogs"
+                :key="`mobile-${item.id}`"
+                class="operation-logs-mobile-card ui-mobile-record-card"
+              >
+                <div class="ui-mobile-record-head">
+                  <div class="ui-mobile-record-body">
+                    <div class="ui-mobile-record-badges">
+                      <BaseBadge :class="scopeClass(item.scope)">
+                        {{ scopeLabel(item.scope) }}
+                      </BaseBadge>
+                      <BaseBadge :class="statusClass(item.status)">
+                        {{ statusLabel(item.status) }}
+                      </BaseBadge>
+                      <BaseBadge :class="actionTypeClass(resolveActionType(item.actionLabel))">
+                        {{ actionTypeLabel(resolveActionType(item.actionLabel)) }}
+                      </BaseBadge>
+                    </div>
+                    <h3 class="ui-mobile-record-title mt-3">
+                      {{ item.actionLabel }}
+                    </h3>
+                    <p class="ui-mobile-record-subtitle">
+                      {{ item.actorUsername || '-' }} · {{ formatActionTime(item.timestamp) }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="ui-mobile-record-grid">
+                  <div class="ui-mobile-record-field ui-mobile-record-field--full">
+                    <div class="ui-mobile-record-label">
+                      动作摘要
+                    </div>
+                    <div class="ui-mobile-record-value">
+                      {{ buildActionResultMessage(item) }}
+                    </div>
+                  </div>
+                  <div class="ui-mobile-record-field">
+                    <div class="ui-mobile-record-label">
+                      涉及对象
+                    </div>
+                    <div class="ui-mobile-record-value">
+                      {{ item.affectedNames.length ? item.affectedNames.join(' / ') : '无对象摘要' }}
+                    </div>
+                  </div>
+                  <div class="ui-mobile-record-field">
+                    <div class="ui-mobile-record-label">
+                      失败项
+                    </div>
+                    <div class="ui-mobile-record-value">
+                      {{ item.failedNames.length ? item.failedNames.join(' / ') : '无失败项' }}
+                    </div>
+                  </div>
+                  <div v-if="item.detailLines.length" class="ui-mobile-record-field ui-mobile-record-field--full">
+                    <div class="ui-mobile-record-label">
+                      细节
+                    </div>
+                    <div class="ui-mobile-record-value ui-mobile-record-value--muted">
+                      {{ item.detailLines.slice(0, 3).join(' · ') }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ui-mobile-record-actions">
+                  <BaseButton variant="ghost" size="sm" @click="openDetailModal(item)">
+                    查看详情
+                  </BaseButton>
+                  <BaseButton variant="ghost" size="sm" @click="copyLogItem(item)">
+                    复制摘要
+                  </BaseButton>
+                  <BaseButton
+                    v-if="resolveScopeRoute(item.scope)"
+                    variant="outline"
+                    size="sm"
+                    :to="resolveScopeRoute(item.scope)"
+                  >
+                    前往来源页
+                  </BaseButton>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <BaseDataTable class="mt-5 hidden md:block" table-class="min-w-[1280px]">
             <BaseDataTableHead>
               <tr>
                 <th class="px-4 py-3 text-left text-xs text-[var(--ui-text-3)] font-semibold tracking-[0.14em] uppercase">
@@ -1534,6 +1626,11 @@ onBeforeUnmount(() => {
   color: var(--ui-text-1);
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.operation-logs-mobile-card {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 86%, transparent);
 }
 
 @media (max-width: 1024px) {

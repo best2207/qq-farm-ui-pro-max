@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="static/植物.ico">
+  <title>🧬 变异计算器 & 变异图鉴</title>
+  <script src="static/js/tailwindcss-3.4.17.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            farm: {
+              50:  '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0',
+              300: '#86efac', 400: '#4ade80', 500: '#22c55e',
+              600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d',
+            },
+            soil: { 400: '#a16207', 500: '#854d0e', 600: '#713f12' }
+          },
+          fontFamily: { sans: ['"Microsoft YaHei"','Segoe UI','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 滚动条美化 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--glass-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* 侧边栏链接激活态 */
+    .nav-item.active { background: var(--glass-bg); }
+    .nav-item.active .nav-dot { opacity: 1; }
+    .nav-dot { opacity: 0; width: 4px; border-radius: 2px; background: rgb(var(--color-primary-400)); }
+
+    /* 卡片悬浮 */
+    .card-hover { transition: transform .2s, box-shadow .2s; }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+
+    /* 渐变文字 */
+    .grad-text {
+      background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-primary-600)));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* 道具图标容器 */
+    .item-icon {
+      width: 64px; height: 64px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--glass-bg), var(--glass-border));
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .item-icon img { width: 100%; height: 100%; object-fit: contain; }
+    .item-icon .no-img { font-size: 1.8rem; }
+
+    /* 稀有度颜色 */
+    .rarity-1 { color: #9ca3af; }
+    .rarity-2 { color: rgb(var(--color-primary-500)); }
+    .rarity-3 { color: #3b82f6; }
+    .rarity-4 { color: #a855f7; }
+    .rarity-5 { color: #f59e0b; }
+
+    /* 动画 */
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .fade-in { animation: fadeInUp .35s ease both; }
+
+    /* 植物卡片图片区 */
+    .plant-img-wrap {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, rgba(var(--color-primary-200), 0.3), rgba(var(--color-primary-300), 0.4));
+      border-radius: 12px;
+      display: flex; align-items:center; justify-content:center;
+      flex-shrink: 0; overflow:hidden;
+    }
+    .plant-img-wrap img { width:100%; height:100%; object-fit:contain; }
+
+    /* ══ 冻结导航项 ══ */
+    .frozen-nav {
+      color: var(--text-muted) !important;
+      cursor: not-allowed !important;
+      opacity: 0.45;
+    }
+    .frozen-nav:hover {
+      background: transparent !important;
+    }
+    .frozen-nav .frozen-name {
+      text-decoration: line-through;
+      text-decoration-color: var(--text-muted);
+      text-decoration-thickness: 1px;
+    }
+    .frozen-nav .frozen-emoji {
+      filter: grayscale(1);
+      opacity: 0.5;
+    }
+
+    /* ══ Toast 提示 ══ */
+    #toast-container {
+      position: fixed;
+      top: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+    .toast-msg {
+      background: rgba(30, 41, 59, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-bg);
+      color: var(--glass-bg);
+      padding: 0.65rem 1.5rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-1rem) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0) scale(1); }
+      to   { opacity: 0; transform: translateY(-1rem) scale(0.95); }
+    }
+  </style>
+  
+</head>
+<body class="bg-transparent text-slate-800 dark:text-slate-200 font-sans">
+
+<!-- Toast 容器 -->
+<div id="toast-container"></div>
+
+<!-- ════ 移动端顶部导航栏 ════ -->
+<header class="lg:hidden sticky top-0 z-50 bg-slate-900 text-white flex items-center justify-between px-4 h-14 flex-shrink-0 shadow-lg">
+  <button id="menu-btn" onclick="openSidebar()" class="p-2 rounded-lg hover:bg-white/10 transition" aria-label="菜单">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+  <a href="index.html" class="flex items-center gap-2">
+    <span class="text-xl">🌾</span>
+    <span class="font-bold text-sm">QQ经典农场</span>
+  </a>
+  <div class="w-9"></div>
+</header>
+
+<!-- 移动端侧边栏遮罩 -->
+<div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/50 hidden" onclick="closeSidebar()"></div>
+
+<div class="flex lg:h-screen lg:overflow-hidden">
+
+  <!-- ════ 侧边栏 ════ -->
+  <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-72 lg:w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 overflow-y-auto -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+    <!-- Logo -->
+    <div class="px-5 py-5 border-b border-slate-700/50">
+      <a href="index.html" class="flex items-center gap-3 group">
+        <span class="text-2xl">🌾</span>
+        <div>
+          <div class="font-bold text-base leading-tight grad-text">QQ经典农场</div>
+          <div class="text-xs text-slate-400 mt-0.5">道具图鉴</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- 导航 -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="index.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🏠</span><span class="text-sm font-medium">首页</span>
+      </a>
+      <a href="calculator.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🧮</span><span class="text-sm font-medium">经验计算器</span>
+      </a>
+      <a href="levels.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">💰</span><span class="text-sm font-medium">氪金计算器</span>
+      </a>
+      <a href="mutation.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition active" onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🧬</span><span class="text-sm font-medium">变异计算器</span>
+      </a>
+
+      <div class="pt-3 pb-1 px-3">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">图鉴</div>
+      </div>
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2.5 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg frozen-emoji">📋</span><span class="text-sm font-medium frozen-name">总览</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      <a href="plants.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🌿</span><span class="text-sm font-medium">作物图鉴</span>
+        <span class="ml-auto text-xs text-slate-500">108</span>
+      </a>
+      <a href="lands.html" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-lg">🏞️</span><span class="text-sm font-medium">土地图鉴</span>
+        <span class="ml-auto text-xs text-slate-500">24</span>
+      </a>
+
+      <!-- 道具分类 -->
+      <div class="pt-3 pb-1 px-3">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">商店道具</div>
+      </div>
+      
+      
+      <a href="items/05.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🌱</span>
+        <span class="text-sm truncate">种子</span>
+        <span class="ml-auto text-xs text-slate-500">108</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🔑</span>
+        <span class="text-sm truncate frozen-name">种子解锁卡</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎁</span>
+        <span class="text-sm truncate frozen-name">礼包与宝箱</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎀</span>
+        <span class="text-sm truncate frozen-name">自选礼包</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="items/02.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">💰</span>
+        <span class="text-sm truncate">货币与计数</span>
+        <span class="ml-auto text-xs text-slate-500">9</span>
+      </a>
+      
+      
+      
+      <a href="items/04.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🛠️</span>
+        <span class="text-sm truncate">操作工具</span>
+        <span class="ml-auto text-xs text-slate-500">8</span>
+      </a>
+      
+      
+      
+      <a href="items/07.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🧪</span>
+        <span class="text-sm truncate">化肥道具</span>
+        <span class="ml-auto text-xs text-slate-500">8</span>
+      </a>
+      
+      
+      
+      <a href="items/17.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">✨</span>
+        <span class="text-sm truncate">黄金果实</span>
+        <span class="ml-auto text-xs text-slate-500">7</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">🎨</span>
+        <span class="text-sm truncate frozen-name">头像框与装饰</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="items/08.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🐕</span>
+        <span class="text-sm truncate">狗与看门犬</span>
+        <span class="ml-auto text-xs text-slate-500">4</span>
+      </a>
+      
+      
+      
+      <a href="items/09.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🦴</span>
+        <span class="text-sm truncate">狗粮</span>
+        <span class="ml-auto text-xs text-slate-500">3</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">📖</span>
+        <span class="text-sm truncate frozen-name">图鉴点数</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="items/01.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">🔧</span>
+        <span class="text-sm truncate">系统占位</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+      
+      <a href="items/03.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">⭐</span>
+        <span class="text-sm truncate">经验与成长</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+      
+      <a href="javascript:void(0)" class="nav-item frozen-nav flex items-center gap-3 px-3 py-2 rounded-lg transition" onclick="showFrozenToast()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none frozen-emoji">⚡</span>
+        <span class="text-sm truncate frozen-name">活跃点数</span>
+        <span class="ml-auto text-xs opacity-40">🔒</span>
+      </a>
+      
+      
+      
+      <a href="items/15.html" class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition " onclick="closeSidebar()">
+        <div class="nav-dot h-5 mr-0.5"></div>
+        <span class="text-base leading-none">💎</span>
+        <span class="text-sm truncate">充值货币</span>
+        <span class="ml-auto text-xs text-slate-500">1</span>
+      </a>
+      
+      
+    </nav>
+
+
+  </aside>
+
+  <!-- ════ 主内容 ════ -->
+  <main class="flex-1 min-h-screen lg:min-h-0 overflow-y-auto bg-slate-100/70 w-full">
+    
+<style>
+  .mc-search-wrap { position: relative; }
+  .mc-dropdown {
+    position: absolute; z-index: 100; left: 0; right: 0; top: 100%;
+    max-height: 260px; overflow-y: auto;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 0.6rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); margin-top: 2px;
+  }
+  .mc-dd-item {
+    padding: 0.55rem 0.75rem; cursor: pointer;
+    display: flex; align-items: center; gap: 0.6rem;
+    font-size: 0.85rem; color: var(--text-main);
+    border-bottom: 1px solid #f8fafc; transition: background 0.15s;
+  }
+  .mc-dd-item:hover { background: #faf5ff; }
+  .mc-dd-item img { width: 28px; height: 28px; object-fit: contain; }
+  .mc-dd-item .mc-dd-meta { font-size: 0.7rem; color: #94a3b8; margin-left: auto; }
+  .mc-card-fade { animation: mcFadeIn 0.3s ease; }
+  @keyframes mcFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .mc-phase-bar { display: flex; align-items: stretch; border-radius: 0.5rem; overflow: hidden; height: 28px; }
+  .mc-phase-seg { display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #fff; white-space: nowrap; padding: 0 4px; min-width: 20px; }
+</style>
+
+<!-- 顶部分栏 -->
+<div class="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200">
+  <div class="px-4 sm:px-8 flex gap-1 pt-2">
+    <button onclick="switchTab('calc')" id="tab-calc"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-all
+                   border-b-2 border-purple-500 text-purple-700 bg-purple-50">
+      <i class="fa-solid fa-calculator mr-1.5"></i>等级收益计算器
+    </button>
+    <button onclick="switchTab('guide')" id="tab-guide"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold rounded-t-lg transition-all
+                   border-b-2 border-transparent text-slate-400 hover:text-slate-600">
+      <i class="fa-solid fa-book-open mr-1.5"></i>变异图鉴
+    </button>
+  </div>
+</div>
+
+<!-- ═══ TAB 1: 计算器 ═══ -->
+<div id="panel-calc" class="px-4 sm:px-8 py-6 space-y-6">
+
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
+    <!-- 输入区域：三列并排 1.5:6:1.5 -->
+    <div class="flex items-end gap-3 mb-4">
+      <!-- 等级输入 -->
+      <div style="flex:1.5;">
+        <label class="block text-xs font-medium text-slate-500 mb-1">输入等级</label>
+        <input type="number" id="calc-level" value="64" min="1" max="200"
+               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400">
+      </div>
+      <!-- 作物下拉选择 -->
+      <div style="flex:5;">
+        <label class="block text-xs font-medium text-slate-500 mb-1">选择稀有作物</label>
+        <select id="mc-crop-select"
+                class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                onchange="pickMcCrop(this.value)">
+          <option value="">加载中...</option>
+        </select>
+        <!-- 模糊搜索（保留代码，暂时隐藏）
+        <div class="mc-search-wrap">
+          <input type="text" id="mc-crop-search" placeholder="搜索作物..." autocomplete="off"
+                 class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+          <div id="mc-dropdown" class="mc-dropdown hidden"></div>
+        </div>
+        -->
+      </div>
+      <!-- 计算按钮 -->
+      <div style="flex:2.5;">
+        <button onclick="calcMutation()" class="w-full px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition shadow-sm">
+          <i class="fa-solid fa-calculator mr-1"></i>计算
+        </button>
+      </div>
+    </div>
+
+    <!-- 选中作物的基础信息 -->
+    <div id="mc-selected-info" class="hidden mb-4 p-3 rounded-xl border border-purple-100 bg-purple-50/50 flex items-center gap-3">
+      <img id="mc-sel-img" src="" class="w-10 h-10 object-contain" onerror="this.style.display='none'">
+      <div class="flex-1 min-w-0">
+        <div id="mc-sel-name" class="text-sm font-bold text-slate-800"></div>
+        <div id="mc-sel-meta" class="text-xs text-slate-500 mt-0.5"></div>
+      </div>
+    </div>
+
+    <!-- 计算结果卡片 -->
+    <div id="mc-result-card" class="hidden"></div>
+
+    <!-- 全部作物对比表格（默认隐藏，计算后展示） -->
+    <div id="mc-table-wrap" class="hidden mt-6">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-1 h-5 bg-purple-400 rounded-full"></span>
+        <span class="text-sm font-semibold text-slate-700">全部稀有作物对比</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-slate-400 border-b border-slate-200">
+              <th class="py-2 px-2">作物</th>
+              <th class="py-2 px-2">稀有度</th>
+              <th class="py-2 px-2">占地</th>
+              <th class="py-2 px-2 text-right">经验</th>
+              <th class="py-2 px-2 text-right text-emerald-500">+增量</th>
+              <th class="py-2 px-2 text-right">季产果实</th>
+              <th class="py-2 px-2 text-right text-emerald-500">+增量</th>
+              <th class="py-2 px-2 text-right">单价</th>
+              <th class="py-2 px-2 text-right">单季收入</th>
+              <th class="py-2 px-2 text-right">全周期收入</th>
+            </tr>
+          </thead>
+          <tbody id="calc-results"></tbody>
+        </table>
+      </div>
+      <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+        <strong>公式已校准：</strong>果实公式经 39/47/56/64/106/107/118 级七点验证全部精确吻合。经验公式7组中6组精确（爱心果Lv47差1，浮点精度所致）。
+        <span class="text-amber-500 ml-1">已加入100级以上衰减：Lv&gt;100 时按有效等级计算（3月11日更新，参考数据最高118级，暂无数据参考150级之后是否衰减增加）</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ TAB 2: 变异图鉴 ═══ -->
+<div id="panel-guide" class="px-4 sm:px-8 py-6 space-y-8 hidden">
+
+  <!-- ══ 格子效果 ══ -->
+  <section>
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <span class="w-1 h-6 bg-purple-500 rounded-full"></span>格子效果类型
+      <!-- <span class="text-xs text-slate-400 font-normal">共 12 种</span> -->
+    </h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col items-center gap-2 card-hover">
+        
+        <img src="images/extraRes_golden.png" alt="黄金" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-12 h-12 bg-slate-100 rounded-lg items-center justify-content hidden text-xl">✨</div>
+        
+        <div class="text-center">
+          <div class="text-sm font-semibold text-slate-700">黄金</div>
+          <div class="text-xs text-slate-400 mt-0.5">产出黄金果实（稀有作物）</div>
+          
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col items-center gap-2 card-hover">
+        
+        <img src="images/extraRes_frozen.png" alt="冰冻" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-12 h-12 bg-slate-100 rounded-lg items-center justify-content hidden text-xl">✨</div>
+        
+        <div class="text-center">
+          <div class="text-sm font-semibold text-slate-700">冰冻</div>
+          <div class="text-xs text-slate-400 mt-0.5">售价×3</div>
+          
+          <span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full
+            bg-amber-100 text-amber-700
+            ">
+            ×3
+          </span>
+          
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col items-center gap-2 card-hover">
+        
+        <img src="images/extraRes_love.png" alt="爱心" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-12 h-12 bg-slate-100 rounded-lg items-center justify-content hidden text-xl">✨</div>
+        
+        <div class="text-center">
+          <div class="text-sm font-semibold text-slate-700">爱心</div>
+          <div class="text-xs text-slate-400 mt-0.5">产量×3</div>
+          
+          <span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full
+            bg-green-100 text-green-700
+            ">
+            ×3
+          </span>
+          
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col items-center gap-2 card-hover">
+        
+        <img src="images/extraRes_dark.png" alt="暗化" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-12 h-12 bg-slate-100 rounded-lg items-center justify-content hidden text-xl">✨</div>
+        
+        <div class="text-center">
+          <div class="text-sm font-semibold text-slate-700">暗化</div>
+          <div class="text-xs text-slate-400 mt-0.5">售价×2</div>
+          
+          <span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full
+            bg-amber-100 text-amber-700
+            ">
+            ×2
+          </span>
+          
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col items-center gap-2 card-hover">
+        
+        <img src="images/extraRes_moist.png" alt="湿润" class="w-12 h-12 object-contain"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-12 h-12 bg-slate-100 rounded-lg items-center justify-content hidden text-xl">✨</div>
+        
+        <div class="text-center">
+          <div class="text-sm font-semibold text-slate-700">湿润</div>
+          <div class="text-xs text-slate-400 mt-0.5">产量×2</div>
+          
+          <span class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full
+            bg-green-100 text-green-700
+            ">
+            ×2
+          </span>
+          
+        </div>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- ══ 天气系统 ══ -->
+  <section>
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <span class="w-1 h-6 bg-blue-500 rounded-full"></span>天气系统
+      <span class="text-xs text-slate-400 font-normal">天气变化影响格子效果与作物变异</span>
+    </h2>
+    <div class="flex flex-wrap gap-3">
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex items-center gap-3 card-hover">
+        <img src="images/extraRes_icon_weather_sunny.png" alt="晴天" class="w-10 h-10 object-contain"
+             onerror="this.style.display='none'">
+        <span class="text-sm font-medium text-slate-700">晴天</span>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex items-center gap-3 card-hover">
+        <img src="images/extraRes_icon_weather_rain.png" alt="下雨" class="w-10 h-10 object-contain"
+             onerror="this.style.display='none'">
+        <span class="text-sm font-medium text-slate-700">下雨</span>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex items-center gap-3 card-hover">
+        <img src="images/extraRes_icon_weather_desert.png" alt="沙尘" class="w-10 h-10 object-contain"
+             onerror="this.style.display='none'">
+        <span class="text-sm font-medium text-slate-700">沙尘</span>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex items-center gap-3 card-hover">
+        <img src="images/extraRes_icon_weather_ice.png" alt="冰冻" class="w-10 h-10 object-contain"
+             onerror="this.style.display='none'">
+        <span class="text-sm font-medium text-slate-700">冰冻</span>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex items-center gap-3 card-hover">
+        <img src="images/extraRes_icon_weather_snow.png" alt="下雪" class="w-10 h-10 object-contain"
+             onerror="this.style.display='none'">
+        <span class="text-sm font-medium text-slate-700">下雪</span>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- ══ 多格土地 ══ -->
+  <section>
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <span class="w-1 h-6 bg-amber-500 rounded-full"></span>多格合并土地
+      <span class="text-xs text-slate-400 font-normal">稀有作物占用多格土地</span>
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg font-bold text-amber-700">2×2</div>
+          <div>
+            <div class="font-semibold text-slate-800">四方福地</div>
+            <div class="text-xs text-slate-400">覆盖4块地，根据覆盖地块等级计算加成</div>
+          </div>
+        </div>
+        
+        <div class="text-xs text-slate-500 mt-2">适用作物：
+          <span class="text-purple-600 font-medium">爱心果</span>
+        </div>
+        
+        <div class="text-xs text-slate-400 mt-1">加成与单格土地相同（普通/红/黑/金 四档），根据覆盖地块等级和数量综合计算</div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg font-bold text-amber-700">3×3</div>
+          <div>
+            <div class="font-semibold text-slate-800">九宫良田</div>
+            <div class="text-xs text-slate-400">覆盖9块地，根据覆盖地块等级计算加成</div>
+          </div>
+        </div>
+        
+        <div class="text-xs text-slate-400 mt-2">暂无对应作物</div>
+        
+        <div class="text-xs text-slate-400 mt-1">加成与单格土地相同（普通/红/黑/金 四档），根据覆盖地块等级和数量综合计算</div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 card-hover">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg font-bold text-amber-700">4×4</div>
+          <div>
+            <div class="font-semibold text-slate-800">阡陌沃土</div>
+            <div class="text-xs text-slate-400">覆盖16块地，根据覆盖地块等级计算加成</div>
+          </div>
+        </div>
+        
+        <div class="text-xs text-slate-400 mt-2">暂无对应作物</div>
+        
+        <div class="text-xs text-slate-400 mt-1">加成与单格土地相同（普通/红/黑/金 四档），根据覆盖地块等级和数量综合计算</div>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- ══ 稀有作物变异 ══ -->
+  <section>
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <span class="w-1 h-6 bg-rose-500 rounded-full"></span>稀有作物变异
+    </h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="mutation-crops">
+      
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #A8C1F430;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #A8C1F415, #A8C1F408);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_25_6_2.png" alt="变异银杏树苗"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">银杏树苗</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #A8C1F420; color: #A8C1F4;">
+                ★2 稀有
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_25_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">720</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">240金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #A8C1F430;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #A8C1F415, #A8C1F408);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_109_6_2.png" alt="变异蝴蝶兰"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">蝴蝶兰</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #A8C1F420; color: #A8C1F4;">
+                ★2 稀有
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_109_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">720</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">240金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #A8C1F430;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #A8C1F415, #A8C1F408);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_112_6_2.png" alt="变异风信子"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">风信子</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #A8C1F420; color: #A8C1F4;">
+                ★2 稀有
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_112_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">720</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">240金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #A8C1F430;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #A8C1F415, #A8C1F408);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_121_6_2.png" alt="变异蔷薇"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">蔷薇</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #A8C1F420; color: #A8C1F4;">
+                ★2 稀有
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_121_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">720</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">240金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #B09DED30;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #B09DED15, #B09DED08);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_224_6_2.png" alt="变异昙花"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">昙花</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #B09DED20; color: #B09DED;">
+                ★3 珍品
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_224_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">840</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">280金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #B09DED30;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #B09DED15, #B09DED08);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_249_6_2.png" alt="变异荷包牡丹"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">荷包牡丹</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #B09DED20; color: #B09DED;">
+                ★3 珍品
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+              
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_249_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">840</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">24个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">280金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+      
+      <div class="bg-white rounded-2xl shadow-sm border-2 overflow-hidden card-hover"
+           style="border-color: #D1A21E30;">
+        <!-- 头部 -->
+        <div class="px-4 py-3 flex items-center gap-3" style="background: linear-gradient(135deg, #D1A21E15, #D1A21E08);">
+          <div class="flex -space-x-1">
+            
+            <img src="images/plant_Crop_46_6_2.png" alt="变异爱心果"
+                 class="w-14 h-14 object-contain drop-shadow-md" onerror="this.style.display='none'">
+            
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800">爱心果</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style="background: #D1A21E20; color: #D1A21E;">
+                ★4 天工
+              </span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+               · <span class="text-amber-600 font-medium">2×2 四方福地</span>
+            </div>
+          </div>
+        </div>
+        <!-- 变异阶段图 -->
+        <!-- 
+        <div class="px-4 py-2 flex items-center gap-1 overflow-x-auto bg-slate-50/50">
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_Seed_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_2_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_3_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_4_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_5_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+            <img src="images/plant_Crop_46_6_2.png" alt="阶段" class="w-8 h-8 object-contain"
+                 onerror="this.parentElement.innerHTML='<span class=\'text-xs text-slate-300\'>?</span>'">
+          </div>
+          
+          <div class="flex-shrink-0 text-xs text-slate-300 px-1">变异形态</div>
+        </div>
+         -->
+        <!-- 数据 -->
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-center border-t border-slate-100">
+          <div>
+            <div class="text-xs text-slate-400">基础经验</div>
+            <div class="text-sm font-semibold text-slate-700">3840</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">基础果实</div>
+            <div class="text-sm font-semibold text-slate-700">96个</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">果实单价</div>
+            <div class="text-sm font-semibold text-amber-600">320金</div>
+          </div>
+        </div>
+      </div>
+      
+      
+    </div>
+  </section>
+
+</div>
+
+  </main>
+
+</div>
+
+<script>
+// Toast 提示
+function showFrozenToast() {
+  var container = document.getElementById('toast-container');
+  if (container.children.length > 0) return;
+  var toast = document.createElement('div');
+  toast.className = 'toast-msg';
+  toast.innerHTML = '🚧 整改中，暂停访问';
+  container.appendChild(toast);
+  setTimeout(function() { toast.remove(); }, 2000);
+}
+
+// 侧边栏激活状态
+document.querySelectorAll('.nav-item').forEach(el => {
+  const href = el.getAttribute('href');
+  if (!href) return;
+  const path = window.location.pathname;
+  if ((href === '/' && path === '/') ||
+      (href !== '/' && path.startsWith(href))) {
+    el.classList.add('active');
+  } else {
+    el.classList.remove('active');
+  }
+});
+
+// 移动端侧边栏
+function openSidebar() {
+  document.getElementById('sidebar').classList.remove('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('sidebar-backdrop').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+// 大屏时确保侧边栏可见
+window.addEventListener('resize', () => {
+  if (window.innerWidth >= 1024) {
+    document.getElementById('sidebar-backdrop').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+});
+</script>
+
+
+<script>
+const RARITY_COLORS = {2:'A8C1F4', 3:'B09DED', 4:'D1A21E'};
+const RARITY_BG = {2:'#A8C1F410', 3:'#B09DED10', 4:'#D1A21E10'};
+const PHASE_COLORS = ['#a78bfa','#8b5cf6','#7c3aed','#6d28d9','#5b21b6','#4c1d95'];
+let mcCrops = [];          // 缓存的全部稀有作物列表
+let mcSelectedCrop = null; // 当前选中作物名
+
+function formatSec(sec) {
+  if (sec < 60) return sec + '秒';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + '分钟';
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm > 0 ? h + '小时' + mm + '分' : h + '小时';
+}
+
+function rarityBadge(rarity, label, color) {
+  return `<span class="text-xs px-2 py-0.5 rounded-full font-semibold" style="background:#${color}20;color:#${color}">★${rarity} ${label}</span>`;
+}
+
+// ── 初始化：加载作物列表填充下拉，默认选中爱心果 ──
+async function loadMutationCrops() {
+  try {
+    const resp = await fetch('/api/mutation_calc?level=1');
+    const data = await resp.json();
+    // 按稀有度从高到低排序（4天工 > 3珍品 > 2稀有）
+    mcCrops = (data.crops || []).sort((a, b) => b.rarity - a.rarity);
+    // 填充 select 下拉
+    const sel = document.getElementById('mc-crop-select');
+    sel.innerHTML = mcCrops.map(c => {
+      const label = `★${c.rarity} ${c.rarity_label} - ${c.name}`;
+      return `<option value="${c.name}">${label}</option>`;
+    }).join('');
+    // 默认选中爱心果
+    const def = mcCrops.find(c => c.name === '爱心果') || mcCrops[0];
+    if (def) {
+      sel.value = def.name;
+      pickMcCrop(def.name);
+    }
+  } catch(e) {
+    console.error('加载稀有作物失败:', e);
+  }
+}
+
+// ── 下拉搜索 ──
+function onMcSearch() {
+  const q = document.getElementById('mc-crop-search').value.trim().toLowerCase();
+  const dropdown = document.getElementById('mc-dropdown');
+  // 无输入时显示全部（已按稀有度降序排列）
+  const matches = q ? mcCrops.filter(c => c.name.toLowerCase().includes(q)) : [...mcCrops];
+  if (matches.length === 0) { dropdown.classList.add('hidden'); return; }
+  let html = '';
+  matches.forEach(c => {
+    const color = RARITY_COLORS[c.rarity] || '999';
+    const thumb = c.asset_name ? `images/plant_${c.asset_name}_Seed.png` : '';
+    html += `<div class="mc-dd-item" onclick="pickMcCrop('${c.name}')">
+      ${thumb ? `<img src="${thumb}" onerror="this.style.display='none'">` : '<span>🌱</span>'}
+      <span class="font-medium">${c.name}</span>
+      ${rarityBadge(c.rarity, c.rarity_label, color)}
+    </div>`;
+  });
+  dropdown.innerHTML = html;
+  dropdown.classList.remove('hidden');
+}
+
+function pickMcCrop(name) {
+  mcSelectedCrop = name;
+  // 同步 select 下拉的选中状态
+  const sel = document.getElementById('mc-crop-select');
+  if (sel.value !== name) sel.value = name;
+  /* 模糊搜索同步（保留代码）
+  document.getElementById('mc-crop-search').value = name;
+  document.getElementById('mc-dropdown').classList.add('hidden');
+  */
+  // 找到作物显示基础信息
+  const crop = mcCrops.find(c => c.name === name);
+  if (crop) showSelectedInfo(crop);
+}
+
+function showSelectedInfo(c) {
+  const panel = document.getElementById('mc-selected-info');
+  const img = document.getElementById('mc-sel-img');
+  const thumb = c.asset_name ? `images/plant_${c.asset_name}_Seed.png` : '';
+  if (thumb) { img.src = thumb; img.style.display = ''; } else { img.style.display = 'none'; }
+  const color = RARITY_COLORS[c.rarity] || '999';
+  document.getElementById('mc-sel-name').innerHTML = c.name + ' ' + rarityBadge(c.rarity, c.rarity_label, color)
+    + (c.seasons === 2 ? ' <span class="text-xs px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium">两季</span>' : '');
+  const sizeInfo = c.size ? c.size_label : '1×1';
+  document.getElementById('mc-sel-meta').textContent = `基础经验 ${c.base_exp} · 基础果实 ${c.base_fruit}个 · 单价 ${c.sell_price}金 · 占地 ${sizeInfo}`;
+  panel.classList.remove('hidden');
+}
+
+// ── 计算 ──
+function calcMutation() {
+  const level = document.getElementById('calc-level').value || 64;
+  const cropParam = mcSelectedCrop ? '&crop=' + encodeURIComponent(mcSelectedCrop) : '';
+  // 获取选中作物的卡片
+  if (mcSelectedCrop) {
+    fetch('/api/mutation_calc?level=' + level + cropParam)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { alert(data.error); return; }
+        if (data.crops.length > 0) renderResultCard(data.crops[0], data.level);
+      });
+  } else {
+    document.getElementById('mc-result-card').classList.add('hidden');
+  }
+  // 获取全部作物的表格
+  fetch('/api/mutation_calc?level=' + level)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert(data.error); return; }
+      renderTable(data.crops);
+    })
+    .catch(e => { alert('计算失败: ' + e); });
+}
+
+// ── 渲染选中作物的计算卡片 ──
+function renderResultCard(c, level) {
+  const color = RARITY_COLORS[c.rarity] || '999';
+  const isTwoSeason = c.seasons === 2;
+
+  // 构建成长阶段条
+  let phasesHtml = '';
+  if (c.phases && c.phases.length > 0) {
+    const activePhases = c.phases.filter(p => p.seconds > 0);
+    const totalSec = activePhases.reduce((s, p) => s + p.seconds, 0);
+    // 第一季全阶段
+    let barHtml = '<div class="mc-phase-bar">';
+    activePhases.forEach((p, i) => {
+      const pct = (p.seconds / totalSec * 100).toFixed(1);
+      const bg = PHASE_COLORS[i % PHASE_COLORS.length];
+      barHtml += `<div class="mc-phase-seg" style="width:${pct}%;background:${bg};" title="${p.name}: ${formatSec(p.seconds)}">${p.name}</div>`;
+    });
+    barHtml += '</div>';
+    phasesHtml += `<div class="mt-3">
+      <div class="text-xs text-slate-500 mb-1 font-medium">第一季成长阶段 <span class="text-slate-400">· 总时长 ${formatSec(totalSec)}</span></div>
+      ${barHtml}
+    </div>`;
+
+    // 两季作物第二季：重走后两个阶段
+    if (isTwoSeason && activePhases.length >= 2) {
+      const s2Phases = activePhases.slice(-2);
+      const s2Total = s2Phases.reduce((s, p) => s + p.seconds, 0);
+      let bar2Html = '<div class="mc-phase-bar">';
+      s2Phases.forEach((p, i) => {
+        const pct = (p.seconds / s2Total * 100).toFixed(1);
+        const bg = PHASE_COLORS[(activePhases.length - 2 + i) % PHASE_COLORS.length];
+        bar2Html += `<div class="mc-phase-seg" style="width:${pct}%;background:${bg};" title="${p.name}: ${formatSec(p.seconds)}">${p.name}</div>`;
+      });
+      bar2Html += '</div>';
+      phasesHtml += `<div class="mt-2">
+        <div class="text-xs text-slate-500 mb-1 font-medium">第二季 <span class="text-violet-500">(重走后两阶段)</span> <span class="text-slate-400">· 时长 ${formatSec(s2Total)}</span></div>
+        ${bar2Html}
+      </div>`;
+    }
+  }
+
+  // 变异形态图
+  // let mutantImgHtml = '';
+  // if (c.mutant_images && c.mutant_images.length > 0) {
+  //   mutantImgHtml = `<div class="flex items-center gap-1 mt-3">
+  //     ${c.mutant_images.map(img => `<div class="flex-shrink-0 w-9 h-9 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+  //       <img src="images/${img}" class="w-7 h-7 object-contain" onerror="this.parentElement.innerHTML='<span class=\\'text-xs text-slate-300\\'>?</span>'">
+  //     </div>`).join('')}
+  //     <span class="text-xs text-slate-300 px-1">变异形态</span>
+  //   </div>`;
+  // }
+
+  const html = `
+  <div class="mc-card-fade rounded-2xl border-2 overflow-hidden" style="border-color:#${color}30;">
+    <!-- 头部 -->
+    <div class="px-5 py-4 flex items-center gap-4" style="background:linear-gradient(135deg,#${color}12,#${color}06);">
+      <img src="images/plant_${c.asset_name}_Seed.png" class="w-16 h-16 object-contain drop-shadow-md" onerror="this.style.display='none'">
+      <div class="flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-lg font-bold text-slate-800">${c.name}</span>
+          ${rarityBadge(c.rarity, c.rarity_label, color)}
+          ${isTwoSeason ? '<span class="text-xs px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium">两季作物</span>' : ''}
+          ${c.size ? `<span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">${c.size_label}</span>` : ''}
+        </div>
+        <div class="text-sm text-slate-500 mt-1">Lv${level} 等级计算结果</div>
+      </div>
+    </div>
+    <!-- 数据网格 -->
+    <div class="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-100">
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">单季经验</div>
+        <div class="text-lg font-bold text-slate-800">${c.actual_exp.toLocaleString()}</div>
+        <div class="text-xs text-emerald-500 font-medium">+${c.exp_bonus.toLocaleString()}</div>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">单季果实</div>
+        <div class="text-lg font-bold text-slate-800">${c.actual_fruit.toLocaleString()}个</div>
+        <div class="text-xs text-emerald-500 font-medium">+${c.fruit_bonus.toLocaleString()}</div>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">单季收入</div>
+        <div class="text-lg font-bold text-amber-600">${c.season_income.toLocaleString()}金</div>
+        <div class="text-xs text-slate-400">${c.sell_price}金/个</div>
+      </div>
+      ${isTwoSeason ? `
+      <div class="bg-violet-50 rounded-xl p-3 text-center border border-violet-100">
+        <div class="text-xs text-violet-500 mb-1">全周期 (两季)</div>
+        <div class="text-lg font-bold text-violet-700">${c.total_season_income.toLocaleString()}金</div>
+        <div class="text-xs text-violet-400">经验 ${c.total_exp.toLocaleString()}</div>
+      </div>` : `
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">基础经验</div>
+        <div class="text-lg font-bold text-slate-600">${c.base_exp}</div>
+        <div class="text-xs text-slate-400">基础果实 ${c.base_fruit}个</div>
+      </div>`}
+    </div>
+    <!-- 成长阶段 -->
+    <div class="px-5 pb-4">
+      ${phasesHtml}
+    </div>
+  </div>`;
+
+  const cardEl = document.getElementById('mc-result-card');
+  cardEl.innerHTML = html;
+  cardEl.classList.remove('hidden');
+}
+
+// ── 渲染全部作物对比表格 ──
+function renderTable(crops) {
+  const tbody = document.getElementById('calc-results');
+  let html = '';
+  crops.forEach(c => {
+    const color = RARITY_COLORS[c.rarity] || '999';
+    const isTwoSeason = c.seasons === 2;
+    const highlight = mcSelectedCrop === c.name ? 'bg-purple-50/60' : '';
+    html += `<tr class="border-b border-slate-100 hover:bg-slate-50 transition ${highlight}">
+      <td class="py-2.5 px-2 font-medium text-slate-700">
+        <span class="cursor-pointer hover:text-purple-600" onclick="pickMcCrop('${c.name}')">${c.name}</span>
+        ${isTwoSeason ? '<span class="ml-1 text-xs text-violet-500">两季</span>' : ''}
+      </td>
+      <td class="py-2.5 px-2">${rarityBadge(c.rarity, c.rarity_label, color)}</td>
+      <td class="py-2.5 px-2 text-xs">${c.size ? c.size_label : '1×1'}</td>
+      <td class="py-2.5 px-2 text-right font-semibold">${c.actual_exp.toLocaleString()}</td>
+      <td class="py-2.5 px-2 text-right text-emerald-500 text-xs">+${c.exp_bonus.toLocaleString()}</td>
+      <td class="py-2.5 px-2 text-right font-semibold">${c.actual_fruit.toLocaleString()}个</td>
+      <td class="py-2.5 px-2 text-right text-emerald-500 text-xs">+${c.fruit_bonus.toLocaleString()}</td>
+      <td class="py-2.5 px-2 text-right text-amber-600">${c.sell_price}金</td>
+      <td class="py-2.5 px-2 text-right font-bold text-amber-700">${c.season_income.toLocaleString()}金</td>
+      <td class="py-2.5 px-2 text-right font-bold ${isTwoSeason ? 'text-violet-700' : 'text-amber-700'}">${c.total_season_income.toLocaleString()}金</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+  document.getElementById('mc-table-wrap').classList.remove('hidden');
+}
+
+function switchTab(name) {
+  document.getElementById('panel-calc').classList.toggle('hidden', name !== 'calc');
+  document.getElementById('panel-guide').classList.toggle('hidden', name !== 'guide');
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('border-purple-500', 'text-purple-700', 'bg-purple-50');
+    btn.classList.add('border-transparent', 'text-slate-400');
+  });
+  const active = document.getElementById('tab-' + name);
+  active.classList.remove('border-transparent', 'text-slate-400');
+  active.classList.add('border-purple-500', 'text-purple-700', 'bg-purple-50');
+}
+
+// ── 事件绑定 ──
+document.addEventListener('DOMContentLoaded', () => {
+  loadMutationCrops();
+  /* 模糊搜索事件绑定（保留代码）
+  const searchInput = document.getElementById('mc-crop-search');
+  searchInput.addEventListener('input', onMcSearch);
+  searchInput.addEventListener('focus', onMcSearch);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.mc-search-wrap')) {
+      document.getElementById('mc-dropdown').classList.add('hidden');
+    }
+  });
+  */
+});
+</script>
+
+</body>
+</html>

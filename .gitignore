@@ -79,6 +79,8 @@ releases/
 release-assets/
 wxcode/
 nc_local_version/
+!web/public/nc_local_version/
+!web/public/nc_local_version/**
 log开发日志/
 qq_farm_bot.sql
 IMPLEMENTATION_PLAN.html

@@ -29,6 +29,10 @@ body {
   /* App handles scrolling */
 }
 
+#app {
+  min-height: 100%;
+}
+
 /* NProgress Customization */
 #nprogress .bar {
   background: var(--ui-brand-500) !important;
@@ -1563,6 +1567,14 @@ body {
 }
 
 @media (max-width: 767px) {
+
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 
   .ui-page-with-fixed-footer {
     padding-bottom: calc(var(--ui-fixed-footer-space-mobile) + env(safe-area-inset-bottom, 0px));

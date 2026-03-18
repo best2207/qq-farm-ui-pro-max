@@ -6,6 +6,7 @@ defineProps<{
   confirmText?: string
   confirmDisabled?: boolean
   cancelText?: string
+  showCancel?: boolean
   type?: 'danger' | 'primary'
   isAlert?: boolean
   loading?: boolean
@@ -14,7 +15,15 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
+  (e: 'close'): void
+  (e: 'update:show', value: boolean): void
 }>()
+
+function handleCancel() {
+  emit('cancel')
+  emit('close')
+  emit('update:show', false)
+}
 </script>
 
 <template>
@@ -23,7 +32,7 @@ const emit = defineEmits<{
       <!-- 背景遮罩 -->
       <div
         class="confirm-modal-overlay absolute inset-0 transition-opacity"
-        @click="emit('cancel')"
+        @click="handleCancel"
       />
 
       <!-- 弹窗主体 -->
@@ -35,7 +44,9 @@ const emit = defineEmits<{
           </h3>
           <button
             class="confirm-modal-close rounded-full p-2 transition-colors"
-            @click="emit('cancel')"
+            type="button"
+            aria-label="关闭确认弹窗"
+            @click="handleCancel"
           >
             <div class="i-carbon-close text-xl" />
           </button>
@@ -53,15 +64,17 @@ const emit = defineEmits<{
         <!-- 底部操作区 -->
         <div class="confirm-modal-footer flex items-center gap-3 px-6 py-4">
           <button
-            v-if="!isAlert"
+            v-if="showCancel !== false && !isAlert"
             class="confirm-modal-secondary glass-text-main flex-1 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98] focus:outline-none"
+            type="button"
             :disabled="loading"
-            @click="emit('cancel')"
+            @click="handleCancel"
           >
             {{ cancelText || '取消' }}
           </button>
           <button
             class="confirm-modal-primary flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 focus:outline-none focus:ring-2 focus:ring-offset-2"
+            type="button"
             :class="type === 'danger'
               ? 'confirm-modal-primary-danger'
               : 'confirm-modal-primary-brand'"
@@ -107,6 +120,7 @@ const emit = defineEmits<{
   border: 1px solid var(--ui-border-subtle);
   background: color-mix(in srgb, var(--ui-bg-surface-raised) 82%, transparent);
   color: var(--ui-text-2);
+  touch-action: manipulation;
 }
 
 .confirm-modal-close:hover,

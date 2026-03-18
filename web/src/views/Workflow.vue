@@ -1269,6 +1269,17 @@ watch(() => currentAccountId.value, () => {
   filter: brightness(1.02);
 }
 
+@media (max-width: 767px) {
+  .workflow-mobile-toolbar .ui-bulk-actions {
+    gap: 0.375rem;
+  }
+
+  .workflow-pool-chip {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.78rem;
+  }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   height: 8px;
 }

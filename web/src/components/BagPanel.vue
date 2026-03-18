@@ -4937,7 +4937,7 @@ useIntervalFn(loadBag, 60000)
   font-size: 0.85rem;
 }
 
-:global(html:not(.dark)) .detail-modal-backdrop {
+:global(html:not(.dark) .detail-modal-backdrop) {
   --bag-surface: #f8fafc;
   --bag-surface-raised: #ffffff;
   --bag-border: rgba(15, 23, 42, 0.08);
@@ -4951,7 +4951,7 @@ useIntervalFn(loadBag, 60000)
   -webkit-backdrop-filter: blur(18px) brightness(0.62) saturate(0.38);
 }
 
-:global(html:not(.dark)) .detail-modal-backdrop::before {
+:global(html:not(.dark) .detail-modal-backdrop)::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -4961,7 +4961,7 @@ useIntervalFn(loadBag, 60000)
   pointer-events: none;
 }
 
-:global(html:not(.dark)) .detail-modal-panel {
+:global(html:not(.dark) .detail-modal-panel) {
   border-color: rgba(15, 23, 42, 0.18);
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
   box-shadow:
@@ -4970,38 +4970,38 @@ useIntervalFn(loadBag, 60000)
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
-:global(html:not(.dark)) .detail-modal-panel::before {
+:global(html:not(.dark) .detail-modal-panel)::before {
   background: none;
 }
 
-:global(html:not(.dark)) .detail-modal-panel::after {
+:global(html:not(.dark) .detail-modal-panel)::after {
   border-color: rgba(15, 23, 42, 0.06);
 }
 
-:global(html:not(.dark)) .detail-modal-body {
+:global(html:not(.dark) .detail-modal-body) {
   background: #eef2f7;
 }
 
-:global(html:not(.dark)) .detail-modal-header {
+:global(html:not(.dark) .detail-modal-header) {
   border-bottom-color: rgba(15, 23, 42, 0.1);
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
-:global(html:not(.dark)) .detail-modal-header__eyebrow {
+:global(html:not(.dark) .detail-modal-header__eyebrow) {
   color: rgba(71, 85, 105, 0.9);
 }
 
-:global(html:not(.dark)) .detail-modal-header__title {
+:global(html:not(.dark) .detail-modal-header__title) {
   color: #0f172a;
 }
 
-:global(html:not(.dark)) .detail-modal-header__sub {
+:global(html:not(.dark) .detail-modal-header__sub) {
   border-color: rgba(15, 23, 42, 0.1);
   background: #ffffff;
   color: rgba(51, 65, 85, 0.78);
 }
 
-:global(html:not(.dark)) .detail-modal-close {
+:global(html:not(.dark) .detail-modal-close) {
   border-color: rgba(15, 23, 42, 0.16);
   background: #ffffff;
   box-shadow:
@@ -5009,22 +5009,22 @@ useIntervalFn(loadBag, 60000)
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
-:global(html:not(.dark)) .detail-modal-close:hover {
+:global(html:not(.dark) .detail-modal-close:hover) {
   background: #f8fafc;
   border-color: rgba(15, 23, 42, 0.22);
 }
 
-:global(html:not(.dark)) .detail-modal-close__icon {
+:global(html:not(.dark) .detail-modal-close__icon) {
   color: #0f172a;
 }
 
-:global(html:not(.dark)) .detail-summary,
-:global(html:not(.dark)) .detail-block,
-:global(html:not(.dark)) .detail-stat-card,
-:global(html:not(.dark)) .detail-section-card,
-:global(html:not(.dark)) .detail-land-empty,
-:global(html:not(.dark)) .detail-land-card,
-:global(html:not(.dark)) .detail-preview-card {
+:global(html:not(.dark) .detail-summary),
+:global(html:not(.dark) .detail-block),
+:global(html:not(.dark) .detail-stat-card),
+:global(html:not(.dark) .detail-section-card),
+:global(html:not(.dark) .detail-land-empty),
+:global(html:not(.dark) .detail-land-card),
+:global(html:not(.dark) .detail-preview-card) {
   border-color: rgba(15, 23, 42, 0.1);
   background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   box-shadow:
@@ -5032,20 +5032,20 @@ useIntervalFn(loadBag, 60000)
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 
-:global(html:not(.dark)) .detail-block-highlight {
+:global(html:not(.dark) .detail-block-highlight) {
   border-color: color-mix(in srgb, var(--ui-brand-500) 18%, rgba(15, 23, 42, 0.08));
   background: linear-gradient(180deg, color-mix(in srgb, var(--ui-brand-500) 5%, #ffffff), #ffffff 100%);
 }
 
-:global(html:not(.dark)) .detail-block__title::before {
+:global(html:not(.dark) .detail-block__title)::before {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 16%, transparent);
 }
 
-:global(html:not(.dark)) .detail-stat-card {
+:global(html:not(.dark) .detail-stat-card) {
   background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
 }
 
-:global(html:not(.dark)) .detail-hero {
+:global(html:not(.dark) .detail-hero) {
   border-color: rgba(15, 23, 42, 0.1);
   background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
   box-shadow:
@@ -5053,35 +5053,35 @@ useIntervalFn(loadBag, 60000)
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
-:global(html:not(.dark)) .detail-hero__art,
-:global(html:not(.dark)) .detail-preview-card__thumb {
+:global(html:not(.dark) .detail-hero__art),
+:global(html:not(.dark) .detail-preview-card__thumb) {
   border-color: rgba(15, 23, 42, 0.1);
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
-:global(html:not(.dark)) .detail-summary,
-:global(html:not(.dark)) .detail-section-card,
-:global(html:not(.dark)) .detail-land-toolbar__hint,
-:global(html:not(.dark)) .detail-land-empty,
-:global(html:not(.dark)) .detail-land-card__status,
-:global(html:not(.dark)) .detail-land-card__meta,
-:global(html:not(.dark)) .detail-use-summary__meta,
-:global(html:not(.dark)) .detail-preview-card__meta,
-:global(html:not(.dark)) .detail-preview-card__desc,
-:global(html:not(.dark)) .detail-modal-header__sub {
+:global(html:not(.dark) .detail-summary),
+:global(html:not(.dark) .detail-section-card),
+:global(html:not(.dark) .detail-land-toolbar__hint),
+:global(html:not(.dark) .detail-land-empty),
+:global(html:not(.dark) .detail-land-card__status),
+:global(html:not(.dark) .detail-land-card__meta),
+:global(html:not(.dark) .detail-use-summary__meta),
+:global(html:not(.dark) .detail-preview-card__meta),
+:global(html:not(.dark) .detail-preview-card__desc),
+:global(html:not(.dark) .detail-modal-header__sub) {
   color: color-mix(in srgb, var(--bag-text-main) 84%, var(--bag-text-muted) 16%);
 }
 
-:global(html:not(.dark)) .detail-land-card.active {
+:global(html:not(.dark) .detail-land-card.active) {
   border-color: color-mix(in srgb, var(--ui-brand-500) 38%, rgba(15, 23, 42, 0.08));
   background: color-mix(in srgb, var(--ui-brand-500) 8%, #ffffff);
 }
 
-:global(html:not(.dark)) .detail-actions {
+:global(html:not(.dark) .detail-actions) {
   border-top-color: rgba(15, 23, 42, 0.08);
 }
 
-:global(html:not(.dark)) .detail-use-summary {
+:global(html:not(.dark) .detail-use-summary) {
   border-color: color-mix(in srgb, var(--ui-brand-500) 18%, rgba(15, 23, 42, 0.08));
   background: linear-gradient(135deg, color-mix(in srgb, var(--ui-brand-500) 7%, #ffffff), #ffffff 68%);
 }

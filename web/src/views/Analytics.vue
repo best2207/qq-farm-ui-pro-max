@@ -1265,6 +1265,42 @@ onBeforeUnmount(() => {
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ui-status-success) 78%, transparent);
 }
 
+@media (max-width: 767px) {
+  .analytics-controls,
+  .analytics-chip-row,
+  .analytics-recommendation-head .ui-bulk-actions {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .analytics-controls > * {
+    min-width: 0;
+  }
+
+  .analytics-controls > label {
+    flex-basis: 100%;
+  }
+
+  .analytics-controls :deep(.base-select-trigger) {
+    width: 100%;
+  }
+
+  .analytics-summary-chip {
+    max-width: 100%;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .analytics-recommendation-head .ui-bulk-actions > * {
+    min-width: 0;
+  }
+
+  .analytics-level-input-shell {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
 .analytics-recommendation-card--time {
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ui-status-info) 78%, transparent);
 }

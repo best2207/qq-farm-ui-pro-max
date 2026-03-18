@@ -19,6 +19,7 @@ const loading = ref(false)
 const qrData = ref<{ image?: string, code: string, qrcode?: string, url?: string } | null>(null)
 const qrStatus = ref('')
 const errorMessage = ref('')
+const qrCheckFailureCount = ref(0)
 
 const form = reactive({
   name: '',
@@ -66,11 +67,12 @@ function stopQRCheck() {
 
 function startQRCheck() {
   pollStopped = false
+  qrCheckFailureCount.value = 0
   scheduleNextPoll()
 }
 
 function scheduleNextPoll() {
-  if (pollStopped)
+  if (pollStopped || !props.show || activeTab.value !== 'qr')
     return
   pollTimer = setTimeout(() => doQRCheck(), 1500)
 }
@@ -84,7 +86,7 @@ function activateManualTab() {
 
 async function doQRCheck() {
   // 如果已停止或没有数据，不发请求
-  if (pollStopped || !qrData.value)
+  if (pollStopped || !props.show || activeTab.value !== 'qr' || !qrData.value)
     return
 
   try {
@@ -94,6 +96,7 @@ async function doQRCheck() {
       return
 
     if (res.data.ok) {
+      qrCheckFailureCount.value = 0
       const status = res.data.data.status
       if (status === 'OK') {
         // 登录成功 —— 立即停止轮询，不再发任何请求
@@ -140,11 +143,23 @@ async function doQRCheck() {
       }
       else {
         qrStatus.value = `错误: ${res.data.data.error || '未知错误'}`
+        stopQRCheck()
+        return
       }
     }
+    else {
+      qrStatus.value = `检查失败: ${localizeRuntimeText(res.data.error || '未知错误')}`
+      stopQRCheck()
+      return
+    }
   }
-  catch (e) {
-    console.error(e)
+  catch (e: any) {
+    qrCheckFailureCount.value += 1
+    qrStatus.value = `检查失败: ${localizeRuntimeText(e.response?.data?.error || e.message || '未知错误')}`
+    if (qrCheckFailureCount.value >= 2 || Number(e.response?.status) >= 400) {
+      stopQRCheck()
+      return
+    }
   }
 
   // 只有在未停止的情况下，才调度下一次轮询
@@ -155,7 +170,7 @@ async function doQRCheck() {
 
 // QR Code Logic
 async function loadQRCode() {
-  if (activeTab.value !== 'qr')
+  if (!props.show || activeTab.value !== 'qr')
     return
 
   stopQRCheck() // 先停掉旧的轮询
@@ -163,6 +178,7 @@ async function loadQRCode() {
   qrData.value = null
   qrStatus.value = '正在获取二维码'
   errorMessage.value = ''
+  qrCheckFailureCount.value = 0
   try {
     const res = await api.post('/api/qr/create', { platform: qrPlatform.value, uin: qrUin.value.trim() })
     if (res.data.ok) {
@@ -304,14 +320,15 @@ watch(() => props.show, (newVal) => {
   if (newVal) {
     errorMessage.value = ''
     if (props.editData) {
-      // Edit mode: Default to QR refresh, load code
-      activeTab.value = 'qr'
+      // Edit mode defaults to manual so passive reopen will not spam QR polling.
+      activeTab.value = 'manual'
       form.name = props.editData.name
       form.code = props.editData.code || ''
       form.uin = String(props.editData.uin || props.editData.qq || '')
       form.platform = props.editData.platform || 'wx_car'
       qrPlatform.value = normalizeQrPlatform(props.editData.platform)
-      loadQRCode()
+      qrData.value = null
+      qrStatus.value = '如需扫码更新，请切换到“扫码更新”并手动获取新二维码'
     }
     else {
       // Add mode: Default to QR

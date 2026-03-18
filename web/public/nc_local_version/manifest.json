@@ -1,0 +1,209 @@
+{
+  "generatedAt": "2026-03-18T10:03:11.920183+00:00",
+  "sourceBaseUrl": "https://jsq.gptvip.chat",
+  "defaultFile": "calculator.html",
+  "sections": [
+    {
+      "id": "section-3892",
+      "label": "快捷入口",
+      "items": [
+        {
+          "icon": "🏠",
+          "title": "首页",
+          "href": "/",
+          "file": "index.html",
+          "locked": false,
+          "count": null
+        },
+        {
+          "icon": "🧮",
+          "title": "经验计算器",
+          "href": "/calculator",
+          "file": "calculator.html",
+          "locked": false,
+          "count": null
+        },
+        {
+          "icon": "💰",
+          "title": "氪金计算器",
+          "href": "/levels",
+          "file": "levels.html",
+          "locked": false,
+          "count": null
+        },
+        {
+          "icon": "🧬",
+          "title": "变异计算器",
+          "href": "/mutation",
+          "file": "mutation.html",
+          "locked": false,
+          "count": null
+        }
+      ]
+    },
+    {
+      "id": "section-7254",
+      "label": "图鉴",
+      "items": [
+        {
+          "icon": "📋",
+          "title": "总览",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "🌿",
+          "title": "作物图鉴",
+          "href": "/plants",
+          "file": "plants.html",
+          "locked": false,
+          "count": 108
+        },
+        {
+          "icon": "🏞️",
+          "title": "土地图鉴",
+          "href": "/lands",
+          "file": "lands.html",
+          "locked": false,
+          "count": 24
+        }
+      ]
+    },
+    {
+      "id": "section-4521",
+      "label": "商店道具",
+      "items": [
+        {
+          "icon": "🌱",
+          "title": "种子",
+          "href": "/items/05",
+          "file": "items/05.html",
+          "locked": false,
+          "count": 108
+        },
+        {
+          "icon": "🔑",
+          "title": "种子解锁卡",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "🎁",
+          "title": "礼包与宝箱",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "🎀",
+          "title": "自选礼包",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "💰",
+          "title": "货币与计数",
+          "href": "/items/02",
+          "file": "items/02.html",
+          "locked": false,
+          "count": 9
+        },
+        {
+          "icon": "🛠️",
+          "title": "操作工具",
+          "href": "/items/04",
+          "file": "items/04.html",
+          "locked": false,
+          "count": 8
+        },
+        {
+          "icon": "🧪",
+          "title": "化肥道具",
+          "href": "/items/07",
+          "file": "items/07.html",
+          "locked": false,
+          "count": 8
+        },
+        {
+          "icon": "✨",
+          "title": "黄金果实",
+          "href": "/items/17",
+          "file": "items/17.html",
+          "locked": false,
+          "count": 7
+        },
+        {
+          "icon": "🎨",
+          "title": "头像框与装饰",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "🐕",
+          "title": "狗与看门犬",
+          "href": "/items/08",
+          "file": "items/08.html",
+          "locked": false,
+          "count": 4
+        },
+        {
+          "icon": "🦴",
+          "title": "狗粮",
+          "href": "/items/09",
+          "file": "items/09.html",
+          "locked": false,
+          "count": 3
+        },
+        {
+          "icon": "📖",
+          "title": "图鉴点数",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "🔧",
+          "title": "系统占位",
+          "href": "/items/01",
+          "file": "items/01.html",
+          "locked": false,
+          "count": 1
+        },
+        {
+          "icon": "⭐",
+          "title": "经验与成长",
+          "href": "/items/03",
+          "file": "items/03.html",
+          "locked": false,
+          "count": 1
+        },
+        {
+          "icon": "⚡",
+          "title": "活跃点数",
+          "href": "javascript:void(0)",
+          "file": null,
+          "locked": true,
+          "count": null
+        },
+        {
+          "icon": "💎",
+          "title": "充值货币",
+          "href": "/items/15",
+          "file": "items/15.html",
+          "locked": false,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

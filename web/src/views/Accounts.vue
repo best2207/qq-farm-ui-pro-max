@@ -4173,4 +4173,20 @@ useIntervalFn(() => {
   background: color-mix(in srgb, var(--ui-bg-canvas) 88%, transparent) !important;
   color: var(--ui-text-1) !important;
 }
+
+@media (max-width: 767px) {
+  .accounts-management-bar :deep(.ui-page-actions) {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .accounts-management-bar :deep(.ui-page-actions > *) {
+    min-width: 0;
+  }
+
+  .accounts-management-bar :deep(.selection-summary-text) {
+    flex: 1 1 100%;
+    margin-left: 0 !important;
+  }
+}
 </style>

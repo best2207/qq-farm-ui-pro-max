@@ -439,8 +439,14 @@ onUnmounted(() => {
   }
 
   .farm-panel-actions {
-    margin-inline: -0.1rem;
-    padding-inline: 0.1rem;
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  .farm-panel-actions > * {
+    min-width: 0;
+    flex: 1 1 calc(50% - 0.5rem);
   }
 }
 </style>

@@ -89,7 +89,7 @@ watch(adminToken, async (newToken, oldToken) => {
 
 <template>
   <div
-    class="ui-app-root relative z-0 w-screen bg-theme-bg transition-colors duration-300 dark:bg-theme-darkbg"
+    class="ui-app-root relative z-0 min-w-0 w-full bg-theme-bg transition-colors duration-300 dark:bg-theme-darkbg"
     :class="isLoginRoute ? 'ui-app-root--login min-h-screen overflow-visible' : 'ui-app-root--workspace h-screen overflow-hidden'"
   >
     <div
@@ -113,7 +113,7 @@ watch(adminToken, async (newToken, oldToken) => {
         <Suspense>
           <component :is="Component" />
           <template #fallback>
-            <div class="h-screen w-screen flex flex-col items-center justify-center bg-theme-bg/80 backdrop-blur-sm dark:bg-theme-darkbg/80">
+            <div class="h-screen w-full flex flex-col items-center justify-center bg-theme-bg/80 backdrop-blur-sm dark:bg-theme-darkbg/80">
               <div class="i-carbon-circle-dash mb-4 h-12 w-12 animate-spin text-primary-500" />
               <p class="ui-text-2">
                 正在按需分配计算层...
@@ -128,7 +128,6 @@ watch(adminToken, async (newToken, oldToken) => {
     <!-- 全局首次更新大弹窗 -->
     <NotificationModal
       :show="showUpdateModal"
-      class="relative z-50"
       @close="showUpdateModal = false"
     />
     <!-- 管理员公告弹窗（登录后展示，可关闭并记录已读） -->
@@ -156,6 +155,14 @@ body {
 
 .ui-app-root--workspace {
   min-height: 100vh;
+}
+
+@media (max-width: 767px) {
+  .ui-app-root--workspace {
+    min-height: 100svh;
+    height: auto !important;
+    overflow: visible !important;
+  }
 }
 
 .app-scene-background {
