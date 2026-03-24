@@ -5,6 +5,7 @@ const { getPool, transaction } = require('./mysql-db');
 const SYSTEM_SETTING_KEYS = Object.freeze({
     GLOBAL_CONFIG: 'global_config',
     JWT_SECRET: 'jwt_secret',
+    ADMIN_BOOTSTRAP_STATE: 'admin_bootstrap_state',
     TRIAL_IP_HISTORY: 'trial_ip_history',
     UPDATE_CONFIG: 'update_config',
     UPDATE_RELEASE_CACHE: 'update_release_cache',

@@ -109,6 +109,7 @@ function getPeerIdentifiers(account) {
     if (!account || typeof account !== 'object') return identifiers;
     addIdentifier(identifiers, account.uin);
     addIdentifier(identifiers, account.qq);
+    addIdentifier(identifiers, account.openId);
     return identifiers;
 }
 

@@ -8,6 +8,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ContextHelpButton from '@/components/help/ContextHelpButton.vue'
 import BaseAccountRecordCard from '@/components/ui/BaseAccountRecordCard.vue'
 import BaseAccountViewSwitcherLayout from '@/components/ui/BaseAccountViewSwitcherLayout.vue'
 import BaseActionButtons from '@/components/ui/BaseActionButtons.vue'
@@ -29,8 +30,10 @@ import BaseRecordMetricCard from '@/components/ui/BaseRecordMetricCard.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSelectionSummary from '@/components/ui/BaseSelectionSummary.vue'
 import BaseSortableHeaderCell from '@/components/ui/BaseSortableHeaderCell.vue'
+import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import BaseTableSectionCard from '@/components/ui/BaseTableSectionCard.vue'
 import BaseTableToolbar from '@/components/ui/BaseTableToolbar.vue'
+import BaseTextarea from '@/components/ui/BaseTextarea.vue'
 import BaseToggleOptionGroup from '@/components/ui/BaseToggleOptionGroup.vue'
 import { useCopyInteraction } from '@/composables/use-copy-interaction'
 import { useViewPreferenceSync } from '@/composables/use-view-preference-sync'
@@ -49,6 +52,26 @@ interface CurrentUser {
 interface UserItem {
   username: string
   role: string
+}
+
+interface CodeCapturePreviewData {
+  action: 'update_existing' | 'create_new'
+  matchedBy: 'accountId' | 'openId' | 'uin' | 'none' | string
+  matchedAccount: any | null
+  payload: {
+    accountId?: string
+    platform?: string
+    uin?: string
+    qq?: string
+    openId?: string
+    code?: string
+    authTicket?: string
+    nickname?: string
+    avatar?: string
+    name?: string
+    source?: string
+    rawPayload?: any
+  }
 }
 
 type OwnershipSection = 'mine' | 'other_user' | 'other_admin' | 'unowned'
@@ -111,6 +134,15 @@ const showBatchDeleteConfirm = ref(false)
 const batchDeleteLoading = ref(false)
 const showColumnSettings = ref(false)
 const actionHistory = ref<ActionHistoryItem[]>([])
+const codeCaptureRaw = ref('')
+const codeCaptureName = ref('')
+const codeCaptureAccountId = ref('')
+const codeCaptureOwnerUsername = ref('')
+const codeCaptureStartAfterSave = ref(true)
+const codeCaptureLoading = ref(false)
+const codeCaptureCommitLoading = ref(false)
+const codeCapturePreview = ref<CodeCapturePreviewData | null>(null)
+const codeCaptureLastSavedId = ref('')
 const { copiedHistoryId, copiedControlKey, copyText: copyWithFeedback } = useCopyInteraction()
 const tableColumnVisibility = ref<Record<TableColumnKey, boolean>>({
   owner: true,
@@ -249,6 +281,29 @@ function getQueryValue(value: unknown) {
   if (Array.isArray(value))
     return String(value[0] || '').trim()
   return String(value || '').trim()
+}
+
+function maskSensitiveText(value: unknown) {
+  const text = String(value || '').trim()
+  if (!text)
+    return '--'
+  if (text.length <= 12)
+    return text
+  return `${text.slice(0, 6)}...${text.slice(-4)}`
+}
+
+function formatCodeCaptureAction(action?: string) {
+  return action === 'update_existing' ? '写入现有账号' : '创建新账号'
+}
+
+function formatCodeCaptureMatchedBy(matchedBy?: string) {
+  if (matchedBy === 'accountId')
+    return '账号 ID'
+  if (matchedBy === 'openId')
+    return 'OpenID'
+  if (matchedBy === 'uin')
+    return 'UIN'
+  return '自动新建'
 }
 
 function setViewMode(mode: ViewMode) {
@@ -639,6 +694,23 @@ const visibleTableColumns = computed(() => tableColumnVisibility.value)
 const latestActionHistory = computed(() => actionHistory.value[0] || null)
 const recentActionHistory = computed(() => actionHistory.value.slice(1, 5))
 const actionHistoryCount = computed(() => actionHistory.value.length)
+const codeCaptureMatchedAccountLabel = computed(() => {
+  const matched = codeCapturePreview.value?.matchedAccount
+  if (!matched)
+    return '未匹配到现有账号，将按当前输入创建新账号'
+  return `${String(matched.name || matched.nick || matched.id || '').trim() || '未命名账号'} · ID ${String(matched.id || '').trim() || '--'}`
+})
+const codeCapturePreviewFacts = computed(() => {
+  const payload = codeCapturePreview.value?.payload || {}
+  return [
+    { label: '平台', value: String(payload.platform || 'qq').trim().toUpperCase() || 'QQ' },
+    { label: 'UIN', value: String(payload.uin || payload.qq || '').trim() || '--' },
+    { label: 'OpenID', value: maskSensitiveText(payload.openId) },
+    { label: 'Code', value: maskSensitiveText(payload.code) },
+    { label: 'Ticket', value: maskSensitiveText(payload.authTicket) },
+    { label: '来源', value: String(payload.source || 'captured_payload').trim() || 'captured_payload' },
+  ]
+})
 
 function getActionHistoryStatusMeta(status: ActionHistoryStatus) {
   if (status === 'success') {
@@ -1462,6 +1534,91 @@ async function initializePage() {
     accountStore.fetchAccounts(),
     loadUsers(),
   ])
+}
+
+watch([codeCaptureRaw, codeCaptureName, codeCaptureAccountId, codeCaptureOwnerUsername], () => {
+  codeCapturePreview.value = null
+  codeCaptureLastSavedId.value = ''
+})
+
+function clearCodeCaptureForm() {
+  codeCaptureRaw.value = ''
+  codeCaptureName.value = ''
+  codeCaptureAccountId.value = ''
+  codeCaptureOwnerUsername.value = ''
+  codeCaptureStartAfterSave.value = true
+  codeCapturePreview.value = null
+  codeCaptureLastSavedId.value = ''
+}
+
+async function previewCodeCapture() {
+  if (!isAdmin.value)
+    return
+  if (!codeCaptureRaw.value.trim()) {
+    toast.warning('请先粘贴抓包原文、JSON 或带 code 的链接')
+    return
+  }
+  codeCaptureLoading.value = true
+  try {
+    const { data } = await api.post('/api/accounts/code-capture/preview', {
+      rawPayload: codeCaptureRaw.value,
+      accountId: codeCaptureAccountId.value,
+      ownerUsername: codeCaptureOwnerUsername.value,
+      name: codeCaptureName.value,
+    })
+    if (!data?.ok)
+      throw new Error(String(data?.error || '补码预览失败'))
+    codeCapturePreview.value = data.data || null
+    toast.success(codeCapturePreview.value?.matchedAccount ? '已识别到目标账号，可继续提交' : '预览成功，将按当前信息创建新账号')
+  }
+  catch (error: any) {
+    console.error('补码预览失败', error)
+    toast.error(String(error?.response?.data?.error || error?.message || '补码预览失败'))
+  }
+  finally {
+    codeCaptureLoading.value = false
+  }
+}
+
+async function commitCodeCapture() {
+  if (!isAdmin.value)
+    return
+  if (!codeCapturePreview.value) {
+    await previewCodeCapture()
+    if (!codeCapturePreview.value)
+      return
+  }
+  codeCaptureCommitLoading.value = true
+  try {
+    const { data } = await api.post('/api/accounts/code-capture/commit', {
+      rawPayload: codeCaptureRaw.value,
+      accountId: codeCaptureAccountId.value,
+      ownerUsername: codeCaptureOwnerUsername.value,
+      name: codeCaptureName.value,
+      startAfterSave: codeCaptureStartAfterSave.value,
+      source: 'captured_payload',
+    })
+    if (!data?.ok)
+      throw new Error(String(data?.error || '补码提交失败'))
+    const savedAccountId = String(data?.data?.savedAccountId || '').trim()
+    codeCaptureLastSavedId.value = savedAccountId
+    codeCapturePreview.value = {
+      ...(data?.data?.preview || codeCapturePreview.value),
+      payload: data?.data?.payload || codeCapturePreview.value?.payload || {},
+    }
+    await initializePage()
+    if (savedAccountId) {
+      await accountStore.selectAccount(savedAccountId)
+    }
+    toast.success(savedAccountId ? `补码已写入账号 ${savedAccountId}` : '补码提交成功')
+  }
+  catch (error: any) {
+    console.error('补码提交失败', error)
+    toast.error(String(error?.response?.data?.error || error?.message || '补码提交失败'))
+  }
+  finally {
+    codeCaptureCommitLoading.value = false
+  }
 }
 
 const ownershipSummary = computed(() => {
@@ -2609,6 +2766,17 @@ useIntervalFn(() => {
             />
 
             <BaseToggleOptionGroup :items="ownershipTabOptions" />
+
+            <div class="flex flex-wrap gap-2">
+              <ContextHelpButton article="accounts-runtime" label="账号页帮助" variant="outline" />
+              <ContextHelpButton
+                v-if="isAdmin"
+                article="ownership-and-permissions"
+                audience="admin"
+                label="归属与权限"
+                variant="outline"
+              />
+            </div>
           </div>
         </template>
 
@@ -2703,6 +2871,127 @@ useIntervalFn(() => {
         </BaseBulkActions>
       </template>
     </BaseManagementBar>
+
+    <section v-if="isAdmin" class="glass-panel mb-4 rounded-[24px] p-4 sm:p-5">
+      <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div class="space-y-1">
+          <h2 class="text-base font-semibold">
+            抓包补码 / 重绑入口
+          </h2>
+          <p class="glass-text-muted text-sm leading-6">
+            支持先预览再提交，优先按账号 ID、OpenID、UIN 匹配现有账号；未命中时才会新建账号，并保留补码来源与操作人审计。
+          </p>
+        </div>
+        <div class="accounts-info-pill">
+          仅管理员可见
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 mt-4 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.95fr)]">
+        <BaseTextarea
+          v-model="codeCaptureRaw"
+          label="抓包原文 / JSON / 登录链接"
+          :rows="9"
+          placeholder="粘贴完整抓包内容、含 code 的链接，或包含 code/authTicket/openId/uin 的 JSON"
+        />
+
+        <div class="space-y-3">
+          <BaseInput
+            v-model="codeCaptureAccountId"
+            label="目标账号 ID（可选）"
+            placeholder="填写后优先重绑到该账号"
+          />
+          <BaseInput
+            v-model="codeCaptureName"
+            label="账号备注（可选）"
+            placeholder="预览未命中现有账号时，将作为新账号备注"
+          />
+          <BaseInput
+            v-model="codeCaptureOwnerUsername"
+            label="新建归属用户名（可选）"
+            placeholder="留空则沿用匹配账号归属，或默认当前管理员"
+          />
+
+          <div class="border border-[var(--ui-border-subtle)] rounded-2xl bg-[color:color-mix(in_srgb,var(--ui-bg-surface)_72%,transparent)] p-3">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <BaseSwitch
+                v-model="codeCaptureStartAfterSave"
+                label="写入后自动启动/重启"
+                size="sm"
+              />
+              <div class="glass-text-muted text-xs leading-5">
+                已运行账号会重启生效，未运行账号可自动启动
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <BaseButton
+              variant="secondary"
+              :loading="codeCaptureLoading"
+              @click="previewCodeCapture"
+            >
+              预览匹配结果
+            </BaseButton>
+            <BaseButton
+              variant="primary"
+              :loading="codeCaptureCommitLoading"
+              @click="commitCodeCapture"
+            >
+              提交补码
+            </BaseButton>
+            <BaseButton variant="ghost" @click="clearCodeCaptureForm">
+              清空内容
+            </BaseButton>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="codeCapturePreview"
+        class="mt-4 border border-[var(--ui-border-subtle)] rounded-[20px] bg-[color:color-mix(in_srgb,var(--ui-bg-surface-raised)_86%,transparent)] p-4"
+      >
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <BaseBadge class="accounts-badge-owner-mine">
+                {{ formatCodeCaptureAction(codeCapturePreview.action) }}
+              </BaseBadge>
+              <BaseBadge class="accounts-badge-runtime-starting">
+                匹配方式：{{ formatCodeCaptureMatchedBy(codeCapturePreview.matchedBy) }}
+              </BaseBadge>
+              <BaseBadge v-if="codeCaptureLastSavedId" class="accounts-badge-runtime-online">
+                已保存账号：{{ codeCaptureLastSavedId }}
+              </BaseBadge>
+            </div>
+            <div class="text-sm font-semibold leading-6">
+              {{ codeCaptureMatchedAccountLabel }}
+            </div>
+            <div class="glass-text-muted text-xs leading-5">
+              备注：{{ String(codeCapturePreview.payload?.name || codeCaptureName || '--').trim() || '--' }}
+            </div>
+          </div>
+          <div class="accounts-info-pill">
+            平台：{{ String(codeCapturePreview.payload?.platform || 'qq').trim().toUpperCase() || 'QQ' }}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 mt-4 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-for="fact in codeCapturePreviewFacts"
+            :key="fact.label"
+            class="border border-[var(--ui-border-subtle)] rounded-2xl px-3 py-2"
+          >
+            <div class="glass-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
+              {{ fact.label }}
+            </div>
+            <div class="mt-2 break-all text-sm font-semibold">
+              {{ fact.value }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <BaseHistorySectionLayout
       v-if="accounts.length > 0"

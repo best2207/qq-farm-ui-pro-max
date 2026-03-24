@@ -26,12 +26,28 @@ function mockModule(modulePath, exports) {
 
 function createRuntimePathsMock(rootDir) {
     const dataDir = path.join(rootDir, 'data');
+    const logDir = path.join(rootDir, 'logs');
     return {
         getDataFile(filename) {
             fs.mkdirSync(dataDir, { recursive: true });
             return path.join(dataDir, filename);
         },
+        ensureDataDir() {
+            fs.mkdirSync(dataDir, { recursive: true });
+            return dataDir;
+        },
+        ensureLogDir() {
+            fs.mkdirSync(logDir, { recursive: true });
+            return logDir;
+        },
     };
+}
+
+function mapInsertParamsByColumn(sql, params) {
+    const match = String(sql).match(/insert into accounts\s*\(([^)]+)\)\s*values/i);
+    assert.ok(match, 'expected INSERT INTO accounts column list');
+    const columns = match[1].split(',').map(column => column.trim());
+    return Object.fromEntries(columns.map((column, index) => [column, params[index]]));
 }
 
 test('store persists explicit empty authTicket for manual qq code updates', async () => {
@@ -102,9 +118,10 @@ test('store persists explicit empty authTicket for manual qq code updates', asyn
 
         const upsertEntry = recordedQueries.find(([sql]) => sql.includes('INSERT INTO accounts'));
         assert.ok(upsertEntry, 'expected INSERT INTO accounts upsert query');
-        assert.equal(upsertEntry[1][6], 'manual-fresh-code');
+        const persistedValues = mapInsertParamsByColumn(upsertEntry[0], upsertEntry[1]);
+        assert.equal(persistedValues.code, 'manual-fresh-code');
 
-        const authData = JSON.parse(upsertEntry[1][10]);
+        const authData = JSON.parse(persistedValues.auth_data);
         assert.equal(authData.code, 'manual-fresh-code');
         assert.equal(authData.authTicket, '');
     } finally {

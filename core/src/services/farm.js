@@ -19,6 +19,7 @@ const { recordOperation } = require('./stats');
 const { getDefaultLimiter } = require('./rate-limiter');
 const { cacheFriendSeeds, buildFriendSeedsFromLands, resolveFriendSeedAccountId } = require('./friend-cache-seeds');
 const { resolveVisitorIdentity } = require('./visitor-identity');
+const friendRiskService = require('./friend-risk-service');
 const farmPhaseLogger = createModuleLogger('farm-phase');
 const verbosePhaseDebugEnabled = String(process.env.FARM_VERBOSE_PHASE_DEBUG || '') === '1';
 const HIGH_RISK_QQ_GUARD_TTL_MS = 5 * 60 * 1000;
@@ -561,6 +562,21 @@ async function detectAndLogVisitorChanges(lands) {
                 log('访客', buildVisitorLogMessage('steal', landId, actor.name), {
                     module: 'farm', event: 'visitor', result: 'steal', gid: actor.gid || gid, landId, sourceKnown: !!actor.known, source: actor.source
                 });
+                const accountId = resolveVisitorCacheAccountId();
+                if (accountId) {
+                    await friendRiskService.recordPassiveStealEvent({
+                        accountId,
+                        landId,
+                        friendGid: actor.gid || gid,
+                        friendUin: actor.uin || '',
+                        friendOpenId: actor.openId || '',
+                        friendName: actor.name || '',
+                        observedAt: Date.now(),
+                        source: actor.source || 'farm_visitor',
+                    }).catch((error) => {
+                        logWarn('访客', `记录好友风险画像失败: ${error.message}`);
+                    });
+                }
             }
         }
 
@@ -673,6 +689,7 @@ async function fertilizeOrganicLoop(landIds) {
 
     let successCount = 0;
     let idx = 0;
+    const accountId = resolveVisitorCacheAccountId();
 
     while (successCount < MAX_ORGANIC_ROUNDS) {
         // [防封] 有机化肥也平滑，每次消耗 1 个令牌
@@ -686,6 +703,11 @@ async function fertilizeOrganicLoop(landIds) {
             })).finish();
             await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
             successCount++;
+            if (accountId) {
+                friendRiskService.rememberOrganicFertilizerWindow(accountId, landId, {
+                    timestamp: Date.now(),
+                });
+            }
         } catch {
             // 常见是有机肥耗尽，按需求直接停止
             break;

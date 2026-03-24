@@ -114,6 +114,20 @@ export interface TradeConfig {
   sell?: TradeSellConfig
 }
 
+export interface FriendRiskConfig {
+  enabled?: boolean
+  passiveDetectEnabled?: boolean
+  passiveWindowSec?: number
+  passiveDailyThreshold?: number
+  markScoreThreshold?: number
+  autoDeprioritize?: boolean
+  eventRetentionDays?: number
+}
+
+export interface ExperimentalFeaturesConfig {
+  focusStealEnabled?: boolean
+}
+
 export interface OfflineConfig {
   channel: string
   reloginUrlMode: string
@@ -451,6 +465,9 @@ export interface SettingsState {
   friendQuietHours: FriendQuietHoursConfig
   stakeoutSteal: StakeoutStealConfig
   qqHighRiskWindow: QqHighRiskWindowConfig
+  friendRiskConfig: FriendRiskConfig
+  specialCareFriendIds: number[]
+  experimentalFeatures: ExperimentalFeaturesConfig
   tradeConfig: TradeConfig
   automation: AutomationConfig
   reportConfig: ReportConfig
@@ -512,6 +529,19 @@ export const useSettingStore = defineStore('setting', () => {
     friendQuietHours: { enabled: false, start: '23:00', end: '07:00' },
     stakeoutSteal: { enabled: false, delaySec: 3 },
     qqHighRiskWindow: { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0 },
+    friendRiskConfig: {
+      enabled: true,
+      passiveDetectEnabled: true,
+      passiveWindowSec: 180,
+      passiveDailyThreshold: 3,
+      markScoreThreshold: 50,
+      autoDeprioritize: false,
+      eventRetentionDays: 30,
+    },
+    specialCareFriendIds: [],
+    experimentalFeatures: {
+      focusStealEnabled: false,
+    },
     tradeConfig: createDefaultTradeConfig(),
     automation: {},
     reportConfig: {
@@ -641,6 +671,19 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.friendQuietHours = d.friendQuietHours || { enabled: false, start: '23:00', end: '07:00' }
         settings.value.stakeoutSteal = d.stakeoutSteal || { enabled: false, delaySec: 3 }
         settings.value.qqHighRiskWindow = d.qqHighRiskWindow || { durationMinutes: 30, expiresAt: 0, lastIssuedAt: 0, lastAutoDisabledAt: 0 }
+        settings.value.friendRiskConfig = d.friendRiskConfig || {
+          enabled: true,
+          passiveDetectEnabled: true,
+          passiveWindowSec: 180,
+          passiveDailyThreshold: 3,
+          markScoreThreshold: 50,
+          autoDeprioritize: false,
+          eventRetentionDays: 30,
+        }
+        settings.value.specialCareFriendIds = Array.isArray(d.specialCareFriendIds)
+          ? d.specialCareFriendIds.map((item: any) => Math.max(0, Number.parseInt(String(item), 10) || 0)).filter((item: number) => item > 0)
+          : []
+        settings.value.experimentalFeatures = d.experimentalFeatures || { focusStealEnabled: false }
         settings.value.tradeConfig = normalizeTradeConfig(d.tradeConfig)
         settings.value.automation = d.automation || {}
         settings.value.reportConfig = d.reportConfig || {
@@ -707,6 +750,11 @@ export const useSettingStore = defineStore('setting', () => {
         qqHighRiskWindow: {
           durationMinutes: Math.max(5, Math.min(180, Number.parseInt(String(newSettings.qqHighRiskWindow?.durationMinutes ?? 30), 10) || 30)),
         },
+        friendRiskConfig: newSettings.friendRiskConfig,
+        specialCareFriendIds: Array.isArray(newSettings.specialCareFriendIds)
+          ? newSettings.specialCareFriendIds.map((item: any) => Math.max(0, Number.parseInt(String(item), 10) || 0)).filter((item: number) => item > 0)
+          : [],
+        experimentalFeatures: newSettings.experimentalFeatures,
         tradeConfig: normalizeTradeConfig(newSettings.tradeConfig),
         automation: newSettings.automation,
       }

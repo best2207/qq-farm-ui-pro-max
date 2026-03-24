@@ -148,6 +148,7 @@ function registerAdminFeatureRoutes({
         getProvider,
         getSchedulerRegistrySnapshot,
         adminOperationLogService,
+        jwtService,
         handleApiError: routeRuntime.handleApiError,
     });
 
@@ -294,6 +295,7 @@ function registerAdminFeatureRoutes({
         getProvider,
         store,
         consoleRef,
+        adminOperationLogService,
     });
 
     registerUserCardRoutes({

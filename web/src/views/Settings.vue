@@ -4,9 +4,11 @@
 import type { LoginBackgroundPreset } from '@/constants/ui-appearance'
 import type { BugReportConfig, ReportLogEntry, SystemUpdateBatchSummary, SystemUpdateClusterNode, SystemUpdateConfig, SystemUpdateDrainCutoverBlocker, SystemUpdateDrainCutoverReadiness, SystemUpdateJob, SystemUpdateOverview, SystemUpdateRuntimeAgent } from '@/stores/setting'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/api' // Apply config from server if possible
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ContextHelpButton from '@/components/help/ContextHelpButton.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -15,6 +17,7 @@ import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import BaseTooltip from '@/components/ui/BaseTooltip.vue'
 import { useViewPreferenceSync } from '@/composables/use-view-preference-sync'
 import { getThemeAppearanceConfig, getThemeBackgroundPreset, getThemeOption, getThemeWorkspaceVisualPreset, getWorkspaceAppearanceConfig, getWorkspaceVisualPreset, LOGIN_BACKGROUND_PRESETS, THEME_OPTIONS, UI_BACKGROUND_SCOPE_OPTIONS, UI_WORKSPACE_VISUAL_PRESETS } from '@/constants/ui-appearance'
+import { createHelpAnchorId } from '@/data/help-articles'
 import { useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
 import { useFarmStore } from '@/stores/farm'
@@ -28,6 +31,9 @@ const REPORT_HISTORY_VIEW_STORAGE_KEY = 'qq-farm-bot:report-history-view:v1'
 const REPORT_HISTORY_BROWSER_PREF_NOTE = '这里的筛选类型、筛选结果、关键字和排序方式会跟随当前登录用户同步到服务器；列表固定每页 3 条，超过后自动翻页。汇报记录本身仍来自数据库。'
 const QQ_HIGH_RISK_CONFIRM_PHRASE = '我已知晓风险'
 const QQ_HIGH_RISK_AUTO_DISABLE_SEEN_KEY_PREFIX = 'qq-farm-bot:qq-high-risk-auto-disable-seen:'
+const SETTINGS_CATEGORY_QUERY_KEY = 'category'
+const ADVANCED_SECTION_QUERY_KEY = 'advancedSection'
+const UPDATE_TAB_QUERY_KEY = 'updateTab'
 
 interface WebAssetsHealthSnapshot {
   activeDir: string
@@ -50,6 +56,20 @@ interface SystemSettingsHealthSnapshot {
   missingRequiredKeys: string[]
   fallbackWouldActivateKeys: string[]
   webAssets?: WebAssetsHealthSnapshot | null
+}
+
+interface SessionStatusSnapshot {
+  authenticated: boolean
+  username: string
+  role: string
+  accessIssuedAt: number
+  accessExpiresAt: number
+  accessRemainingSec: number
+  refreshIssuedAt: number
+  refreshExpiresAt: number
+  refreshRemainingSec: number
+  needsRefreshSoon: boolean
+  checkedAt: number
 }
 
 interface QqFriendDiagnosticsCachePreviewItem {
@@ -157,6 +177,8 @@ const accountStore = useAccountStore()
 const farmStore = useFarmStore()
 const friendStore = useFriendStore()
 const toast = useToastStore()
+const route = useRoute()
+const router = useRouter()
 const reportHistoryViewPrefs = loadReportHistoryViewPreferences()
 
 const { settings, loading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs } = storeToRefs(settingStore)
@@ -468,9 +490,117 @@ const systemUpdateDetailTabFallback = systemUpdateDetailTabs[0]!
 const activeSettingsPrimaryCategory = ref<SettingsPrimaryCategoryKey>('common')
 const activeAdvancedDetailSection = ref<AdvancedDetailSectionKey>('health')
 const activeSystemUpdateDetailTab = ref<SystemUpdateDetailTabKey>('overview')
+const noticeDetailExpanded = ref(false)
+const securityDetailExpanded = ref(false)
+const advancedDetailExpanded = ref(false)
 
 const activeSettingsPrimaryCategoryMeta = computed(() => {
   return settingsPrimaryCategoryTabs.find(item => item.key === activeSettingsPrimaryCategory.value) || settingsPrimaryCategoryFallback
+})
+
+function normalizeSettingsCategoryQuery(value: unknown): SettingsPrimaryCategoryKey {
+  const raw = String(Array.isArray(value) ? value[0] : value || '').trim()
+  return settingsPrimaryCategoryTabs.some(item => item.key === raw)
+    ? raw as SettingsPrimaryCategoryKey
+    : 'common'
+}
+
+function normalizeAdvancedSectionQuery(value: unknown): AdvancedDetailSectionKey {
+  const raw = String(Array.isArray(value) ? value[0] : value || '').trim()
+  return advancedDetailSectionTabs.some(item => item.key === raw)
+    ? raw as AdvancedDetailSectionKey
+    : 'health'
+}
+
+function normalizeSystemUpdateTabQuery(value: unknown): SystemUpdateDetailTabKey {
+  const raw = String(Array.isArray(value) ? value[0] : value || '').trim()
+  return systemUpdateDetailTabs.some(item => item.key === raw)
+    ? raw as SystemUpdateDetailTabKey
+    : 'overview'
+}
+
+function resolveSettingsAnchorId(
+  category = activeSettingsPrimaryCategory.value,
+  advancedSection = activeAdvancedDetailSection.value,
+  updateTab = activeSystemUpdateDetailTab.value,
+  advancedExpanded?: boolean,
+) {
+  const expanded = advancedExpanded ?? advancedDetailExpanded.value
+  if (category === 'advanced' && !expanded)
+    return 'settings-category-advanced'
+  if (category !== 'advanced')
+    return `settings-category-${category}`
+  if (advancedSection === 'update')
+    return `settings-update-${updateTab}`
+  return `settings-advanced-${advancedSection}`
+}
+
+async function scrollToSettingsAnchor(anchorId: string, behavior: ScrollBehavior = 'smooth') {
+  if (!anchorId)
+    return false
+
+  await nextTick()
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const target = document.getElementById(anchorId)
+    if (target) {
+      target.scrollIntoView({ behavior, block: 'start' })
+      return true
+    }
+    await new Promise(resolve => window.requestAnimationFrame(() => resolve(undefined)))
+  }
+
+  return false
+}
+
+const settingsHelpArticleId = computed(() => {
+  if (activeSettingsPrimaryCategory.value === 'advanced' && activeAdvancedDetailSection.value === 'update')
+    return 'system-update-center'
+  if (activeSettingsPrimaryCategory.value === 'plant' || activeSettingsPrimaryCategory.value === 'auto')
+    return 'planting-and-automation'
+  if (activeSettingsPrimaryCategory.value === 'notice')
+    return 'notifications-and-reports'
+  if (activeSettingsPrimaryCategory.value === 'security')
+    return 'account-modes-and-risk'
+  if (activeSettingsPrimaryCategory.value === 'advanced')
+    return 'advanced-settings'
+  return 'settings-overview'
+})
+
+const settingsHelpAudience = computed(() => {
+  return activeSettingsPrimaryCategory.value === 'advanced' ? 'admin' : 'recommended'
+})
+
+const settingsHelpSectionId = computed(() => {
+  if (activeSettingsPrimaryCategory.value === 'common')
+    return createHelpAnchorId('常用设置')
+  if (activeSettingsPrimaryCategory.value === 'plant')
+    return createHelpAnchorId('种植策略')
+  if (activeSettingsPrimaryCategory.value === 'auto')
+    return createHelpAnchorId('自动任务')
+  if (activeSettingsPrimaryCategory.value === 'notice')
+    return createHelpAnchorId('下线提醒')
+  if (activeSettingsPrimaryCategory.value === 'security')
+    return createHelpAnchorId('QQ 高风险临时窗口')
+
+  if (activeAdvancedDetailSection.value === 'health')
+    return createHelpAnchorId('系统体检')
+  if (activeAdvancedDetailSection.value === 'timing')
+    return createHelpAnchorId('时间参数')
+  if (activeAdvancedDetailSection.value === 'update') {
+    if (activeSystemUpdateDetailTab.value === 'jobs')
+      return createHelpAnchorId('任务执行')
+    if (activeSystemUpdateDetailTab.value === 'nodes')
+      return createHelpAnchorId('节点状态')
+    return createHelpAnchorId('总览配置')
+  }
+  if (activeAdvancedDetailSection.value === 'cluster')
+    return createHelpAnchorId('集群流控')
+  if (activeAdvancedDetailSection.value === 'theme')
+    return createHelpAnchorId('主题外观')
+  if (activeAdvancedDetailSection.value === 'trial')
+    return createHelpAnchorId('体验卡配置')
+  return createHelpAnchorId('第三方 API')
 })
 const activeAdvancedDetailSectionMeta = computed(() => {
   return advancedDetailSectionTabs.find(item => item.key === activeAdvancedDetailSection.value) || advancedDetailSectionFallback
@@ -548,9 +678,6 @@ const strategyPanelFullWidth = computed(() => isSettingsCategoryVisible(['plant'
 const accountPanelFullWidth = computed(() => isSettingsCategoryVisible(['notice']))
 const showNoticeQuickPanel = computed(() => isSettingsCategoryVisible(['common', 'notice']))
 const noticeHasDetailPanels = computed(() => isAdmin.value || !!currentAccountId.value)
-const noticeDetailExpanded = ref(false)
-const securityDetailExpanded = ref(false)
-const advancedDetailExpanded = ref(false)
 const securityCrossPanelsVisible = computed(() => !isSecuritySettingsCategory.value || securityDetailExpanded.value)
 const advancedPanelsVisible = computed(() => !isAdvancedSettingsCategory.value || advancedDetailExpanded.value)
 
@@ -572,13 +699,105 @@ function isSystemUpdateDetailTabVisible(tabs: SystemUpdateDetailTabKey[]) {
   return tabs.includes(activeSystemUpdateDetailTab.value)
 }
 
+let applyingSettingsRouteState = false
+
+function syncSettingsRouteState() {
+  const nextAdvancedSection = activeSettingsPrimaryCategory.value === 'advanced' && advancedDetailExpanded.value
+    ? activeAdvancedDetailSection.value
+    : ''
+  const nextUpdateTab = activeSettingsPrimaryCategory.value === 'advanced' && advancedDetailExpanded.value && activeAdvancedDetailSection.value === 'update'
+    ? activeSystemUpdateDetailTab.value
+    : ''
+  const nextQuery = {
+    ...route.query,
+    [SETTINGS_CATEGORY_QUERY_KEY]: activeSettingsPrimaryCategory.value,
+    [ADVANCED_SECTION_QUERY_KEY]: nextAdvancedSection || undefined,
+    [UPDATE_TAB_QUERY_KEY]: nextUpdateTab || undefined,
+  }
+  const nextHash = `#${resolveSettingsAnchorId()}`
+  const currentCategory = normalizeSettingsCategoryQuery(route.query[SETTINGS_CATEGORY_QUERY_KEY])
+  const currentAdvancedSection = String(Array.isArray(route.query[ADVANCED_SECTION_QUERY_KEY])
+    ? route.query[ADVANCED_SECTION_QUERY_KEY][0]
+    : route.query[ADVANCED_SECTION_QUERY_KEY] || '').trim()
+  const currentUpdateTab = String(Array.isArray(route.query[UPDATE_TAB_QUERY_KEY])
+    ? route.query[UPDATE_TAB_QUERY_KEY][0]
+    : route.query[UPDATE_TAB_QUERY_KEY] || '').trim()
+
+  if (
+    currentCategory === activeSettingsPrimaryCategory.value
+    && currentAdvancedSection === nextAdvancedSection
+    && currentUpdateTab === nextUpdateTab
+    && route.hash === nextHash
+  ) {
+    return
+  }
+
+  void router.replace({
+    query: nextQuery,
+    hash: nextHash,
+  })
+}
+
+async function applySettingsRouteState() {
+  const nextCategory = normalizeSettingsCategoryQuery(route.query[SETTINGS_CATEGORY_QUERY_KEY])
+  const nextAdvancedSection = normalizeAdvancedSectionQuery(route.query[ADVANCED_SECTION_QUERY_KEY])
+  const nextUpdateTab = normalizeSystemUpdateTabQuery(route.query[UPDATE_TAB_QUERY_KEY])
+  const anchorId = String(route.hash || '').replace(/^#/, '').trim()
+
+  applyingSettingsRouteState = true
+  activeSettingsPrimaryCategory.value = nextCategory
+  if (nextCategory === 'advanced') {
+    activeAdvancedDetailSection.value = nextAdvancedSection
+    activeSystemUpdateDetailTab.value = nextAdvancedSection === 'update' ? nextUpdateTab : 'overview'
+    if (route.query[ADVANCED_SECTION_QUERY_KEY] || anchorId.startsWith('settings-advanced-') || anchorId.startsWith('settings-update-'))
+      advancedDetailExpanded.value = true
+  }
+  else {
+    activeAdvancedDetailSection.value = 'health'
+    activeSystemUpdateDetailTab.value = 'overview'
+  }
+  await nextTick()
+  applyingSettingsRouteState = false
+
+  void scrollToSettingsAnchor(anchorId || resolveSettingsAnchorId(nextCategory, nextAdvancedSection, nextUpdateTab), 'auto')
+}
+
 watch(activeSettingsPrimaryCategory, () => {
+  if (applyingSettingsRouteState)
+    return
   noticeDetailExpanded.value = false
   securityDetailExpanded.value = false
   advancedDetailExpanded.value = false
   activeAdvancedDetailSection.value = 'health'
   activeSystemUpdateDetailTab.value = 'overview'
 })
+
+watch(
+  () => [
+    route.query[SETTINGS_CATEGORY_QUERY_KEY],
+    route.query[ADVANCED_SECTION_QUERY_KEY],
+    route.query[UPDATE_TAB_QUERY_KEY],
+    route.hash,
+  ],
+  () => {
+    void applySettingsRouteState()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [
+    activeSettingsPrimaryCategory.value,
+    activeAdvancedDetailSection.value,
+    activeSystemUpdateDetailTab.value,
+    advancedDetailExpanded.value,
+  ],
+  () => {
+    if (applyingSettingsRouteState)
+      return
+    syncSettingsRouteState()
+  },
+)
 
 const trialConfig = ref({
   enabled: true,
@@ -2389,6 +2608,10 @@ const passwordForm = ref({
   new: '',
   confirm: '',
 })
+const sessionStatus = ref<SessionStatusSnapshot | null>(null)
+const sessionStatusLoading = ref(false)
+const sessionStatusNow = ref(Date.now())
+let sessionStatusTimer: ReturnType<typeof setInterval> | null = null
 
 function syncLocalSettings() {
   if (settings.value) {
@@ -2403,6 +2626,137 @@ function syncLocalSettings() {
       localOffline.value.webhookCustomJsonEnabled = !!localOffline.value.webhookCustomJsonEnabled
       localOffline.value.webhookCustomJsonTemplate = String(localOffline.value.webhookCustomJsonTemplate || '')
     }
+  }
+}
+
+function normalizeSessionStatus(input: any): SessionStatusSnapshot | null {
+  const next = (input && typeof input === 'object') ? input : null
+  if (!next)
+    return null
+  return {
+    authenticated: !!next.authenticated,
+    username: String(next.username || '').trim(),
+    role: String(next.role || '').trim(),
+    accessIssuedAt: Math.max(0, Number(next.accessIssuedAt || 0)),
+    accessExpiresAt: Math.max(0, Number(next.accessExpiresAt || 0)),
+    accessRemainingSec: Math.max(0, Number(next.accessRemainingSec || 0)),
+    refreshIssuedAt: Math.max(0, Number(next.refreshIssuedAt || 0)),
+    refreshExpiresAt: Math.max(0, Number(next.refreshExpiresAt || 0)),
+    refreshRemainingSec: Math.max(0, Number(next.refreshRemainingSec || 0)),
+    needsRefreshSoon: !!next.needsRefreshSoon,
+    checkedAt: Math.max(0, Number(next.checkedAt || Date.now())),
+  }
+}
+
+function formatSessionDuration(seconds: number) {
+  if (seconds <= 0)
+    return '已过期'
+  const day = Math.floor(seconds / 86400)
+  const hour = Math.floor((seconds % 86400) / 3600)
+  const minute = Math.floor((seconds % 3600) / 60)
+  if (day > 0)
+    return `${day}天${hour}小时`
+  if (hour > 0)
+    return `${hour}小时${minute}分钟`
+  if (minute > 0)
+    return `${minute}分钟`
+  return `${seconds}秒`
+}
+
+function getLiveSessionRemainingSec(expiresAt: number, fallbackSec: number) {
+  const target = Math.max(0, Number(expiresAt || 0))
+  if (target > 0)
+    return Math.max(0, Math.ceil((target - sessionStatusNow.value) / 1000))
+  return Math.max(0, Number(fallbackSec || 0))
+}
+
+const sessionAccessRemainingSec = computed(() =>
+  getLiveSessionRemainingSec(sessionStatus.value?.accessExpiresAt || 0, sessionStatus.value?.accessRemainingSec || 0),
+)
+
+const sessionRefreshRemainingSec = computed(() =>
+  getLiveSessionRemainingSec(sessionStatus.value?.refreshExpiresAt || 0, sessionStatus.value?.refreshRemainingSec || 0),
+)
+
+const sessionStatusCards = computed(() => {
+  const status = sessionStatus.value
+  const baseCards = [
+    {
+      key: 'access',
+      label: '访问令牌',
+      value: sessionStatusLoading.value ? '同步中' : formatSessionDuration(sessionAccessRemainingSec.value),
+      hint: status?.accessExpiresAt
+        ? `到期时间 ${new Date(status.accessExpiresAt).toLocaleString()}`
+        : '当前未拿到访问令牌到期时间',
+      tone: status?.needsRefreshSoon ? 'settings-report-card-tone-warning' : 'settings-report-card-tone-main',
+      bg: status?.needsRefreshSoon ? 'settings-report-card-bg-warning' : 'settings-report-card-tone-surface',
+    },
+    {
+      key: 'refresh',
+      label: '刷新令牌',
+      value: sessionStatusLoading.value ? '同步中' : formatSessionDuration(sessionRefreshRemainingSec.value),
+      hint: status?.refreshExpiresAt
+        ? `到期时间 ${new Date(status.refreshExpiresAt).toLocaleString()}`
+        : '当前未拿到刷新令牌到期时间',
+      tone: 'settings-report-card-tone-info',
+      bg: 'settings-report-card-bg-info',
+    },
+    {
+      key: 'state',
+      label: '登录状态',
+      value: status?.authenticated ? (status.needsRefreshSoon ? '即将续期' : '在线') : (sessionStatusLoading.value ? '同步中' : '未知'),
+      hint: status?.checkedAt
+        ? `最近检查 ${new Date(status.checkedAt).toLocaleTimeString()}`
+        : '页面会自动同步会话状态',
+      tone: status?.authenticated ? (status.needsRefreshSoon ? 'settings-report-card-tone-warning' : 'settings-report-card-tone-success') : 'settings-report-card-tone-muted',
+      bg: status?.authenticated ? (status.needsRefreshSoon ? 'settings-report-card-bg-warning' : 'settings-report-card-bg-success') : 'settings-report-card-tone-surface',
+    },
+  ]
+  return baseCards
+})
+
+async function loadSessionStatus() {
+  if (!currentUsername.value) {
+    sessionStatus.value = null
+    return
+  }
+  sessionStatusLoading.value = true
+  try {
+    const res = await api.get('/api/auth/session-status')
+    if (res.data?.ok)
+      sessionStatus.value = normalizeSessionStatus(res.data.data)
+  }
+  catch (error) {
+    console.warn('获取会话状态失败', error)
+  }
+  finally {
+    sessionStatusLoading.value = false
+    sessionStatusNow.value = Date.now()
+  }
+}
+
+function handleSessionStatusRefresh(event: Event) {
+  const detail = (event as CustomEvent).detail
+  const normalized = normalizeSessionStatus(detail)
+  if (normalized)
+    sessionStatus.value = normalized
+  else
+    void loadSessionStatus()
+  sessionStatusNow.value = Date.now()
+}
+
+function startSessionStatusTicker() {
+  if (sessionStatusTimer !== null || typeof window === 'undefined')
+    return
+  sessionStatusTimer = window.setInterval(() => {
+    sessionStatusNow.value = Date.now()
+  }, 15000)
+}
+
+function stopSessionStatusTicker() {
+  if (sessionStatusTimer !== null) {
+    window.clearInterval(sessionStatusTimer)
+    sessionStatusTimer = null
   }
 }
 
@@ -2556,6 +2910,7 @@ async function handleSafeCheck() {
 }
 
 async function loadData() {
+  await loadSessionStatus()
   if (currentAccountId.value) {
     await settingStore.fetchSettings(currentAccountId.value)
     await refreshReportLogs()
@@ -2608,6 +2963,9 @@ onMounted(async () => {
   await loadData()
   enableReportHistoryViewSync()
   startSystemUpdateAutoRefresh()
+  startSessionStatusTicker()
+  if (typeof window !== 'undefined')
+    window.addEventListener('auth-session-refreshed', handleSessionStatusRefresh as EventListener)
   if (typeof document !== 'undefined')
     document.addEventListener('visibilitychange', syncQqHighRiskCountdown)
   syncQqHighRiskCountdown()
@@ -2616,6 +2974,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopSystemUpdateAutoRefresh()
   stopQqHighRiskCountdown()
+  stopSessionStatusTicker()
+  if (typeof window !== 'undefined')
+    window.removeEventListener('auth-session-refreshed', handleSessionStatusRefresh as EventListener)
   if (typeof document !== 'undefined')
     document.removeEventListener('visibilitychange', syncQqHighRiskCountdown)
 })
@@ -4199,6 +4560,16 @@ async function restoreTimingDefaults() {
         <div class="settings-primary-category-desc">
           {{ activeSettingsPrimaryCategoryMeta.description }}
         </div>
+        <div :id="`settings-category-${activeSettingsPrimaryCategory}`" class="settings-route-anchor" />
+        <div class="mt-2 flex flex-wrap justify-end gap-2">
+          <ContextHelpButton
+            :article="settingsHelpArticleId"
+            :audience="settingsHelpAudience"
+            :section="settingsHelpSectionId"
+            label="当前分类帮助"
+            variant="outline"
+          />
+        </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 text-sm lg:grid-cols-2">
@@ -5448,6 +5819,24 @@ async function restoreTimingDefaults() {
               aria-hidden="true"
             >
             <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div
+                v-for="card in sessionStatusCards"
+                :key="card.key"
+                class="settings-report-stat-card rounded-xl px-3 py-3"
+                :class="[card.tone, card.bg]"
+              >
+                <div class="text-[11px] font-medium tracking-[0.18em] uppercase opacity-80">
+                  {{ card.label }}
+                </div>
+                <div class="mt-2 text-lg font-semibold leading-none">
+                  {{ card.value }}
+                </div>
+                <div class="mt-2 text-xs opacity-80">
+                  {{ card.hint }}
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
               <BaseInput
                 v-model="passwordForm.old"
                 label="当前密码"
@@ -6598,6 +6987,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['health'])"
+          id="settings-advanced-health"
           class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-section-divider flex items-center justify-between bg-transparent px-4 py-3">
@@ -6893,6 +7283,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['timing'])"
+          id="settings-advanced-timing"
           class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-card-divider flex items-center justify-between px-4 py-3">
@@ -7045,6 +7436,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['update'])"
+          id="settings-advanced-update"
           class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-card-divider px-4 py-3">
@@ -7074,7 +7466,7 @@ async function restoreTimingDefaults() {
               </p>
             </div>
 
-            <div v-show="isSystemUpdateDetailTabVisible(['overview'])" class="grid grid-cols-1 gap-3 xl:grid-cols-[0.95fr_1.05fr]">
+            <div v-show="isSystemUpdateDetailTabVisible(['overview'])" id="settings-update-overview" class="grid grid-cols-1 gap-3 xl:grid-cols-[0.95fr_1.05fr]">
               <div class="space-y-3">
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div class="border border-white/10 rounded-lg bg-black/10 p-3">
@@ -7256,7 +7648,7 @@ async function restoreTimingDefaults() {
               </div>
             </div>
 
-            <div v-show="isSystemUpdateDetailTabVisible(['jobs'])" class="space-y-4">
+            <div v-show="isSystemUpdateDetailTabVisible(['jobs'])" id="settings-update-jobs" class="space-y-4">
               <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2" :class="activeSystemUpdateBatch ? '' : 'xl:col-span-2'">
                   <div class="flex items-center justify-between gap-3">
@@ -7394,7 +7786,7 @@ async function restoreTimingDefaults() {
               </div>
             </div>
 
-            <div v-show="isSystemUpdateDetailTabVisible(['nodes'])" class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <div v-show="isSystemUpdateDetailTabVisible(['nodes'])" id="settings-update-nodes" class="grid grid-cols-1 gap-3 xl:grid-cols-2">
               <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-2">
                 <div class="glass-text-main text-sm font-bold">
                   更新代理状态
@@ -7535,6 +7927,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['cluster'])"
+          id="settings-advanced-cluster"
           class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-card-divider px-4 py-3">
@@ -7637,6 +8030,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced', 'security']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['trial'])"
+          id="settings-advanced-trial"
           class="card glass-panel relative z-10 h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-card-divider px-4 py-3">
@@ -7756,6 +8150,7 @@ async function restoreTimingDefaults() {
         <div
           v-if="isAdmin"
           v-show="isSettingsCategoryVisible(['advanced', 'security']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['api'])"
+          id="settings-advanced-api"
           class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
         >
           <div class="settings-card-divider px-4 py-3">
@@ -7878,6 +8273,7 @@ async function restoreTimingDefaults() {
       <div
         v-if="!loading && isAdmin"
         v-show="isSettingsCategoryVisible(['common', 'advanced']) && advancedPanelsVisible && isAdvancedDetailSectionVisible(['theme'])"
+        id="settings-advanced-theme"
         class="card glass-panel h-full flex flex-col rounded-lg shadow lg:col-span-2"
       >
         <div class="settings-card-divider px-4 py-3">
@@ -10123,6 +10519,10 @@ async function restoreTimingDefaults() {
   color: var(--ui-status-warning);
 }
 
+.settings-report-card-tone-muted {
+  color: var(--ui-text-2);
+}
+
 .settings-report-card-tone-accent {
   color: color-mix(in srgb, #7c3aed 82%, var(--ui-text-1));
 }
@@ -10227,5 +10627,12 @@ async function restoreTimingDefaults() {
 
 .settings-report-detail-chip {
   white-space: nowrap;
+}
+
+.settings-route-anchor {
+  position: relative;
+  top: -5.5rem;
+  height: 0;
+  pointer-events: none;
 }
 </style>

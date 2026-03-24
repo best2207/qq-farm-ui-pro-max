@@ -2,19 +2,23 @@
 import type { CropAtlasEntry } from '@/utils/crop-atlas'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
+import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { useAccountStore } from '@/stores/account'
 import { useFriendStore } from '@/stores/friend'
 import { useSettingStore } from '@/stores/setting'
+import { useToastStore } from '@/stores/toast'
 import { loadCropAtlasEntries, normalizeCropSelectionIds } from '@/utils/crop-atlas'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 
 const accountStore = useAccountStore()
 const friendStore = useFriendStore()
 const settingStore = useSettingStore()
+const toast = useToastStore()
 
 const { currentAccountId, accounts } = storeToRefs(accountStore)
 const { friends: liveFriends, cachedFriends, loading: friendsLoading } = storeToRefs(friendStore)
@@ -23,6 +27,46 @@ const { settings, loading: settingsLoading } = storeToRefs(settingStore)
 const avatarErrorKeys = ref<Set<string>>(new Set())
 const plantImageErrorKeys = ref<Set<number>>(new Set())
 const plantImageFallbackIndex = ref<Record<number, number>>({})
+
+interface FriendRiskProfile {
+  friendGid: number
+  friendUin?: string
+  friendOpenId?: string
+  friendName: string
+  riskScore: number
+  riskLevel: 'low' | 'medium' | 'high' | string
+  strategyState?: string
+  tags?: string[]
+  lastHitReason?: string
+  lastHitAt?: number
+}
+
+interface FriendRiskSummary {
+  total: number
+  low: number
+  medium: number
+  high: number
+  topProfiles: FriendRiskProfile[]
+}
+
+interface FriendStealStat {
+  friendGid: number
+  friendName: string
+  friendUin?: string
+  friendOpenId?: string
+  stealCount: number
+  landCount: number
+  lastMode?: string
+  lastPlantNames?: string[]
+  lastStealAt?: number
+}
+
+interface FriendStealOverview {
+  totalFriends: number
+  totalStealCount: number
+  totalLandCount: number
+  topFriends: FriendStealStat[]
+}
 
 function getSafeImageUrl(url: string) {
   const normalized = String(url || '').trim()
@@ -149,9 +193,39 @@ const localSettings = ref({
     stealFriendFilterIds: [] as number[],
     skipStealRadishEnabled: false,
   } as Record<string, any>,
+  friendRiskConfig: {
+    enabled: true,
+    passiveDetectEnabled: true,
+    passiveWindowSec: 180,
+    passiveDailyThreshold: 3,
+    markScoreThreshold: 50,
+    autoDeprioritize: false,
+    eventRetentionDays: 30,
+  },
+  specialCareFriendIds: [] as number[],
+  experimentalFeatures: {
+    focusStealEnabled: false,
+  },
 })
 
 const cropEntries = ref<CropAtlasEntry[]>([])
+const riskInsightsLoading = ref(false)
+const riskInsightsUpdatedAt = ref(0)
+const friendRiskProfiles = ref<FriendRiskProfile[]>([])
+const friendRiskSummary = ref<FriendRiskSummary>({
+  total: 0,
+  low: 0,
+  medium: 0,
+  high: 0,
+  topProfiles: [],
+})
+const friendStealOverview = ref<FriendStealOverview>({
+  totalFriends: 0,
+  totalStealCount: 0,
+  totalLandCount: 0,
+  topFriends: [],
+})
+const friendStealStats = ref<FriendStealStat[]>([])
 
 // === UI State ===
 const activeTab = ref<'friends' | 'plants'>('friends')
@@ -164,6 +238,63 @@ const showFriendsLoading = computed(() => friendsLoading.value && resolvedFriend
 const footerSelectionSummary = computed(() => activeTab.value === 'friends'
   ? `当前名单 ${localSettings.value.automation.stealFriendFilterIds.length}/${resolvedFriends.value.length || 0}`
   : `当前作物 ${localSettings.value.automation.stealFilterPlantIds.length}/${cropEntries.value.length || 0}`)
+const specialCareSet = computed(() => new Set(localSettings.value.specialCareFriendIds.map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0)))
+const friendRiskProfileMap = computed(() => {
+  const map = new Map<number, FriendRiskProfile>()
+  for (const profile of friendRiskProfiles.value) {
+    const gid = Number(profile.friendGid || 0)
+    if (gid > 0)
+      map.set(gid, profile)
+  }
+  return map
+})
+const strategySummaryCards = computed(() => [
+  {
+    key: 'risk-total',
+    label: '风险好友',
+    value: `${friendRiskSummary.value.total} 人`,
+    hint: `高风险 ${friendRiskSummary.value.high} / 中风险 ${friendRiskSummary.value.medium}`,
+  },
+  {
+    key: 'special-care',
+    label: '特别关照名单',
+    value: `${localSettings.value.specialCareFriendIds.length} 人`,
+    hint: localSettings.value.experimentalFeatures.focusStealEnabled ? '重点偷取实验模式已启用' : '当前仅做名单管理',
+  },
+  {
+    key: 'steal-friends',
+    label: '命中过的好友',
+    value: `${friendStealOverview.value.totalFriends} 人`,
+    hint: `累计偷取 ${friendStealOverview.value.totalStealCount} 次 / 地块 ${friendStealOverview.value.totalLandCount}`,
+  },
+  {
+    key: 'passive-window',
+    label: '被动识别窗口',
+    value: `${localSettings.value.friendRiskConfig.passiveWindowSec}s`,
+    hint: `日阈值 ${localSettings.value.friendRiskConfig.passiveDailyThreshold} 次，标记阈值 ${localSettings.value.friendRiskConfig.markScoreThreshold} 分`,
+  },
+])
+
+function normalizeNumberList(value: unknown) {
+  if (!Array.isArray(value))
+    return []
+  return value
+    .map(item => Math.max(0, Number.parseInt(String(item), 10) || 0))
+    .filter(item => item > 0)
+}
+
+function sanitizeFriendRiskConfig(input: any) {
+  const source = input && typeof input === 'object' ? input : {}
+  return {
+    enabled: source.enabled !== false,
+    passiveDetectEnabled: source.passiveDetectEnabled !== false,
+    passiveWindowSec: Math.max(30, Number.parseInt(String(source.passiveWindowSec ?? 180), 10) || 180),
+    passiveDailyThreshold: Math.max(1, Number.parseInt(String(source.passiveDailyThreshold ?? 3), 10) || 3),
+    markScoreThreshold: Math.max(10, Number.parseInt(String(source.markScoreThreshold ?? 50), 10) || 50),
+    autoDeprioritize: !!source.autoDeprioritize,
+    eventRetentionDays: Math.max(1, Number.parseInt(String(source.eventRetentionDays ?? 30), 10) || 30),
+  }
+}
 
 function syncLocalSettings() {
   if (settings.value && settings.value.automation) {
@@ -178,6 +309,125 @@ function syncLocalSettings() {
       stealFriendFilterIds: (s.stealFriendFilterIds || []).map((id: any) => Number(id)),
       skipStealRadishEnabled: s.skipStealRadishEnabled ?? false,
     }
+    localSettings.value.friendRiskConfig = sanitizeFriendRiskConfig(settings.value.friendRiskConfig)
+    localSettings.value.specialCareFriendIds = normalizeNumberList(settings.value.specialCareFriendIds)
+    localSettings.value.experimentalFeatures = {
+      focusStealEnabled: !!settings.value.experimentalFeatures?.focusStealEnabled,
+    }
+  }
+}
+
+function getFriendRiskProfile(friend: any) {
+  const gid = getFriendSelectionId(friend)
+  return friendRiskProfileMap.value.get(gid) || null
+}
+
+function isSpecialCareFriend(friend: any) {
+  return specialCareSet.value.has(getFriendSelectionId(friend))
+}
+
+function toggleSpecialCareFriend(friend: any) {
+  const gid = getFriendSelectionId(friend)
+  if (!gid)
+    return
+  const next = new Set(localSettings.value.specialCareFriendIds)
+  if (next.has(gid))
+    next.delete(gid)
+  else
+    next.add(gid)
+  localSettings.value.specialCareFriendIds = Array.from(next)
+}
+
+function formatRiskLevelLabel(level?: string) {
+  if (level === 'high')
+    return '高风险'
+  if (level === 'medium')
+    return '中风险'
+  return '低风险'
+}
+
+function getRiskToneClasses(level?: string) {
+  if (level === 'high')
+    return 'border-[color:color-mix(in_srgb,var(--ui-status-danger)_40%,var(--ui-border-subtle))] bg-[color:color-mix(in_srgb,var(--ui-status-danger)_10%,var(--ui-bg-surface-raised))] text-[color:color-mix(in_srgb,var(--ui-status-danger)_84%,var(--ui-text-1))]'
+  if (level === 'medium')
+    return 'border-[color:color-mix(in_srgb,var(--ui-status-warning)_40%,var(--ui-border-subtle))] bg-[color:color-mix(in_srgb,var(--ui-status-warning)_10%,var(--ui-bg-surface-raised))] text-[color:color-mix(in_srgb,var(--ui-status-warning)_82%,var(--ui-text-1))]'
+  return 'border-[color:color-mix(in_srgb,var(--ui-status-info)_32%,var(--ui-border-subtle))] bg-[color:color-mix(in_srgb,var(--ui-status-info)_10%,var(--ui-bg-surface-raised))] text-[color:color-mix(in_srgb,var(--ui-status-info)_82%,var(--ui-text-1))]'
+}
+
+function formatRiskReason(reason?: string) {
+  const raw = String(reason || '').trim()
+  if (raw === 'organic_window_steal')
+    return '施肥后短时被偷'
+  if (raw === 'repeat_daily_steal')
+    return '单日高频偷取'
+  if (raw === 'passive_steal')
+    return '被动命中访客偷取'
+  return raw || '暂无'
+}
+
+function formatDateTime(value?: number) {
+  const timestamp = Number(value || 0)
+  if (!timestamp)
+    return '--'
+  try {
+    return new Date(timestamp).toLocaleString('zh-CN', {
+      hour12: false,
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  catch {
+    return '--'
+  }
+}
+
+async function loadRiskInsights(accountId: string) {
+  if (!accountId) {
+    friendRiskProfiles.value = []
+    friendRiskSummary.value = { total: 0, low: 0, medium: 0, high: 0, topProfiles: [] }
+    friendStealOverview.value = { totalFriends: 0, totalStealCount: 0, totalLandCount: 0, topFriends: [] }
+    friendStealStats.value = []
+    return
+  }
+  riskInsightsLoading.value = true
+  try {
+    const [riskSummaryRes, riskProfilesRes, stealStatsRes] = await Promise.all([
+      api.get('/api/friend-risk/summary', { headers: { 'x-account-id': accountId } }),
+      api.get('/api/friend-risk/profiles', { headers: { 'x-account-id': accountId }, params: { limit: 12 } }),
+      api.get('/api/friend-steal-stats', { headers: { 'x-account-id': accountId }, params: { limit: 12 } }),
+    ])
+    friendRiskSummary.value = riskSummaryRes.data?.ok
+      ? {
+          total: Number(riskSummaryRes.data.data?.total || 0),
+          low: Number(riskSummaryRes.data.data?.low || 0),
+          medium: Number(riskSummaryRes.data.data?.medium || 0),
+          high: Number(riskSummaryRes.data.data?.high || 0),
+          topProfiles: Array.isArray(riskSummaryRes.data.data?.topProfiles) ? riskSummaryRes.data.data.topProfiles : [],
+        }
+      : { total: 0, low: 0, medium: 0, high: 0, topProfiles: [] }
+    friendRiskProfiles.value = riskProfilesRes.data?.ok && Array.isArray(riskProfilesRes.data?.data)
+      ? riskProfilesRes.data.data
+      : []
+    friendStealOverview.value = stealStatsRes.data?.ok
+      ? {
+          totalFriends: Number(stealStatsRes.data.data?.overview?.totalFriends || 0),
+          totalStealCount: Number(stealStatsRes.data.data?.overview?.totalStealCount || 0),
+          totalLandCount: Number(stealStatsRes.data.data?.overview?.totalLandCount || 0),
+          topFriends: Array.isArray(stealStatsRes.data.data?.overview?.topFriends) ? stealStatsRes.data.data.overview.topFriends : [],
+        }
+      : { totalFriends: 0, totalStealCount: 0, totalLandCount: 0, topFriends: [] }
+    friendStealStats.value = stealStatsRes.data?.ok && Array.isArray(stealStatsRes.data?.data?.list)
+      ? stealStatsRes.data.data.list
+      : []
+    riskInsightsUpdatedAt.value = Date.now()
+  }
+  catch (error) {
+    console.error('获取风险画像与统计失败:', error)
+  }
+  finally {
+    riskInsightsLoading.value = false
   }
 }
 
@@ -233,6 +483,8 @@ async function loadData() {
   catch (error) {
     console.error('获取作物分析数据失败:', error)
   }
+
+  await loadRiskInsights(accountId)
 }
 
 onMounted(() => {
@@ -431,9 +683,16 @@ async function saveAccountSettings() {
       fullSettingsToSave.automation = {}
 
     Object.assign(fullSettingsToSave.automation, localSettings.value.automation)
+    fullSettingsToSave.friendRiskConfig = sanitizeFriendRiskConfig(localSettings.value.friendRiskConfig)
+    fullSettingsToSave.specialCareFriendIds = normalizeNumberList(localSettings.value.specialCareFriendIds)
+    fullSettingsToSave.experimentalFeatures = {
+      focusStealEnabled: !!localSettings.value.experimentalFeatures.focusStealEnabled,
+    }
 
     const res = await settingStore.saveSettings(selectedAccount.value, fullSettingsToSave)
     if (res.ok) {
+      await loadRiskInsights(String(selectedAccount.value || '').trim())
+      toast.success('偷菜与风险策略配置已保存')
       showAlert('偷菜设置已成功同步至云端')
     }
     else {
@@ -442,6 +701,26 @@ async function saveAccountSettings() {
   }
   finally {
     saving.value = false
+  }
+}
+
+async function resetRiskProfile(profile: FriendRiskProfile) {
+  const accountId = String(selectedAccount.value || '').trim()
+  const gid = Number(profile?.friendGid || 0)
+  if (!accountId || !gid)
+    return
+  try {
+    const { data } = await api.post(`/api/friend-risk/${gid}/reset`, {}, {
+      headers: { 'x-account-id': accountId },
+    })
+    if (!data?.ok)
+      throw new Error(String(data?.error || '清除失败'))
+    await loadRiskInsights(accountId)
+    toast.success(`已清除 ${profile.friendName} 的风险标记`)
+  }
+  catch (error: any) {
+    console.error('清除风险标记失败:', error)
+    toast.error(String(error?.response?.data?.error || error?.message || '清除风险标记失败'))
   }
 }
 
@@ -525,6 +804,247 @@ void getPlantCheckClasses
           <span class="glass-text-muted text-xs">开启后偷菜时自动跳过白萝卜，不偷取该作物</span>
         </div>
         <BaseSwitch v-model="localSettings.automation.skipStealRadishEnabled" size="sm" />
+      </div>
+
+      <div class="grid grid-cols-1 mb-3 gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)]">
+        <section class="steal-top-card glass-panel p-4">
+          <div class="flex flex-col gap-3">
+            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 class="glass-text-main text-base font-semibold">
+                  风险打标与重点偷取策略
+                </h2>
+                <p class="glass-text-muted mt-1 text-sm leading-6">
+                  第一阶段只做打标与评分，不做硬拦截；特别关照名单可先沉淀，实验模式开启后才会参与自动重点偷取。
+                </p>
+              </div>
+              <div class="glass-text-muted text-xs">
+                {{ riskInsightsLoading ? '正在同步风险画像...' : `最近同步 ${formatDateTime(riskInsightsUpdatedAt)}` }}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 2xl:grid-cols-4 sm:grid-cols-2">
+              <article
+                v-for="card in strategySummaryCards"
+                :key="card.key"
+                class="border border-[var(--ui-border-subtle)] rounded-2xl bg-[color:color-mix(in_srgb,var(--ui-bg-surface-raised)_92%,transparent)] p-3"
+              >
+                <div class="glass-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
+                  {{ card.label }}
+                </div>
+                <div class="mt-2 text-lg font-semibold">
+                  {{ card.value }}
+                </div>
+                <div class="glass-text-muted mt-1 text-xs leading-5">
+                  {{ card.hint }}
+                </div>
+              </article>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-3">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">
+                      风险识别配置
+                    </div>
+                    <div class="glass-text-muted mt-1 text-xs">
+                      被动识别好友异常偷取行为并生成风险画像
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-4">
+                    <BaseSwitch v-model="localSettings.friendRiskConfig.enabled" label="总开关" size="sm" />
+                    <BaseSwitch v-model="localSettings.friendRiskConfig.passiveDetectEnabled" label="被动识别" size="sm" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <BaseInput
+                    v-model="localSettings.friendRiskConfig.passiveWindowSec"
+                    type="number"
+                    label="施肥后观察窗口(秒)"
+                    placeholder="180"
+                  />
+                  <BaseInput
+                    v-model="localSettings.friendRiskConfig.passiveDailyThreshold"
+                    type="number"
+                    label="单日命中阈值"
+                    placeholder="3"
+                  />
+                  <BaseInput
+                    v-model="localSettings.friendRiskConfig.markScoreThreshold"
+                    type="number"
+                    label="高风险分数阈值"
+                    placeholder="50"
+                  />
+                </div>
+                <div class="mt-3 flex flex-wrap gap-4">
+                  <BaseSwitch v-model="localSettings.friendRiskConfig.autoDeprioritize" label="自动降权" size="sm" />
+                  <BaseInput
+                    v-model="localSettings.friendRiskConfig.eventRetentionDays"
+                    type="number"
+                    label="事件保留天数"
+                    placeholder="30"
+                    class="min-w-[180px]"
+                  />
+                </div>
+              </div>
+
+              <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-3">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">
+                      实验功能
+                    </div>
+                    <div class="glass-text-muted mt-1 text-xs">
+                      仅对特别关照名单生效，适合尝鲜验证重点偷取策略
+                    </div>
+                  </div>
+                  <BaseSwitch v-model="localSettings.experimentalFeatures.focusStealEnabled" label="重点偷取实验开关" size="sm" />
+                </div>
+                <div class="border border-[var(--ui-border-subtle)] rounded-2xl border-dashed px-3 py-2">
+                  <div class="text-sm font-semibold">
+                    当前策略说明
+                  </div>
+                  <div class="glass-text-muted mt-1 text-xs leading-6">
+                    {{ localSettings.experimentalFeatures.focusStealEnabled
+                      ? (localSettings.specialCareFriendIds.length > 0 ? '自动偷取将优先只处理特别关照名单中的好友。' : '实验开关已开启，但特别关照名单为空，当前不会改变自动偷取行为。')
+                      : '实验开关关闭时，仅记录名单，不改变现有自动偷取决策。' }}
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 mt-3 gap-2 sm:grid-cols-3">
+                  <div class="border border-[var(--ui-border-subtle)] rounded-xl px-3 py-2">
+                    <div class="glass-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      高风险
+                    </div>
+                    <div class="mt-2 text-sm font-semibold">
+                      {{ friendRiskSummary.high }} 人
+                    </div>
+                  </div>
+                  <div class="border border-[var(--ui-border-subtle)] rounded-xl px-3 py-2">
+                    <div class="glass-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      中风险
+                    </div>
+                    <div class="mt-2 text-sm font-semibold">
+                      {{ friendRiskSummary.medium }} 人
+                    </div>
+                  </div>
+                  <div class="border border-[var(--ui-border-subtle)] rounded-xl px-3 py-2">
+                    <div class="glass-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      特别关照
+                    </div>
+                    <div class="mt-2 text-sm font-semibold">
+                      {{ localSettings.specialCareFriendIds.length }} 人
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="steal-top-card glass-panel p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="glass-text-main text-base font-semibold">
+                最近命中概览
+              </h2>
+              <p class="glass-text-muted mt-1 text-sm">
+                这里汇总风险好友榜和偷取统计，便于后续规划自动策略。
+              </p>
+            </div>
+            <BaseButton variant="ghost" size="sm" @click="loadRiskInsights(String(selectedAccount || ''))">
+              刷新
+            </BaseButton>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold">
+                  风险好友榜
+                </div>
+                <div class="glass-text-muted text-xs">
+                  Top {{ friendRiskProfiles.length }}
+                </div>
+              </div>
+              <div v-if="friendRiskProfiles.length === 0" class="glass-text-muted border border-[var(--ui-border-subtle)] rounded-2xl border-dashed px-3 py-4 text-sm">
+                还没有好友被标记为风险对象，继续运行后这里会出现画像数据。
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="profile in friendRiskProfiles.slice(0, 6)"
+                  :key="profile.friendGid"
+                  class="border border-[var(--ui-border-subtle)] rounded-2xl px-3 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="line-clamp-1 text-sm font-semibold">
+                        {{ profile.friendName }}
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs leading-5">
+                        GID {{ profile.friendGid }} · {{ formatRiskReason(profile.lastHitReason) }}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="border rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskToneClasses(profile.riskLevel)">
+                        {{ formatRiskLevelLabel(profile.riskLevel) }}
+                      </span>
+                      <BaseButton variant="ghost" size="sm" @click="resetRiskProfile(profile)">
+                        清除
+                      </BaseButton>
+                    </div>
+                  </div>
+                  <div class="glass-text-muted mt-2 text-xs leading-5">
+                    分数 {{ profile.riskScore }} · 最近命中 {{ formatDateTime(profile.lastHitAt) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold">
+                  偷取统计 Top 榜
+                </div>
+                <div class="glass-text-muted text-xs">
+                  命中好友 {{ friendStealOverview.totalFriends }} 人
+                </div>
+              </div>
+              <div v-if="friendStealStats.length === 0" class="glass-text-muted border border-[var(--ui-border-subtle)] rounded-2xl border-dashed px-3 py-4 text-sm">
+                还没有记录到偷取成功统计，等待自动或手动偷取后会在这里累计。
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="item in friendStealStats.slice(0, 6)"
+                  :key="item.friendGid"
+                  class="border border-[var(--ui-border-subtle)] rounded-2xl px-3 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="line-clamp-1 text-sm font-semibold">
+                        {{ item.friendName }}
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs leading-5">
+                        {{ item.lastPlantNames?.length ? item.lastPlantNames.join('、') : '最近未记录作物名' }}
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-sm font-semibold">
+                        {{ item.stealCount }} 次
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs">
+                        地块 {{ item.landCount }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="glass-text-muted mt-2 text-xs leading-5">
+                    最近方式 {{ item.lastMode || 'auto' }} · 最近命中 {{ formatDateTime(item.lastStealAt) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div class="steal-controls-panel ui-mobile-sticky-panel mb-3">
@@ -694,9 +1214,35 @@ void getPlantCheckClasses
                 <span class="glass-text-muted mt-0.5 text-xs font-mono" title="QQ/uId">
                   {{ getFriendSecondaryLabel(friend) }}
                 </span>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span
+                    v-if="getFriendRiskProfile(friend)"
+                    class="border rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    :class="getRiskToneClasses(getFriendRiskProfile(friend)?.riskLevel)"
+                  >
+                    {{ formatRiskLevelLabel(getFriendRiskProfile(friend)?.riskLevel) }} · {{ getFriendRiskProfile(friend)?.riskScore || 0 }} 分
+                  </span>
+                  <span
+                    v-if="isSpecialCareFriend(friend)"
+                    class="border border-[color:color-mix(in_srgb,var(--ui-brand-500)_40%,var(--ui-border-subtle))] rounded-full bg-[color:color-mix(in_srgb,var(--ui-brand-500)_10%,var(--ui-bg-surface-raised))] px-2 py-0.5 text-[11px] text-[color:color-mix(in_srgb,var(--ui-brand-500)_86%,var(--ui-text-1))] font-semibold"
+                  >
+                    特别关照
+                  </span>
+                </div>
               </div>
             </div>
             <div class="flex shrink-0 flex-col items-end pl-2">
+              <button
+                type="button"
+                class="mb-2 h-7 w-7 flex items-center justify-center border border-[var(--ui-border-subtle)] rounded-full transition-colors"
+                :class="isSpecialCareFriend(friend)
+                  ? 'bg-[color:color-mix(in_srgb,var(--ui-brand-500)_16%,var(--ui-bg-surface-raised))] text-primary-500'
+                  : 'glass-text-muted bg-[color:color-mix(in_srgb,var(--ui-bg-surface)_66%,transparent)]'"
+                :title="isSpecialCareFriend(friend) ? '移出特别关照名单' : '加入特别关照名单'"
+                @click.stop="toggleSpecialCareFriend(friend)"
+              >
+                <div :class="isSpecialCareFriend(friend) ? 'i-carbon-star-filled' : 'i-carbon-star'" />
+              </button>
               <div
                 class="h-[22px] w-[22px] flex items-center justify-center rounded-full transition-colors"
                 :class="getFriendCheckClasses(isFriendSelected(getFriendSelectionId(friend)))"

@@ -12,6 +12,10 @@ function prepareAccountUpsertPayload(input, options = {}) {
     if (payload.code !== undefined) {
         payload.code = String(payload.code || '').trim();
     }
+    if (payload.openId !== undefined || payload.open_id !== undefined) {
+        payload.openId = String(payload.openId || payload.open_id || '').trim();
+        delete payload.open_id;
+    }
 
     if (platform === 'qq') {
         let resolvedUin = String(payload.uin || payload.qq || '').trim();

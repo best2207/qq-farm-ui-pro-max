@@ -739,7 +739,7 @@ async function startBot(config) {
         syncStatus();
     };
 
-    connect(config.code, config.uin, onLoginSuccess);
+    connect(config.code, config.openId || config.uin, onLoginSuccess);
 
     // 启动定时状态同步
     getWorkerScheduler().setIntervalTask('status_sync', 3000, syncStatus, { preventOverlap: true });

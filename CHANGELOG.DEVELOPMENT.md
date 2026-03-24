@@ -8,6 +8,7 @@
 
 ### 快速索引（精简版）
 
+- `v4.5.26 (2026-03-24)` 帮助中心体系化、首次密码初始化与好友风险洞察：帮助中心升级为内容化文档中心，首次部署可直接初始化管理员密码，好友风险画像与重点偷取洞察正式接通后台与分析页。
 - `v4.5.25 (2026-03-18)` 问题反馈链路与系统设置安全持久化：用户可提交带上下文的问题反馈，SMTP 密钥加密落盘，系统日志查询与设置页分区同步收口。
 - `v4.5.24 (2026-03-18)` 农场工具资源库接入与移动端工作台整理：本地资源库清单化、静态图鉴纳管、移动端滚动与账号错误弹窗体验同步收口。
 - `v4.5.23 (2026-03-17)` 微信休息保护可视化与保守链路细化：连续失败阈值、农场休息、账号面板状态透出与补缓存链路稳健性同步收口。
@@ -24,6 +25,28 @@
 - `v4.5.6 (2026-03-08)` 用户状态与登录链路修复：`users.status` 语义拆分、QQ/微信登录续航增强、发布链路稳健性提升。
 
 > 说明：以上为“快速浏览摘要”；完整变更、验证命令与问题复盘请以下方详细记录为准。
+
+### 开发补记 - v4.5.26 帮助中心体系化、首次密码初始化与好友风险洞察 (2026-03-24)
+
+#### ✅ 本轮发布收口
+- ✅ **版本口径已抬升到 `v4.5.26`**: `core/package.json`、`web/package.json`、部署模板、工作流默认值、离线包脚本与更新脚本中的默认镜像标签已经同步更新。
+- ✅ **首次部署初始化链路已接通**: 后端新增 `bootstrap-status` / `init-password` 接口，前端新增 `/init-password` 页面和路由守卫分流，首次部署不再要求手工改默认密码才能进入后台。
+- ✅ **抓包补码 / 重绑入口已落到账号页**: 管理员可以直接预览抓包内容、识别 code / authTicket / OpenID / UIN，优先重绑现有账号，未命中时才新建账号，并自动写入来源与操作者审计信息。
+- ✅ **好友风险画像与偷取统计已正式落库**: 新增 `friend_risk_profiles`、`friend_risk_events`、`friend_steal_stats` 表，偷菜设置页和分析页都已能显示风险好友分层、最近命中原因与累计偷取统计。
+- ✅ **帮助中心已升级为内容化文档中心**: 帮助中心现在基于 Markdown 内容、提纲、搜索索引、版本亮点同步脚本和 Playwright 回归测试运行，不再是单页静态说明。
+- ✅ **本地资源库继续同步到最新图鉴状态**: `mutation.html`、本地道具页、图片素材与相关数据文件已随同步脚本刷新，发布包里的农场工具资源保持最新。
+
+#### 📌 本轮发布说明
+- 📌 **这轮核心是把“新手第一次进入系统”和“管理员后续运维排障”两端都接住**: 首次部署可以直接初始化密码，帮助中心与补码入口也让后续接手和运维成本明显降低。
+- 📌 **好友风险和重点偷取开始进入可运营状态**: 这轮不只是底层记日志，已经把风险画像、重点名单、实验开关和分析视图串成了一条完整链路。
+
+#### 🧪 本轮验收
+- ✅ `pnpm lint:web`
+- ✅ `node --test core/__tests__/admin-bug-report-routes.test.js core/__tests__/bug-report-service.test.js core/__tests__/data-provider-wechat-protection.test.js core/__tests__/farm-wechat-suspend-guard.test.js core/__tests__/friend-actions-wechat-conservative.test.js core/__tests__/friend-steal-filter-compat.test.js core/__tests__/game-config-plant-fallbacks.test.js core/__tests__/mysql-db-account-owner-migration.test.js core/__tests__/optional-db-skip.test.js core/__tests__/report-email-payload.test.js core/__tests__/runtime-state-timing-config.test.js core/__tests__/smtp-mailer.test.js core/__tests__/store-auth-ticket-clear.test.js`
+- ✅ `pnpm test:web:regression`
+- ✅ `pnpm -C web run test:e2e:help-center`
+- ✅ `pnpm -C web run farm-tools:sync`
+- ✅ `pnpm check:doc-links`
 
 ### 开发补记 - v4.5.25 问题反馈链路与系统设置安全持久化 (2026-03-18)
 

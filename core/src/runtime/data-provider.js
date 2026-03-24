@@ -354,6 +354,15 @@ function createDataProvider(options) {
             if (body.qqHighRiskWindow !== undefined) {
                 snapshot.qqHighRiskWindow = body.qqHighRiskWindow;
             }
+            if (body.friendRiskConfig !== undefined) {
+                snapshot.friendRiskConfig = body.friendRiskConfig;
+            }
+            if (body.specialCareFriendIds !== undefined) {
+                snapshot.specialCareFriendIds = body.specialCareFriendIds;
+            }
+            if (body.experimentalFeatures !== undefined) {
+                snapshot.experimentalFeatures = body.experimentalFeatures;
+            }
             if (automation.skipStealRadishEnabled !== undefined) {
                 snapshot.skipStealRadish = { enabled: !!automation.skipStealRadishEnabled };
             }
@@ -395,6 +404,9 @@ function createDataProvider(options) {
                 intervals: store.getIntervals(accountId),
                 friendQuietHours: store.getFriendQuietHours(accountId),
                 qqHighRiskWindow: store.getConfigSnapshot(accountId).qqHighRiskWindow,
+                friendRiskConfig: store.getFriendRiskConfig ? store.getFriendRiskConfig(accountId) : {},
+                specialCareFriendIds: store.getSpecialCareFriendIds ? store.getSpecialCareFriendIds(accountId) : [],
+                experimentalFeatures: store.getExperimentalFeatures ? store.getExperimentalFeatures(accountId) : {},
                 tradeConfig: store.getTradeConfig ? store.getTradeConfig(accountId) : {},
                 reportConfig: store.getReportConfig ? store.getReportConfig(accountId) : {},
                 configRevision: rev,

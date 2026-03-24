@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
+import ContextHelpButton from '@/components/help/ContextHelpButton.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseEmptyState from '@/components/ui/BaseEmptyState.vue'
 import BaseFilterChip from '@/components/ui/BaseFilterChip.vue'
@@ -559,6 +560,7 @@ watch(
         </p>
       </div>
       <div class="ui-page-actions">
+        <ContextHelpButton article="troubleshooting" label="日志排障帮助" variant="secondary" ghost />
         <BaseButton v-if="friendPageShortcut" variant="secondary" ghost @click="openRelatedFriendPage">
           <div class="i-carbon-arrow-left mr-2" />
           {{ friendPageShortcut.label }}

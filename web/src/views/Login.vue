@@ -162,10 +162,18 @@ async function handleLogin() {
       showDisclaimer.value = true
     }
     else {
+      if (res.data?.needsBootstrap) {
+        router.replace({ name: 'init-password' })
+        return
+      }
       error.value = localizeRuntimeText(res.data.error || '登录失败')
     }
   }
   catch (e: any) {
+    if (e.response?.data?.needsBootstrap) {
+      router.replace({ name: 'init-password' })
+      return
+    }
     error.value = localizeRuntimeText(e.response?.data?.error || e.message || '登录异常')
   }
   finally {

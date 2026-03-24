@@ -7,6 +7,7 @@ const { toLong, toNum, log, logWarn, sleep } = require('../../utils/utils');
 const { recordOperation } = require('../stats');
 const { sellAllFruits } = require('../warehouse');
 const { getCachedFriends, findReusableFriendsCache, mergeFriendsCache } = require('../database');
+const friendStealStatsService = require('../friend-steal-stats-service');
 const { isParamError } = require('../common');
 const { cacheFriendSeeds } = require('../friend-cache-seeds');
 const { getInteractRecords } = require('../interact');
@@ -1470,6 +1471,14 @@ async function doFriendOperation(friendGid, opType) {
             count = await scanner.runBatchWithFallback(target, (ids) => stealHarvest(gid, ids), (ids) => stealHarvest(gid, ids));
             if (count > 0) {
                 recordOperation('steal', count);
+                await friendStealStatsService.recordStealSuccess({
+                    accountId: CONFIG.accountId || process.env.FARM_ACCOUNT_ID || '',
+                    friendGid: gid,
+                    friendName: `GID:${gid}`,
+                    stealCount: count,
+                    landCount: count,
+                    mode: 'manual',
+                }).catch(() => { });
                 // 手动偷取成功后立即尝试出售一次果实
                 try {
                     await sellAllFruits();

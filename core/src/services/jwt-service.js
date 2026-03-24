@@ -159,6 +159,24 @@ function generateRefreshToken() {
     return crypto.randomBytes(48).toString('hex');
 }
 
+function decodeTokenTimestamps(token) {
+    const decoded = jwt.decode(String(token || ''));
+    if (!decoded || typeof decoded !== 'object') {
+        return {
+            username: '',
+            role: '',
+            issuedAt: 0,
+            expiresAt: 0,
+        };
+    }
+    return {
+        username: String(decoded.username || '').trim(),
+        role: String(decoded.role || '').trim(),
+        issuedAt: Math.max(0, Number(decoded.iat) || 0) * 1000,
+        expiresAt: Math.max(0, Number(decoded.exp) || 0) * 1000,
+    };
+}
+
 function hashToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -231,6 +249,57 @@ async function cleanExpiredTokens() {
     } catch (e) {
         logger.error('Failed to clean expired tokens:', e.message);
     }
+}
+
+async function buildSessionStatus(options = {}) {
+    const now = Date.now();
+    const req = options.req || null;
+    const accessToken = String(
+        options.accessToken
+        || req?.cookies?.access_token
+        || req?.headers?.['x-admin-token']
+        || ''
+    ).trim();
+    const refreshToken = String(
+        options.refreshToken
+        || req?.cookies?.refresh_token
+        || ''
+    ).trim();
+    const accessMeta = decodeTokenTimestamps(accessToken);
+
+    let refreshRow = options.refreshTokenRow || null;
+    if (!refreshRow && refreshToken) {
+        try {
+            refreshRow = await verifyRefreshToken(refreshToken);
+        } catch (error) {
+            logger.warn(`读取 refresh token 会话状态失败: ${error.message}`);
+        }
+    }
+
+    const refreshIssuedAt = refreshRow?.created_at
+        ? new Date(refreshRow.created_at).getTime()
+        : 0;
+    const refreshExpiresAt = refreshRow?.expires_at
+        ? new Date(refreshRow.expires_at).getTime()
+        : 0;
+    const accessRemainingMs = Math.max(0, accessMeta.expiresAt - now);
+    const refreshRemainingMs = Math.max(0, refreshExpiresAt - now);
+    const resolvedUsername = String(options.user?.username || options.username || accessMeta.username || refreshRow?.username || '').trim();
+    const resolvedRole = String(options.user?.role || options.role || accessMeta.role || '').trim();
+
+    return {
+        authenticated: !!resolvedUsername,
+        username: resolvedUsername,
+        role: resolvedRole,
+        accessIssuedAt: accessMeta.issuedAt,
+        accessExpiresAt: accessMeta.expiresAt,
+        accessRemainingSec: Math.ceil(accessRemainingMs / 1000),
+        refreshIssuedAt,
+        refreshExpiresAt,
+        refreshRemainingSec: Math.ceil(refreshRemainingMs / 1000),
+        needsRefreshSoon: accessRemainingMs > 0 && accessRemainingMs <= (15 * 60 * 1000),
+        checkedAt: now,
+    };
 }
 
 const COOKIE_SECURE_MODE = String(process.env.COOKIE_SECURE || 'auto').trim().toLowerCase();
@@ -308,4 +377,5 @@ module.exports = {
     setTokenCookies,
     clearTokenCookies,
     TOKEN_CONFIG,
+    buildSessionStatus,
 };

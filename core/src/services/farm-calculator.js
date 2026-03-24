@@ -13,11 +13,21 @@ function loadJson(name) {
 let CROPS_DATA = null;
 let LANDS_DATA = null;
 let EXP_TABLE = null;
+let MUTATION_DATA = null;
 
 function ensureData() {
     if (!CROPS_DATA) CROPS_DATA = loadJson('crops.json') || { crops: [] };
     if (!LANDS_DATA) LANDS_DATA = loadJson('lands.json') || {};
     if (!EXP_TABLE) EXP_TABLE = loadJson('exp_table.json') || [];
+}
+
+function ensureMutationData() {
+    if (!MUTATION_DATA) MUTATION_DATA = loadJson('mutation_calc.json') || {
+        levelRange: { min: 1, max: 200 },
+        crops: [],
+        curves: {},
+    };
+    return MUTATION_DATA;
 }
 
 const LAND_BONUSES = {
@@ -39,6 +49,95 @@ function calculate_time_crops() {
 function calculate_lands_for_level(level) {
     ensureData();
     return LANDS_DATA[String(level)] || LANDS_DATA['1'] || { lands: 6, distribution: { 1: 6 } };
+}
+
+function getMutationLevelBounds(data) {
+    const range = data && data.levelRange ? data.levelRange : {};
+    return {
+        min: Number(range.min) || 1,
+        max: Number(range.max) || 200,
+    };
+}
+
+function clampMutationLevel(raw, data) {
+    const { min, max } = getMutationLevelBounds(data);
+    const parsed = Number.parseInt(String(raw || '').trim(), 10);
+    if (!Number.isFinite(parsed)) {
+        return Math.min(Math.max(64, min), max);
+    }
+    return Math.min(Math.max(parsed, min), max);
+}
+
+function buildMutationCropResult(crop, level, data) {
+    if (!crop || !data || !data.curves) return null;
+    const curve = data.curves[crop.tableKey];
+    if (!curve) return null;
+
+    const { min, max } = getMutationLevelBounds(data);
+    const safeLevel = Math.min(Math.max(level, min), max);
+    const index = safeLevel - min;
+    const actual_exp = Number(curve.expByLevel && curve.expByLevel[index]);
+    const actual_fruit = Number(curve.fruitByLevel && curve.fruitByLevel[index]);
+    if (!Number.isFinite(actual_exp) || !Number.isFinite(actual_fruit)) return null;
+
+    const seasons = Number(crop.seasons) || 1;
+    const sell_price = Number(crop.sellPrice) || 0;
+    const base_exp = Number(crop.baseExp) || 0;
+    const base_fruit = Number(crop.baseFruit) || 0;
+    const season_income = actual_fruit * sell_price;
+
+    return {
+        actual_exp,
+        actual_fruit,
+        asset_name: crop.assetName || '',
+        base_exp,
+        base_fruit,
+        exp_bonus: actual_exp - base_exp,
+        fruit_bonus: actual_fruit - base_fruit,
+        mutant_images: Array.isArray(crop.mutantImages) ? crop.mutantImages : [],
+        name: crop.name || '',
+        phases: Array.isArray(crop.phases) ? crop.phases : [],
+        probability: crop.probability || '',
+        rarity: Number(crop.rarity) || 0,
+        rarity_color: crop.rarityColor || '',
+        rarity_label: crop.rarityLabel || '',
+        season_income,
+        seasons,
+        sell_price,
+        size: crop.size ?? null,
+        size_label: crop.sizeLabel || '1×1',
+        source_id: crop.sourceId ?? null,
+        total_exp: actual_exp * seasons,
+        total_season_income: season_income * seasons,
+    };
+}
+
+function calculate_mutation(params) {
+    const data = ensureMutationData();
+    const crops = Array.isArray(data.crops) ? data.crops : [];
+    const level = clampMutationLevel(params && params.level, data);
+    const cropQuery = String((params && params.crop) || '').trim();
+
+    if (!crops.length) {
+        return {
+            level,
+            levelRange: getMutationLevelBounds(data),
+            crops: [],
+            error: '变异收益数据不可用',
+        };
+    }
+
+    const filtered = cropQuery
+        ? crops.filter((crop) => crop && crop.name === cropQuery)
+        : crops;
+
+    return {
+        level,
+        levelRange: getMutationLevelBounds(data),
+        crops: filtered
+            .map((crop) => buildMutationCropResult(crop, level, data))
+            .filter(Boolean),
+    };
 }
 
 function format_time(seconds) {
@@ -602,6 +701,7 @@ function calculate_exp_plan(params) {
 module.exports = {
     calculate_time_crops,
     calculate_lands_for_level,
+    calculate_mutation,
     calculate_main,
     calculate_exp_plan
 };

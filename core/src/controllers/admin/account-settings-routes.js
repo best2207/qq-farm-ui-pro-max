@@ -205,6 +205,17 @@ function registerAccountSettingsRoutes({
             const stakeoutSteal = store.getStakeoutStealConfig ? store.getStakeoutStealConfig(id) : { enabled: false, delaySec: 3 };
             const skipStealRadish = store.getSkipStealRadishConfig ? store.getSkipStealRadishConfig(id) : { enabled: false };
             const forceGetAll = store.getForceGetAllConfig ? store.getForceGetAllConfig(id) : { enabled: false };
+            const friendRiskConfig = store.getFriendRiskConfig ? store.getFriendRiskConfig(id) : {
+                enabled: true,
+                passiveDetectEnabled: true,
+                passiveWindowSec: 180,
+                passiveDailyThreshold: 3,
+                markScoreThreshold: 50,
+                autoDeprioritize: false,
+                eventRetentionDays: 30,
+            };
+            const specialCareFriendIds = store.getSpecialCareFriendIds ? store.getSpecialCareFriendIds(id) : [];
+            const experimentalFeatures = store.getExperimentalFeatures ? store.getExperimentalFeatures(id) : { focusStealEnabled: false };
             const automation = mergeAutomationConfig(automationRaw, stealFilter, stealFriendFilter, skipStealRadish, forceGetAll);
             const ui = store.getUI();
             const offlineReminder = store.getOfflineReminder
@@ -243,6 +254,9 @@ function registerAccountSettingsRoutes({
                     automation,
                     stakeoutSteal,
                     qqHighRiskWindow: fullSnapshot.qqHighRiskWindow,
+                    friendRiskConfig,
+                    specialCareFriendIds,
+                    experimentalFeatures,
                     workflowConfig,
                     tradeConfig,
                     reportConfig,

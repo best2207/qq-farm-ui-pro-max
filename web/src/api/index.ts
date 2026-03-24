@@ -61,7 +61,15 @@ api.interceptors.response.use((response) => {
     originalRequest._retry = true
 
     try {
-      await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+      const refreshResponse = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth-session-refreshed', {
+          detail: refreshResponse.data?.data?.session || null,
+        }))
+      }
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/init-password')) {
+        toast.success('登录状态已自动续期')
+      }
       onRefreshDone(true)
       return api(originalRequest)
     }

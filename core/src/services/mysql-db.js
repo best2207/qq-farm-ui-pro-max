@@ -177,6 +177,53 @@ async function initMysql() {
                 );
             }
 
+            const [openIdCols] = await pool.execute(
+                `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts' AND COLUMN_NAME = 'open_id'`,
+                [DB_NAME]
+            );
+            const [friendRiskProfileTable] = await pool.execute(`SHOW TABLES LIKE 'friend_risk_profiles'`);
+            const [friendRiskEventTable] = await pool.execute(`SHOW TABLES LIKE 'friend_risk_events'`);
+            const [friendStealStatsTable] = await pool.execute(`SHOW TABLES LIKE 'friend_steal_stats'`);
+            if (openIdCols.length === 0 || friendRiskProfileTable.length === 0 || friendRiskEventTable.length === 0 || friendStealStatsTable.length === 0) {
+                await runMigrationFile(
+                    path.join(migrationsDir, '019-account-risk-and-code-capture.sql'),
+                    '检测到账号身份/风控统计表缺失，正在执行迁移 019-account-risk-and-code-capture.sql',
+                );
+            }
+            const accountColumnEnsures = [
+                ['open_id', "ALTER TABLE accounts ADD COLUMN open_id VARCHAR(128) DEFAULT NULL AFTER uin", 'accounts.open_id'],
+                ['last_valid_code_at', "ALTER TABLE accounts ADD COLUMN last_valid_code_at DATETIME DEFAULT NULL AFTER last_login_at", 'accounts.last_valid_code_at'],
+                ['last_code_source', "ALTER TABLE accounts ADD COLUMN last_code_source VARCHAR(32) NOT NULL DEFAULT '' AFTER last_valid_code_at", 'accounts.last_code_source'],
+                ['last_code_capture_at', "ALTER TABLE accounts ADD COLUMN last_code_capture_at DATETIME DEFAULT NULL AFTER last_code_source", 'accounts.last_code_capture_at'],
+                ['last_code_capture_by', "ALTER TABLE accounts ADD COLUMN last_code_capture_by VARCHAR(100) DEFAULT NULL AFTER last_code_capture_at", 'accounts.last_code_capture_by'],
+            ];
+            for (const [columnName, alterSql, label] of accountColumnEnsures) {
+                const [columnRows] = await pool.execute(
+                    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts' AND COLUMN_NAME = ?`,
+                    [DB_NAME, columnName]
+                );
+                if (columnRows.length === 0) {
+                    logger.info(`检测到缺少 ${label}，正在添加...`);
+                    await pool.query(alterSql);
+                    logger.info(`✅ ${label} 添加完成`);
+                }
+            }
+            const accountIndexEnsures = [
+                ['idx_accounts_open_id', 'ALTER TABLE accounts ADD INDEX idx_accounts_open_id (open_id)'],
+                ['idx_accounts_last_valid_code_at', 'ALTER TABLE accounts ADD INDEX idx_accounts_last_valid_code_at (last_valid_code_at)'],
+            ];
+            for (const [indexName, alterSql] of accountIndexEnsures) {
+                const [indexRows] = await pool.execute(
+                    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts' AND INDEX_NAME = ?`,
+                    [DB_NAME, indexName]
+                );
+                if (indexRows.length === 0) {
+                    logger.info(`检测到 accounts 表缺少索引 ${indexName}，正在添加...`);
+                    await pool.query(alterSql);
+                    logger.info(`✅ accounts.${indexName} 添加完成`);
+                }
+            }
+
             const [usedAtCols] = await pool.execute(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cards' AND COLUMN_NAME = 'used_at'`,
                 [DB_NAME]

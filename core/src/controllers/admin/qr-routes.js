@@ -357,7 +357,7 @@ function registerQrRoutes({
                     avatar = buildQQOpenIdAvatarUrl(openId, appid, 100);
                 }
 
-                return res.json({ ok: true, data: { status: 'OK', code: authCode, ticket, uin: qqUin, avatar, nickname } });
+                return res.json({ ok: true, data: { status: 'OK', code: authCode, ticket, uin: qqUin, openId, avatar, nickname } });
             }
             if (result.status === 'Used') {
                 return res.json({ ok: true, data: { status: 'Used' } });

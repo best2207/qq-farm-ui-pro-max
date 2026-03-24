@@ -9,11 +9,16 @@ import {
 } from 'echarts/components'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseSelect from '@/components/ui/BaseSelect.vue'
+import { useAccountStore } from '@/stores/account'
 
 const VChart = defineAsyncComponent(() => import('vue-echarts'))
+const accountStore = useAccountStore()
+const { accounts, currentAccountId } = storeToRefs(accountStore)
 
 use([
   CanvasRenderer,
@@ -27,12 +32,27 @@ use([
 ])
 
 const loading = ref(false)
+const selectedAccountId = ref('')
 const analyticsSnapshot = ref({
   dates: [] as string[],
   exp: [] as number[],
   gold: [] as number[],
   steal: [] as number[],
 })
+const focusedRiskSummary = ref({
+  total: 0,
+  low: 0,
+  medium: 0,
+  high: 0,
+  topProfiles: [] as Array<any>,
+})
+const focusedStealOverview = ref({
+  totalFriends: 0,
+  totalStealCount: 0,
+  totalLandCount: 0,
+  topFriends: [] as Array<any>,
+})
+const focusedStealList = ref<Array<any>>([])
 
 // 经验金币走势
 const trendOption = ref<any>({})
@@ -59,9 +79,17 @@ function readThemeVars() {
 async function fetchAnalytics() {
   loading.value = true
   try {
-    const res = await api.get('/api/stats/trend')
-    if (res.data && res.data.ok) {
-      const { dates, series } = res.data.data
+    const requests: Promise<any>[] = [api.get('/api/stats/trend')]
+    if (selectedAccountId.value) {
+      const headers = { 'x-account-id': selectedAccountId.value }
+      requests.push(
+        api.get('/api/friend-risk/summary', { headers }),
+        api.get('/api/friend-steal-stats', { headers, params: { limit: 12 } }),
+      )
+    }
+    const [trendRes, riskRes, stealRes] = await Promise.all(requests)
+    if (trendRes.data && trendRes.data.ok) {
+      const { dates, series } = trendRes.data.data
       analyticsSnapshot.value = {
         dates,
         exp: series.exp ?? [],
@@ -117,6 +145,28 @@ async function fetchAnalytics() {
         ],
       }
     }
+
+    focusedRiskSummary.value = riskRes?.data?.ok
+      ? {
+          total: Number(riskRes.data.data?.total || 0),
+          low: Number(riskRes.data.data?.low || 0),
+          medium: Number(riskRes.data.data?.medium || 0),
+          high: Number(riskRes.data.data?.high || 0),
+          topProfiles: Array.isArray(riskRes.data.data?.topProfiles) ? riskRes.data.data.topProfiles : [],
+        }
+      : { total: 0, low: 0, medium: 0, high: 0, topProfiles: [] }
+
+    focusedStealOverview.value = stealRes?.data?.ok
+      ? {
+          totalFriends: Number(stealRes.data.data?.overview?.totalFriends || 0),
+          totalStealCount: Number(stealRes.data.data?.overview?.totalStealCount || 0),
+          totalLandCount: Number(stealRes.data.data?.overview?.totalLandCount || 0),
+          topFriends: Array.isArray(stealRes.data.data?.overview?.topFriends) ? stealRes.data.data.overview.topFriends : [],
+        }
+      : { totalFriends: 0, totalStealCount: 0, totalLandCount: 0, topFriends: [] }
+    focusedStealList.value = stealRes?.data?.ok && Array.isArray(stealRes.data.data?.list)
+      ? stealRes.data.data.list
+      : []
   }
   catch (e: any) {
     console.error('获取统计图表失败', e)
@@ -124,6 +174,19 @@ async function fetchAnalytics() {
   finally {
     loading.value = false
   }
+}
+
+function formatDateTime(value?: number) {
+  const timestamp = Number(value || 0)
+  if (!timestamp)
+    return '--'
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function sumSeries(values: number[]) {
@@ -184,7 +247,61 @@ const analyticsStealMeta = computed(() => {
   ]
 })
 
+const focusedAccountOptions = computed(() =>
+  accounts.value.map(account => ({
+    label: String(account.name || account.nick || account.id || account.uin || ''),
+    value: String(account.id || ''),
+  })),
+)
+
+const focusedAccountLabel = computed(() => {
+  const account = accounts.value.find(item => String(item.id || '') === String(selectedAccountId.value || ''))
+  return String(account?.name || account?.nick || account?.id || '').trim() || '未选择账号'
+})
+
+const focusedInsightCards = computed(() => [
+  {
+    key: 'risk',
+    label: '风险好友',
+    value: `${focusedRiskSummary.value.total} 人`,
+    hint: `高 ${focusedRiskSummary.value.high} / 中 ${focusedRiskSummary.value.medium} / 低 ${focusedRiskSummary.value.low}`,
+  },
+  {
+    key: 'steal-friends',
+    label: '命中好友',
+    value: `${focusedStealOverview.value.totalFriends} 人`,
+    hint: '统计周期内有过成功偷取记录的好友数量',
+  },
+  {
+    key: 'steal-count',
+    label: '累计偷取次数',
+    value: `${focusedStealOverview.value.totalStealCount} 次`,
+    hint: `覆盖地块 ${focusedStealOverview.value.totalLandCount} 块`,
+  },
+])
+
 onMounted(() => {
+  if (accounts.value.length === 0) {
+    void accountStore.fetchAccounts()
+  }
+  selectedAccountId.value = String(currentAccountId.value || accounts.value[0]?.id || '')
+  fetchAnalytics()
+})
+
+watch(() => currentAccountId.value, (nextId) => {
+  const normalized = String(nextId || '').trim()
+  if (normalized && normalized !== selectedAccountId.value) {
+    selectedAccountId.value = normalized
+  }
+})
+
+watch(() => accounts.value, (nextAccounts) => {
+  if (!selectedAccountId.value && nextAccounts.length > 0) {
+    selectedAccountId.value = String(currentAccountId.value || nextAccounts[0]?.id || '')
+  }
+}, { deep: true })
+
+watch(() => selectedAccountId.value, () => {
   fetchAnalytics()
 })
 </script>
@@ -202,6 +319,14 @@ onMounted(() => {
         </p>
       </div>
       <div class="analytics-echarts-actions ui-bulk-actions">
+        <div class="w-[220px]">
+          <BaseSelect
+            v-model="selectedAccountId"
+            :options="focusedAccountOptions"
+            label="重点账号"
+            placeholder="选择账号查看好友洞察"
+          />
+        </div>
         <BaseButton
           variant="primary"
           size="sm"
@@ -231,6 +356,165 @@ onMounted(() => {
           </div>
           <div class="analytics-summary-card__value">
             {{ card.value }}
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <div class="glass-panel ui-section-card">
+          <div class="analytics-echarts-section-head">
+            <div>
+              <h3 class="analytics-echarts-title glass-text-muted text-lg font-bold">
+                好友风险与偷取洞察
+              </h3>
+              <p class="glass-text-muted mt-1 text-sm">
+                当前账号：{{ focusedAccountLabel }}
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div
+              v-for="card in focusedInsightCards"
+              :key="card.key"
+              class="analytics-summary-card rounded-2xl p-4"
+            >
+              <div class="analytics-summary-card__label">
+                {{ card.label }}
+              </div>
+              <div class="analytics-summary-card__value">
+                {{ card.value }}
+              </div>
+              <div class="glass-text-muted mt-2 text-xs leading-5">
+                {{ card.hint }}
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 mt-4 gap-4 lg:grid-cols-2">
+            <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold">
+                  风险好友榜
+                </div>
+                <div class="glass-text-muted text-xs">
+                  {{ focusedRiskSummary.topProfiles.length }} 条
+                </div>
+              </div>
+              <div v-if="focusedRiskSummary.topProfiles.length === 0" class="glass-text-muted text-sm">
+                暂无风险画像数据。
+              </div>
+              <div v-else class="space-y-3">
+                <article
+                  v-for="item in focusedRiskSummary.topProfiles.slice(0, 5)"
+                  :key="item.friendGid"
+                  class="border border-[var(--ui-border-subtle)] rounded-2xl px-3 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="line-clamp-1 text-sm font-semibold">
+                        {{ item.friendName }}
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs">
+                        GID {{ item.friendGid }} · 分数 {{ item.riskScore }}
+                      </div>
+                    </div>
+                    <span class="analytics-risk-pill" :class="`analytics-risk-pill--${item.riskLevel || 'low'}`">
+                      {{ item.riskLevel === 'high' ? '高风险' : item.riskLevel === 'medium' ? '中风险' : '低风险' }}
+                    </span>
+                  </div>
+                  <div class="glass-text-muted mt-2 text-xs leading-5">
+                    最近命中 {{ formatDateTime(item.lastHitAt) }}
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold">
+                  偷取统计榜
+                </div>
+                <div class="glass-text-muted text-xs">
+                  {{ focusedStealList.length }} 条
+                </div>
+              </div>
+              <div v-if="focusedStealList.length === 0" class="glass-text-muted text-sm">
+                暂无偷取成功统计。
+              </div>
+              <div v-else class="space-y-3">
+                <article
+                  v-for="item in focusedStealList.slice(0, 5)"
+                  :key="item.friendGid"
+                  class="border border-[var(--ui-border-subtle)] rounded-2xl px-3 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="line-clamp-1 text-sm font-semibold">
+                        {{ item.friendName }}
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs leading-5">
+                        {{ item.lastPlantNames?.length ? item.lastPlantNames.join('、') : '最近未记录作物名' }}
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-sm font-semibold">
+                        {{ item.stealCount }} 次
+                      </div>
+                      <div class="glass-text-muted mt-1 text-xs">
+                        地块 {{ item.landCount }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="glass-text-muted mt-2 text-xs leading-5">
+                    最近命中 {{ formatDateTime(item.lastStealAt) }}
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-panel ui-section-card">
+          <div class="analytics-echarts-section-head">
+            <h3 class="analytics-echarts-title glass-text-muted text-lg font-bold">
+              重点账号摘要
+            </h3>
+          </div>
+          <div class="space-y-3">
+            <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-4">
+              <div class="analytics-summary-card__label">
+                当前账号
+              </div>
+              <div class="analytics-summary-card__value">
+                {{ focusedAccountLabel }}
+              </div>
+              <div class="glass-text-muted mt-2 text-xs leading-5">
+                这里的风险好友榜和偷取统计会随着上方账号切换同步刷新。
+              </div>
+            </div>
+            <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-4">
+              <div class="analytics-summary-card__label">
+                风险画像状态
+              </div>
+              <div class="analytics-summary-card__value">
+                {{ focusedRiskSummary.total > 0 ? '已积累画像' : '等待积累中' }}
+              </div>
+              <div class="glass-text-muted mt-2 text-xs leading-5">
+                高风险 {{ focusedRiskSummary.high }} 人，中风险 {{ focusedRiskSummary.medium }} 人。
+              </div>
+            </div>
+            <div class="border border-[var(--ui-border-subtle)] rounded-2xl p-4">
+              <div class="analytics-summary-card__label">
+                偷取统计状态
+              </div>
+              <div class="analytics-summary-card__value">
+                {{ focusedStealOverview.totalStealCount.toLocaleString() }} 次
+              </div>
+              <div class="glass-text-muted mt-2 text-xs leading-5">
+                命中过 {{ focusedStealOverview.totalFriends }} 位好友，累计覆盖 {{ focusedStealOverview.totalLandCount }} 块地。
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -287,6 +571,8 @@ onMounted(() => {
 
 .analytics-echarts-actions {
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .analytics-summary-card {
@@ -318,6 +604,34 @@ onMounted(() => {
 .analytics-summary-card--success {
   border-color: color-mix(in srgb, var(--ui-status-success) 22%, var(--ui-border-subtle));
   background: color-mix(in srgb, var(--ui-status-success) 8%, var(--ui-bg-surface-raised));
+}
+
+.analytics-risk-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.analytics-risk-pill--high {
+  border-color: color-mix(in srgb, var(--ui-status-danger) 42%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-danger) 12%, var(--ui-bg-surface-raised));
+  color: color-mix(in srgb, var(--ui-status-danger) 86%, var(--ui-text-1));
+}
+
+.analytics-risk-pill--medium {
+  border-color: color-mix(in srgb, var(--ui-status-warning) 42%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-warning) 12%, var(--ui-bg-surface-raised));
+  color: color-mix(in srgb, var(--ui-status-warning) 86%, var(--ui-text-1));
+}
+
+.analytics-risk-pill--low {
+  border-color: color-mix(in srgb, var(--ui-status-info) 36%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-status-info) 12%, var(--ui-bg-surface-raised));
+  color: color-mix(in srgb, var(--ui-status-info) 84%, var(--ui-text-1));
 }
 
 .analytics-summary-card--warning {

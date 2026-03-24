@@ -2,6 +2,11 @@
 
 ## 快速索引（精简版）
 
+- `v4.5.26 (2026-03-24)` 帮助中心体系化、首次密码初始化与好友风险洞察：帮助中心改为内容化文档中心，首次部署可直接初始化管理员密码，好友风险画像与重点偷取洞察正式接通后台与分析页。
+- `v4.5.25 (2026-03-18)` 问题反馈链路与系统设置安全持久化：用户可提交带上下文的问题反馈，SMTP 密钥加密落盘，系统日志查询与设置页分区同步收口。
+- `v4.5.24 (2026-03-18)` 农场工具资源库接入与移动端工作台整理：本地资源库清单化、静态图鉴纳管、移动端滚动与账号错误弹窗体验同步收口。
+- `v4.5.23 (2026-03-17)` 微信休息保护可视化与保守链路细化：连续失败阈值、农场休息、账号面板状态透出与补缓存链路稳健性同步收口。
+- `v4.5.22 (2026-03-17)` 微信好友保守链路与只读面板增强：手动刷新穿透、访客补缓存、只读好友页、日志摘要与快捷筛选同步落地。
 - `v4.5.21 (2026-03-16)` QQ 风控守卫与设置体验统一优化：高风险临时窗口、封禁账号阻断、多链路好友抓取开关与主界面整理同步落地。
 - `v4.5.20 (2026-03-11)` 发布链路归一与本地 Release 产物打包：本地/CI 统一输出二进制与部署包，Docker 推送脚本收口，旧服 current 兼容软链补齐。
 - `v4.5.19 (2026-03-11)` 宿主机更新代理与部署统一入口：统一安装/更新入口、更新代理、发布资产和旧服 current 链接修复全部落地。
@@ -16,6 +21,30 @@
 - `v4.1.0 (2026-03-04)` 账号分级模式：主号/小号/风险规避模式上线，策略与控制面板能力补齐。
 
 > 说明：该索引用于快速浏览；详细变更说明、背景和技术细节请以下文各版本章节为准。
+
+## [v4.5.26] - 帮助中心体系化、首次密码初始化与好友风险洞察 (2026-03-24)
+### 🔐 首次部署与补码重绑
+- **首次密码初始化正式落地**: 新增 `/api/auth/bootstrap-status`、`/api/auth/init-password` 与前端 `/init-password` 页面，首次部署的实例会直接引导管理员设置密码并完成免责声明确认，不再依赖手工改默认密码。
+- **补码预览 / 提交链路上线**: 账号页新增“抓包补码 / 重绑入口”，管理员可先预览再提交，系统会优先按账号 ID、OpenID、UIN 匹配现有账号，未命中时才创建新账号，并记录来源、操作人和有效时间。
+- **会话校验继续收口**: 登录、刷新和首次初始化现在都会统一返回 session 状态，路由守卫会结合 bootstrap 状态、token 校验和当前用户角色决定跳转，减少首次部署和失效登录时的跳转混乱。
+
+### 📚 帮助中心与回归体系
+- **帮助中心重构为内容化文档中心**: `HelpCenter.vue` 改为基于文档内容、搜索索引、提纲、受众筛选和发布摘要的结构化视图，后台、部署、账号运行、设置和排障说明都被拆成独立文档维护。
+- **Release Notes 同步脚本接通构建链路**: 新增 `scripts/utils/sync-help-release-notes.js` 与 `web/src/generated/help-release-notes.ts`，前端构建会自动同步 `CHANGELOG.md` 摘要，帮助中心里的版本亮点不再手工重复维护。
+- **帮助中心回归测试补齐**: Web 包新增 Playwright 配置与 `help-center.regression.spec.ts`，文档页可点击、索引可加载、路由可直达这类问题现在有独立回归链路兜底。
+
+### 🎯 好友风险画像与重点偷取洞察
+- **好友风险画像与事件表正式落库**: 新增 `friend_risk_profiles`、`friend_risk_events`、`friend_steal_stats` 表，后端开始记录被动偷取命中、风险分值、最近命中原因和累计偷取统计。
+- **重点偷取与特别关照名单接通前后端**: 账号设置新增 `friendRiskConfig`、`specialCareFriendIds` 和 `experimentalFeatures.focusStealEnabled`，支持在偷菜设置页直接维护重点好友名单，并为实验性“只优先偷重点好友”预留开关。
+- **分析页补齐账号级洞察**: `AnalyticsEcharts.vue` 和 `StealSettings.vue` 现在会读取风险摘要、好友偷取榜与重点好友列表，管理员可以在分析页直接看到风险好友数量、累计偷取次数和重点命中好友。
+
+### 🧪 验收建议
+- 建议至少执行：`pnpm lint:web`
+- 建议至少执行：`node --test core/__tests__/admin-bug-report-routes.test.js core/__tests__/bug-report-service.test.js core/__tests__/data-provider-wechat-protection.test.js core/__tests__/farm-wechat-suspend-guard.test.js core/__tests__/friend-actions-wechat-conservative.test.js core/__tests__/friend-steal-filter-compat.test.js core/__tests__/game-config-plant-fallbacks.test.js core/__tests__/mysql-db-account-owner-migration.test.js core/__tests__/optional-db-skip.test.js core/__tests__/report-email-payload.test.js core/__tests__/runtime-state-timing-config.test.js core/__tests__/smtp-mailer.test.js core/__tests__/store-auth-ticket-clear.test.js`
+- 建议至少执行：`pnpm test:web:regression`
+- 建议至少执行：`pnpm -C web run test:e2e:help-center`
+- 建议至少执行：`pnpm -C web run farm-tools:sync`
+- 建议至少执行：`pnpm check:doc-links`
 
 ## [v4.5.21] - QQ 风控守卫与设置体验统一优化 (2026-03-16)
 ### 🛡️ QQ 风险守卫与自动回退

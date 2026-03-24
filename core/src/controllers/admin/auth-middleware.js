@@ -1,6 +1,8 @@
 const PUBLIC_API_PATHS = Object.freeze([
     '/login',
     '/auth/register',
+    '/auth/bootstrap-status',
+    '/auth/init-password',
     '/auth/refresh',
     '/auth/logout',
     '/qr/create',

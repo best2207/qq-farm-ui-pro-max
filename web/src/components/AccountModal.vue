@@ -102,7 +102,7 @@ async function doQRCheck() {
         // 登录成功 —— 立即停止轮询，不再发任何请求
         stopQRCheck()
         qrStatus.value = '登录成功'
-        const { uin, code: authCode, ticket, nickname, avatar } = res.data.data
+        const { uin, openId, code: authCode, ticket, nickname, avatar } = res.data.data
         const resolvedUin = String(uin || qrUin.value.trim() || props.editData?.uin || props.editData?.qq || '').trim()
 
         if (qrPlatform.value === 'qq' && !resolvedUin) {
@@ -120,6 +120,7 @@ async function doQRCheck() {
           id: props.editData?.id,
           uin: resolvedUin,
           qq: qrPlatform.value === 'qq' ? resolvedUin : '',
+          openId: String(openId || '').trim(),
           code: authCode,
           loginType: 'qr',
           name: props.editData ? (props.editData.name || accName) : accName,
@@ -127,6 +128,7 @@ async function doQRCheck() {
           authTicket: ticket || '',
           nick: nickname || '',
           avatar: avatar || '',
+          lastCodeSource: 'qr_login',
         })
         return // 不再调度下一次
       }
@@ -303,9 +305,11 @@ async function submitManual() {
     code,
     uin: normalizedUin,
     qq: form.platform === 'qq' ? normalizedUin : '',
+    openId: form.platform === 'qq' ? '' : normalizedUin,
     platform: form.platform,
     loginType: 'manual',
     authTicket: '',
+    lastCodeSource: 'manual_capture',
   }
 
   await addAccount(payload)

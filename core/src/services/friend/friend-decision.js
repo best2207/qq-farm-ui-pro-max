@@ -1,7 +1,7 @@
 
 const { CONFIG, PlantPhase, PHASE_NAMES } = require('../../config/config');
 const { getPlantName, getPlantById, getSeedImageBySeedId } = require('../../config/gameConfig');
-const { isAutomationOn, getFriendQuietHours, getFriendBlacklist, setFriendBlacklist, getStealFilterConfig, getStealFriendFilterConfig, getStakeoutStealConfig, getSkipStealRadishConfig, getConfigSnapshot } = require('../../models/store');
+const { isAutomationOn, getFriendQuietHours, getFriendBlacklist, setFriendBlacklist, getStealFilterConfig, getStealFriendFilterConfig, getStakeoutStealConfig, getSkipStealRadishConfig, getConfigSnapshot, getSpecialCareFriendIds, getExperimentalFeatures } = require('../../models/store');
 const { sendMsgAsync, sendMsgAsyncUrgent, getUserState, networkEvents } = require('../../utils/network');
 const { types } = require('../../utils/proto');
 const { toLong, toNum, toTimeSec, getServerTimeSec, log, logWarn, sleep } = require('../../utils/utils');
@@ -84,11 +84,24 @@ function shouldStealPlant(plantId) {
 }
 
 function shouldStealFriend(friendGid) {
+    const experimental = typeof getExperimentalFeatures === 'function'
+        ? getExperimentalFeatures()
+        : { focusStealEnabled: false };
+    const specialCareFriendIds = typeof getSpecialCareFriendIds === 'function'
+        ? getSpecialCareFriendIds()
+        : [];
+    const gid = String(friendGid);
+
+    if (experimental.focusStealEnabled && specialCareFriendIds.length > 0) {
+        const focused = specialCareFriendIds.map(String).includes(gid);
+        if (!focused) state.filterStats.friendWhitelist++;
+        if (!focused) return false;
+    }
+
     const config = getStealFriendFilterConfig();
     if (!config || !config.enabled) return true;
 
     const friendIds = config.friendIds || [];
-    const gid = String(friendGid);
 
     if (config.mode === 'blacklist') {
         const blocked = friendIds.includes(gid);

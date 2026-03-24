@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ContextHelpButton from '@/components/help/ContextHelpButton.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -197,16 +198,19 @@ onMounted(() => {
           管理系统展示的多个历史版本公告，并允许与物理 Update.log 日志联动。
         </p>
       </div>
-      <div v-if="isAdmin && !currentEdit" class="announcement-manager-actions ui-mobile-sticky-panel">
+      <div class="announcement-manager-actions ui-mobile-sticky-panel">
         <div class="ui-page-actions ui-bulk-actions">
-          <BaseButton variant="outline" :loading="syncing" @click="syncFromLog">
-            <div class="i-carbon-repo-source-code mr-1.5" />
-            同步 Update.log
-          </BaseButton>
-          <BaseButton variant="primary" @click="openCreateForm">
-            <div class="i-carbon-add mr-1.5" />
-            编写新公告
-          </BaseButton>
+          <ContextHelpButton article="admin-console" audience="admin" label="公告帮助" variant="outline" />
+          <template v-if="isAdmin && !currentEdit">
+            <BaseButton variant="outline" :loading="syncing" @click="syncFromLog">
+              <div class="i-carbon-repo-source-code mr-1.5" />
+              同步 Update.log
+            </BaseButton>
+            <BaseButton variant="primary" @click="openCreateForm">
+              <div class="i-carbon-add mr-1.5" />
+              编写新公告
+            </BaseButton>
+          </template>
         </div>
       </div>
     </div>

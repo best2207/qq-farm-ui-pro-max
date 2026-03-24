@@ -9,6 +9,7 @@ export interface Account {
   name: string
   nick?: string
   uin?: number
+  openId?: string
   username?: string
   avatar?: string
   platform?: string
@@ -37,6 +38,10 @@ export interface Account {
   coupon?: number
   uptime?: number
   lastLoginAt?: number | null
+  lastValidCodeAt?: number | null
+  lastCodeSource?: string
+  lastCodeCaptureAt?: number | null
+  lastCodeCaptureBy?: string | null
   createdAt?: number
   updatedAt?: number
   // Add other fields as discovered

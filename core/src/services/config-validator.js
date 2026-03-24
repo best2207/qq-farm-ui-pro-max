@@ -307,6 +307,20 @@ const STEAL_FRIEND_FILTER_SCHEMA = {
     friendIds: { type: 'array', default: [], label: '好友ID列表' },
 };
 
+const FRIEND_RISK_CONFIG_SCHEMA = {
+    enabled: { type: 'boolean', default: true, label: '好友风险画像开关' },
+    passiveDetectEnabled: { type: 'boolean', default: true, label: '被动识别开关' },
+    passiveWindowSec: { type: 'integer', min: 30, max: 86400, default: 180, label: '施肥后识别窗口(秒)' },
+    passiveDailyThreshold: { type: 'integer', min: 1, max: 100, default: 3, label: '日内重复阈值' },
+    markScoreThreshold: { type: 'integer', min: 20, max: 500, default: 50, label: '高风险阈值' },
+    autoDeprioritize: { type: 'boolean', default: false, label: '自动降权' },
+    eventRetentionDays: { type: 'integer', min: 1, max: 365, default: 30, label: '事件保留天数' },
+};
+
+const EXPERIMENTAL_FEATURES_SCHEMA = {
+    focusStealEnabled: { type: 'boolean', default: false, label: '实验性重点偷取开关' },
+};
+
 const WORKFLOW_SCOPE_SCHEMA = {
     enabled: { type: 'boolean', default: false, label: '工作流开关' },
     minInterval: { type: 'integer', min: 1, max: 86400, default: 30, label: '最小间隔(秒)' },
@@ -490,6 +504,21 @@ const SETTINGS_SCHEMA = {
         label: '好友偷菜过滤',
         properties: STEAL_FRIEND_FILTER_SCHEMA,
     },
+    friendRiskConfig: {
+        type: 'object',
+        label: '好友风险画像',
+        properties: FRIEND_RISK_CONFIG_SCHEMA,
+    },
+    specialCareFriendIds: {
+        type: 'array',
+        default: [],
+        label: '特别关照好友',
+    },
+    experimentalFeatures: {
+        type: 'object',
+        label: '实验性功能',
+        properties: EXPERIMENTAL_FEATURES_SCHEMA,
+    },
     stakeoutSteal: {
         type: 'object',
         label: '蹲守偷菜',
@@ -624,6 +653,7 @@ module.exports = {
     INTERVALS_SCHEMA,
     TRADE_CONFIG_SCHEMA,
     STEAL_FRIEND_FILTER_SCHEMA,
+    FRIEND_RISK_CONFIG_SCHEMA,
     WORKFLOW_CONFIG_SCHEMA,
     BUG_REPORT_CONFIG_SCHEMA,
 };

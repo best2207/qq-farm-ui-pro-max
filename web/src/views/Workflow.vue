@@ -3,6 +3,7 @@ import type { MetaBadgeTone } from '@/utils/ui-badge'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import api from '@/api'
+import ContextHelpButton from '@/components/help/ContextHelpButton.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -629,6 +630,7 @@ watch(() => currentAccountId.value, () => {
         </p>
       </div>
       <div class="ui-page-actions ui-bulk-actions">
+        <ContextHelpButton article="workflow-and-steal" label="流程帮助" variant="outline" />
         <BaseButton variant="outline" size="sm" :loading="loading" @click="loadData">
           刷新配置
         </BaseButton>

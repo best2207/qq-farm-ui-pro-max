@@ -8,6 +8,7 @@ const { getCurrentPhase, setOperationLimitsCallback } = require('../farm');
 const { recordOperation } = require('../stats');
 const { sellAllFruits } = require('../warehouse');
 const { getRuntimeAccountModePolicy } = require('../account-mode-policy');
+const friendStealStatsService = require('../friend-steal-stats-service');
 const PlatformFactory = require('../../platform/PlatformFactory');
 const state = require('./friend-state');
 const decision = require('./friend-decision');
@@ -430,6 +431,17 @@ async function batchStealFromFriends(stealFriends, myGid) {
                     const plantNames = [...new Set(stolenPlants)].join('/');
                     totalStolen += ok;
                     recordOperation('steal', ok);
+                    await friendStealStatsService.recordStealSuccess({
+                        accountId: CONFIG.accountId || process.env.FARM_ACCOUNT_ID || '',
+                        friendGid: friend.gid,
+                        friendUin: friend.uin || '',
+                        friendOpenId: friend.openId || friend.open_id || '',
+                        friendName: friend.name,
+                        stealCount: ok,
+                        landCount: ok,
+                        plantNames: stolenPlants,
+                        mode: 'batch_auto',
+                    }).catch(() => { });
                     log('好友', `[偷菜] ${friend.name}: 偷${ok}${plantNames ? `(${plantNames})` : ''}`, {
                         module: 'friend', event: 'batch_steal', result: 'ok',
                         friendName: friend.name, friendGid: friend.gid, count: ok,
@@ -869,6 +881,15 @@ async function visitFriend(friend, totalActions, myGid, modePolicy = null) {
                 actionLog.push(`偷${ok}${plantNames ? `(${plantNames})` : ''}`);
                 totalActions.steal += ok;
                 recordOperation('steal', ok);
+                await friendStealStatsService.recordStealSuccess({
+                    accountId: CONFIG.accountId || process.env.FARM_ACCOUNT_ID || '',
+                    friendGid: gid,
+                    friendName: name,
+                    stealCount: ok,
+                    landCount: ok,
+                    plantNames: stolenPlants,
+                    mode: 'auto',
+                }).catch(() => { });
             }
         }
     }

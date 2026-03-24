@@ -7,17 +7,78 @@ function registerAuthRoutes({
     adminLogger,
     configRef,
 }) {
+    app.get('/api/auth/bootstrap-status', async (_req, res) => {
+        try {
+            const data = await userStore.getAdminBootstrapStatus();
+            res.json({ ok: true, data });
+        } catch (err) {
+            adminLogger.error(`Bootstrap status error: ${err.message}`);
+            return res.status(500).json({ ok: false, error: '服务器内部错误' });
+        }
+    });
+
+    app.post('/api/auth/init-password', async (req, res) => {
+        try {
+            const password = String(req.body?.password || '');
+            if (!password) {
+                return res.status(400).json({ ok: false, error: '管理员密码不能为空' });
+            }
+
+            const result = await userStore.initializeAdminPassword(password);
+            if (!result?.ok) {
+                return res.status(400).json({ ok: false, error: result?.error || '初始化管理员密码失败' });
+            }
+
+            const user = result.data;
+            const validatedUser = { username: user.username, role: user.role, card: user.card };
+            const accessToken = jwtService.signAccessToken(validatedUser);
+            const refreshToken = jwtService.generateRefreshToken();
+            await jwtService.storeRefreshToken(validatedUser.username, refreshToken, validatedUser.role, req);
+            jwtService.setTokenCookies(req, res, accessToken, refreshToken, validatedUser.role);
+            const session = await jwtService.buildSessionStatus({
+                req,
+                user: validatedUser,
+                accessToken,
+                refreshToken,
+            });
+
+            res.json({
+                ok: true,
+                data: {
+                    user: validatedUser,
+                    session,
+                    bootstrapCompleted: true,
+                },
+            });
+        } catch (err) {
+            adminLogger.error(`Init password error: ${err.message}`);
+            return res.status(500).json({ ok: false, error: '服务器内部错误' });
+        }
+    });
+
     app.post('/api/login', async (req, res) => {
         try {
             const username = String(req.body?.username || '').trim();
             const password = String(req.body?.password || '');
             const clientIP = getClientIP(req);
             const lockKey = username ? `user:${username}` : `ip:${clientIP}`;
+            const bootstrapStatus = typeof userStore.getAdminBootstrapStatus === 'function'
+                ? await userStore.getAdminBootstrapStatus()
+                : null;
 
             if (!username || !password) {
                 return res.status(400).json({
                     ok: false,
                     error: '用户名和密码不能为空',
+                });
+            }
+
+            if (bootstrapStatus && bootstrapStatus.required) {
+                return res.status(403).json({
+                    ok: false,
+                    error: '当前实例尚未初始化管理员密码，请先完成首次密码设置',
+                    needsBootstrap: true,
+                    bootstrap: bootstrapStatus,
                 });
             }
 
@@ -46,6 +107,12 @@ function registerAuthRoutes({
             const refreshToken = jwtService.generateRefreshToken();
             await jwtService.storeRefreshToken(validatedUser.username, refreshToken, validatedUser.role, req);
             jwtService.setTokenCookies(req, res, accessToken, refreshToken, validatedUser.role);
+            const session = await jwtService.buildSessionStatus({
+                req,
+                user: validatedUser,
+                accessToken,
+                refreshToken,
+            });
 
             const defaultPwd = configRef.adminPassword || 'admin';
             const isDefaultPassword = password === defaultPwd;
@@ -58,6 +125,7 @@ function registerAuthRoutes({
                         role: validatedUser.role,
                         card: validatedUser.card,
                     },
+                    session,
                     ...(isDefaultPassword && { passwordWarning: '您正在使用默认密码，建议尽快修改以保障账户安全' }),
                 },
             });
@@ -88,8 +156,14 @@ function registerAuthRoutes({
             const newRefresh = jwtService.generateRefreshToken();
             await jwtService.storeRefreshToken(userInfo.username, newRefresh, userInfo.role, req);
             jwtService.setTokenCookies(req, res, newAccess, newRefresh, userInfo.role);
+            const session = await jwtService.buildSessionStatus({
+                req,
+                user: userInfo,
+                accessToken: newAccess,
+                refreshToken: newRefresh,
+            });
 
-            res.json({ ok: true });
+            res.json({ ok: true, data: { session } });
         } catch (err) {
             adminLogger.error(`Token refresh error: ${err.message}`);
             return res.status(500).json({ ok: false, error: '服务器内部错误' });

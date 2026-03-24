@@ -1,3 +1,6 @@
+const friendRiskService = require('../../services/friend-risk-service');
+const friendStealStatsService = require('../../services/friend-steal-stats-service');
+
 function registerFriendBlacklistRoutes({
     app,
     accountOwnershipRequired,
@@ -197,6 +200,104 @@ function registerAccountControlRoutes({
             res.json({ ok: true, data: { addedCount: addedUins.length, addedUins } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    app.get('/api/friend-risk/profiles', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const data = await friendRiskService.listFriendRiskProfiles(accountId, {
+                keyword: req.query.keyword,
+                level: req.query.level,
+                limit: req.query.limit,
+            });
+            res.json({ ok: true, data });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.get('/api/friend-risk/events', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const data = await friendRiskService.listFriendRiskEvents(accountId, {
+                friendGid: req.query.friendGid,
+                limit: req.query.limit,
+            });
+            res.json({ ok: true, data });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.get('/api/friend-risk/summary', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const data = await friendRiskService.getFriendRiskSummary(accountId);
+            res.json({ ok: true, data });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.post('/api/friend-risk/:gid/reset', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const ok = await friendRiskService.resetFriendRiskProfile(accountId, req.params.gid);
+            res.json({ ok: !!ok });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.get('/api/friend-special-care', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const data = store.getSpecialCareFriendIds ? store.getSpecialCareFriendIds(accountId) : [];
+            res.json({ ok: true, data });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.post('/api/friend-special-care/toggle', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const gid = Number((req.body || {}).gid);
+            if (!gid) return res.status(400).json({ ok: false, error: 'Missing gid' });
+            const current = store.getSpecialCareFriendIds ? store.getSpecialCareFriendIds(accountId) : [];
+            const currentSet = new Set(current.map(Number));
+            if (currentSet.has(gid)) currentSet.delete(gid);
+            else currentSet.add(gid);
+            const data = store.setSpecialCareFriendIds ? store.setSpecialCareFriendIds(accountId, Array.from(currentSet)) : Array.from(currentSet);
+            const provider = getProvider();
+            if (provider && typeof provider.broadcastConfig === 'function') {
+                provider.broadcastConfig(accountId);
+            }
+            res.json({ ok: true, data });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.get('/api/friend-steal-stats', accountOwnershipRequired, async (req, res) => {
+        try {
+            const accountId = await getAccId(req);
+            if (!accountId) return res.status(400).json({ ok: false, error: '缺少账号标识 (x-account-id)' });
+            const list = await friendStealStatsService.listFriendStealStats(accountId, {
+                keyword: req.query.keyword,
+                limit: req.query.limit,
+            });
+            const overview = await friendStealStatsService.getFriendStealStatsOverview(accountId);
+            res.json({ ok: true, data: { overview, list } });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: error.message });
         }
     });
 

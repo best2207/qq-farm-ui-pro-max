@@ -152,6 +152,18 @@ const DEFAULT_TRADE_CONFIG = {
         previewBeforeManualSell: false,
     },
 };
+const DEFAULT_FRIEND_RISK_CONFIG = {
+    enabled: true,
+    passiveDetectEnabled: true,
+    passiveWindowSec: 180,
+    passiveDailyThreshold: 3,
+    markScoreThreshold: 50,
+    autoDeprioritize: false,
+    eventRetentionDays: 30,
+};
+const DEFAULT_EXPERIMENTAL_FEATURES = {
+    focusStealEnabled: false,
+};
 // ============ 全局配置 ============
 const DEFAULT_ACCOUNT_CONFIG = {
     automation: {
@@ -226,6 +238,9 @@ const DEFAULT_ACCOUNT_CONFIG = {
     qqHighRiskWindow: { ...DEFAULT_QQ_HIGH_RISK_WINDOW },
     skipStealRadish: { enabled: false },
     forceGetAll: { enabled: false },
+    friendRiskConfig: { ...DEFAULT_FRIEND_RISK_CONFIG },
+    specialCareFriendIds: [],
+    experimentalFeatures: { ...DEFAULT_EXPERIMENTAL_FEATURES },
     workflowConfig: {
         farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] },
         friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] },
@@ -247,6 +262,9 @@ let accountFallbackConfig = {
     intervals: { ...DEFAULT_ACCOUNT_CONFIG.intervals },
     friendQuietHours: { ...DEFAULT_ACCOUNT_CONFIG.friendQuietHours },
     qqHighRiskWindow: { ...DEFAULT_ACCOUNT_CONFIG.qqHighRiskWindow },
+    friendRiskConfig: { ...DEFAULT_ACCOUNT_CONFIG.friendRiskConfig },
+    specialCareFriendIds: [...DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds],
+    experimentalFeatures: { ...DEFAULT_ACCOUNT_CONFIG.experimentalFeatures },
 };
 
 const globalConfig = {
@@ -837,6 +855,9 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const forceGetAll = (base.forceGetAll && typeof base.forceGetAll === 'object')
         ? { enabled: !!base.forceGetAll.enabled }
         : DEFAULT_ACCOUNT_CONFIG.forceGetAll;
+    const friendRiskConfig = normalizeFriendRiskConfig(base.friendRiskConfig, DEFAULT_ACCOUNT_CONFIG.friendRiskConfig);
+    const specialCareFriendIds = normalizeSpecialCareFriendIds(base.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+    const experimentalFeatures = normalizeExperimentalFeatures(base.experimentalFeatures, DEFAULT_ACCOUNT_CONFIG.experimentalFeatures);
     const accountMode = normalizeAccountMode(base.accountMode, DEFAULT_ACCOUNT_CONFIG.accountMode);
     const modeScope = normalizeModeScope(base.modeScope, DEFAULT_MODE_SCOPE);
     const harvestDelay = normalizeHarvestDelay(base.harvestDelay, getAccountModePreset(accountMode).harvestDelay, accountMode);
@@ -862,6 +883,9 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         qqHighRiskWindow,
         skipStealRadish,
         forceGetAll,
+        friendRiskConfig,
+        specialCareFriendIds,
+        experimentalFeatures,
         workflowConfig: normalizeWorkflowConfig(base.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         tradeConfig: normalizeTradeConfig(base.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
         reportConfig: normalizeReportConfig(base.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -984,6 +1008,21 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
     }
     if (src.forceGetAll && typeof src.forceGetAll === 'object') {
         cfg.forceGetAll = { enabled: !!src.forceGetAll.enabled };
+    }
+    if (src.friendRiskConfig && typeof src.friendRiskConfig === 'object') {
+        cfg.friendRiskConfig = normalizeFriendRiskConfig(src.friendRiskConfig, cfg.friendRiskConfig || DEFAULT_FRIEND_RISK_CONFIG);
+    } else {
+        cfg.friendRiskConfig = normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG);
+    }
+    if (src.specialCareFriendIds !== undefined) {
+        cfg.specialCareFriendIds = normalizeSpecialCareFriendIds(src.specialCareFriendIds, cfg.specialCareFriendIds || DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+    } else {
+        cfg.specialCareFriendIds = normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+    }
+    if (src.experimentalFeatures && typeof src.experimentalFeatures === 'object') {
+        cfg.experimentalFeatures = normalizeExperimentalFeatures(src.experimentalFeatures, cfg.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
+    } else {
+        cfg.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES);
     }
     if (src.workflowConfig && typeof src.workflowConfig === 'object') {
         cfg.workflowConfig = normalizeWorkflowConfig(src.workflowConfig, cfg.workflowConfig || DEFAULT_ACCOUNT_CONFIG.workflowConfig);
@@ -1150,6 +1189,9 @@ async function loadGlobalConfigFromDB() {
                 qqHighRiskWindow: adv.qqHighRiskWindow,
                 skipStealRadish: adv.skipStealRadish,
                 forceGetAll: adv.forceGetAll,
+                friendRiskConfig: adv.friendRiskConfig,
+                specialCareFriendIds: adv.specialCareFriendIds,
+                experimentalFeatures: adv.experimentalFeatures,
                 workflowConfig: adv.workflowConfig,
                 tradeConfig: adv.tradeConfig,
                 reportConfig: adv.reportConfig,
@@ -1427,6 +1469,9 @@ async function saveGlobalConfigImmediate() {
                         qqHighRiskWindow: normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW),
                         skipStealRadish: cfg.skipStealRadish || { enabled: false },
                         forceGetAll: cfg.forceGetAll || { enabled: false },
+                        friendRiskConfig: normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG),
+                        specialCareFriendIds: normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds),
+                        experimentalFeatures: normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES),
                         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
                         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
                         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -1550,6 +1595,9 @@ function getConfigSnapshot(accountId) {
         qqHighRiskWindow: normalizeQqHighRiskWindow(cfg.qqHighRiskWindow, DEFAULT_QQ_HIGH_RISK_WINDOW),
         skipStealRadish: { ...(cfg.skipStealRadish || DEFAULT_ACCOUNT_CONFIG.skipStealRadish) },
         forceGetAll: { ...(cfg.forceGetAll || DEFAULT_ACCOUNT_CONFIG.forceGetAll) },
+        friendRiskConfig: normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG),
+        specialCareFriendIds: normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds),
+        experimentalFeatures: normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES),
         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -1683,6 +1731,15 @@ function applyConfigSnapshot(snapshot, options = {}) {
     if (cfg.forceGetAll && typeof cfg.forceGetAll === 'object') {
         next.forceGetAll = { enabled: !!cfg.forceGetAll.enabled };
     }
+    if (cfg.friendRiskConfig && typeof cfg.friendRiskConfig === 'object') {
+        next.friendRiskConfig = normalizeFriendRiskConfig(cfg.friendRiskConfig, next.friendRiskConfig || DEFAULT_FRIEND_RISK_CONFIG);
+    }
+    if (cfg.specialCareFriendIds !== undefined) {
+        next.specialCareFriendIds = normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, next.specialCareFriendIds || DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+    }
+    if (cfg.experimentalFeatures && typeof cfg.experimentalFeatures === 'object') {
+        next.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, next.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
+    }
 
     if (cfg.workflowConfig && typeof cfg.workflowConfig === 'object') {
         next.workflowConfig = normalizeWorkflowConfig(cfg.workflowConfig, next.workflowConfig || DEFAULT_ACCOUNT_CONFIG.workflowConfig);
@@ -1814,6 +1871,37 @@ function normalizeTimeString(v, fallback) {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+function normalizeFriendRiskConfig(cfg, fallback = DEFAULT_FRIEND_RISK_CONFIG) {
+    const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_FRIEND_RISK_CONFIG;
+    const input = (cfg && typeof cfg === 'object') ? cfg : {};
+    return {
+        enabled: input.enabled !== undefined ? !!input.enabled : current.enabled !== false,
+        passiveDetectEnabled: input.passiveDetectEnabled !== undefined ? !!input.passiveDetectEnabled : current.passiveDetectEnabled !== false,
+        passiveWindowSec: Math.max(30, Math.min(86400, Number.parseInt(input.passiveWindowSec, 10) || current.passiveWindowSec || DEFAULT_FRIEND_RISK_CONFIG.passiveWindowSec)),
+        passiveDailyThreshold: Math.max(1, Math.min(100, Number.parseInt(input.passiveDailyThreshold, 10) || current.passiveDailyThreshold || DEFAULT_FRIEND_RISK_CONFIG.passiveDailyThreshold)),
+        markScoreThreshold: Math.max(20, Math.min(500, Number.parseInt(input.markScoreThreshold, 10) || current.markScoreThreshold || DEFAULT_FRIEND_RISK_CONFIG.markScoreThreshold)),
+        autoDeprioritize: input.autoDeprioritize !== undefined ? !!input.autoDeprioritize : !!current.autoDeprioritize,
+        eventRetentionDays: Math.max(1, Math.min(365, Number.parseInt(input.eventRetentionDays, 10) || current.eventRetentionDays || DEFAULT_FRIEND_RISK_CONFIG.eventRetentionDays)),
+    };
+}
+
+function normalizeSpecialCareFriendIds(value, fallback = DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds) {
+    const source = Array.isArray(value) ? value : (Array.isArray(fallback) ? fallback : []);
+    return Array.from(new Set(
+        source
+            .map(item => Number.parseInt(String(item), 10))
+            .filter(item => Number.isFinite(item) && item > 0)
+    ));
+}
+
+function normalizeExperimentalFeatures(cfg, fallback = DEFAULT_EXPERIMENTAL_FEATURES) {
+    const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_EXPERIMENTAL_FEATURES;
+    const input = (cfg && typeof cfg === 'object') ? cfg : {};
+    return {
+        focusStealEnabled: input.focusStealEnabled !== undefined ? !!input.focusStealEnabled : !!current.focusStealEnabled,
+    };
+}
+
 function getFriendQuietHours(accountId) {
     return { ...getAccountConfigSnapshot(accountId).friendQuietHours };
 }
@@ -1911,6 +1999,42 @@ function setForceGetAllConfig(accountId, cfg) {
     next.forceGetAll = { enabled: !!(cfg && cfg.enabled) };
     setAccountConfigSnapshot(accountId, next);
     return getForceGetAllConfig(accountId);
+}
+
+function getFriendRiskConfig(accountId) {
+    return normalizeFriendRiskConfig(getAccountConfigSnapshot(accountId).friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG);
+}
+
+function setFriendRiskConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.friendRiskConfig = normalizeFriendRiskConfig(cfg, next.friendRiskConfig || DEFAULT_FRIEND_RISK_CONFIG);
+    setAccountConfigSnapshot(accountId, next);
+    return getFriendRiskConfig(accountId);
+}
+
+function getSpecialCareFriendIds(accountId) {
+    return normalizeSpecialCareFriendIds(getAccountConfigSnapshot(accountId).specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+}
+
+function setSpecialCareFriendIds(accountId, list) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.specialCareFriendIds = normalizeSpecialCareFriendIds(list, next.specialCareFriendIds || DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
+    setAccountConfigSnapshot(accountId, next);
+    return getSpecialCareFriendIds(accountId);
+}
+
+function getExperimentalFeatures(accountId) {
+    return normalizeExperimentalFeatures(getAccountConfigSnapshot(accountId).experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES);
+}
+
+function setExperimentalFeatures(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.experimentalFeatures = normalizeExperimentalFeatures(cfg, next.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
+    setAccountConfigSnapshot(accountId, next);
+    return getExperimentalFeatures(accountId);
 }
 
 function getReportConfig(accountId) {
@@ -2030,10 +2154,12 @@ function normalizeAccountIdentityFields(raw) {
     const qq = platform === 'qq'
         ? String(input.qq || uin || '').trim()
         : '';
+    const openId = String(input.openId || input.open_id || '').trim();
     return {
         platform,
         uin,
         qq,
+        openId,
         code: String(input.code || ''),
         authTicket: String(input.authTicket || '').trim(),
     };
@@ -2056,6 +2182,7 @@ function buildAccountAuthData(acc) {
         platform: readFieldWithExplicitEmpty(acc, 'platform', existing.platform || 'qq'),
         uin: readFieldWithExplicitEmpty(acc, 'uin', existing.uin || ''),
         qq: readFieldWithExplicitEmpty(acc, 'qq', existing.qq || ''),
+        openId: readFieldWithExplicitEmpty(acc, 'openId', existing.openId || ''),
         code: readFieldWithExplicitEmpty(acc, 'code', existing.code || ''),
         authTicket: readFieldWithExplicitEmpty(acc, 'authTicket', existing.authTicket || ''),
     });
@@ -2072,6 +2199,12 @@ function buildAccountAuthData(acc) {
     const lastLoginAt = normalizeOptionalTimestamp((acc && acc.lastLoginAt) !== undefined
         ? acc.lastLoginAt
         : existing.lastLoginAt);
+    const lastValidCodeAt = normalizeOptionalTimestamp((acc && acc.lastValidCodeAt) !== undefined
+        ? acc.lastValidCodeAt
+        : existing.lastValidCodeAt);
+    const lastCodeCaptureAt = normalizeOptionalTimestamp((acc && acc.lastCodeCaptureAt) !== undefined
+        ? acc.lastCodeCaptureAt
+        : existing.lastCodeCaptureAt);
     const wsError = normalizeAccountWsError(
         acc && Object.prototype.hasOwnProperty.call(acc, 'wsError')
             ? acc.wsError
@@ -2082,9 +2215,14 @@ function buildAccountAuthData(acc) {
         ...existing,
         uin: identity.uin,
         qq: identity.qq,
+        openId: identity.openId,
         code: identity.code,
         authTicket: identity.authTicket,
         lastLoginAt,
+        lastValidCodeAt,
+        lastCodeSource: String((acc && acc.lastCodeSource) !== undefined ? acc.lastCodeSource : existing.lastCodeSource || '').trim(),
+        lastCodeCaptureAt,
+        lastCodeCaptureBy: String((acc && acc.lastCodeCaptureBy) !== undefined ? acc.lastCodeCaptureBy : existing.lastCodeCaptureBy || '').trim(),
         wsError,
         runtimeSnapshot: normalizeAccountRuntimeSnapshot(runtimeSource),
     };
@@ -2103,10 +2241,17 @@ async function loadAccountsFromDB() {
             const lastLoginAt = normalizeOptionalTimestamp(
                 r.last_login_at ? new Date(r.last_login_at).getTime() : authData.lastLoginAt,
             );
+            const lastValidCodeAt = normalizeOptionalTimestamp(
+                r.last_valid_code_at ? new Date(r.last_valid_code_at).getTime() : authData.lastValidCodeAt,
+            );
+            const lastCodeCaptureAt = normalizeOptionalTimestamp(
+                r.last_code_capture_at ? new Date(r.last_code_capture_at).getTime() : authData.lastCodeCaptureAt,
+            );
             const identity = normalizeAccountIdentityFields({
                 platform: r.platform || 'qq',
                 uin: decodePersistedAccountUin(r.uin) || authData.uin || '',
                 qq: authData.qq || '',
+                openId: r.open_id || authData.openId || '',
                 code: r.code || authData.code || '',
                 authTicket: authData.authTicket || '',
             });
@@ -2120,6 +2265,7 @@ async function loadAccountsFromDB() {
                 running: r.running === 1,
                 avatar: r.avatar || '',
                 qq: identity.qq,
+                openId: identity.openId,
                 authTicket: identity.authTicket,
                 username: r.username || '',
                 level: runtimeSnapshot.level,
@@ -2131,6 +2277,10 @@ async function loadAccountsFromDB() {
                 lastStatusAt: runtimeSnapshot.lastStatusAt,
                 lastOnlineAt: runtimeSnapshot.lastOnlineAt,
                 lastLoginAt,
+                lastValidCodeAt,
+                lastCodeSource: String(r.last_code_source || authData.lastCodeSource || '').trim(),
+                lastCodeCaptureAt,
+                lastCodeCaptureBy: String(r.last_code_capture_by || authData.lastCodeCaptureBy || '').trim(),
                 createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
                 updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
             };
@@ -2375,6 +2525,8 @@ async function persistPendingAccounts(options = {}) {
             : String(identity.uin || '').trim();
         const persistedUin = encodePersistedAccountUin(acc.id, primaryUin);
         const lastLoginAt = normalizeOptionalTimestamp(acc.lastLoginAt);
+        const lastValidCodeAt = normalizeOptionalTimestamp(acc.lastValidCodeAt);
+        const lastCodeCaptureAt = normalizeOptionalTimestamp(acc.lastCodeCaptureAt);
         const authData = JSON.stringify(buildAccountAuthData({
             ...acc,
             ...identity,
@@ -2383,10 +2535,11 @@ async function persistPendingAccounts(options = {}) {
 
         try {
             await pool.query(
-                "INSERT INTO accounts (id, uin, nick, name, platform, running, code, username, avatar, last_login_at, auth_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE uin=COALESCE(NULLIF(VALUES(uin),''), uin), nick=VALUES(nick), name=VALUES(name), platform=VALUES(platform), running=VALUES(running), code=COALESCE(NULLIF(VALUES(code),''), code), username=VALUES(username), avatar=COALESCE(NULLIF(VALUES(avatar),''), avatar), last_login_at=COALESCE(VALUES(last_login_at), last_login_at), auth_data=COALESCE(NULLIF(VALUES(auth_data),''), auth_data)",
+                "INSERT INTO accounts (id, uin, open_id, nick, name, platform, running, code, username, avatar, last_login_at, last_valid_code_at, last_code_source, last_code_capture_at, last_code_capture_by, auth_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE uin=COALESCE(NULLIF(VALUES(uin),''), uin), open_id=COALESCE(NULLIF(VALUES(open_id),''), open_id), nick=VALUES(nick), name=VALUES(name), platform=VALUES(platform), running=VALUES(running), code=COALESCE(NULLIF(VALUES(code),''), code), username=VALUES(username), avatar=COALESCE(NULLIF(VALUES(avatar),''), avatar), last_login_at=COALESCE(VALUES(last_login_at), last_login_at), last_valid_code_at=COALESCE(VALUES(last_valid_code_at), last_valid_code_at), last_code_source=COALESCE(NULLIF(VALUES(last_code_source),''), last_code_source), last_code_capture_at=COALESCE(VALUES(last_code_capture_at), last_code_capture_at), last_code_capture_by=COALESCE(NULLIF(VALUES(last_code_capture_by),''), last_code_capture_by), auth_data=COALESCE(NULLIF(VALUES(auth_data),''), auth_data)",
                 [
                     acc.id,
                     persistedUin,
+                    identity.openId || null,
                     acc.nick || '',
                     acc.name || '',
                     platform,
@@ -2395,6 +2548,10 @@ async function persistPendingAccounts(options = {}) {
                     normalizedUsername,
                     acc.avatar || '',
                     lastLoginAt ? new Date(lastLoginAt) : null,
+                    lastValidCodeAt ? new Date(lastValidCodeAt) : null,
+                    String(acc.lastCodeSource || '').trim(),
+                    lastCodeCaptureAt ? new Date(lastCodeCaptureAt) : null,
+                    String(acc.lastCodeCaptureBy || '').trim() || null,
                     authData,
                 ]
             );
@@ -2487,10 +2644,17 @@ async function getAccountFull(accountId) {
         const lastLoginAt = normalizeOptionalTimestamp(
             row.last_login_at ? new Date(row.last_login_at).getTime() : (authData && authData.lastLoginAt),
         );
+        const lastValidCodeAt = normalizeOptionalTimestamp(
+            row.last_valid_code_at ? new Date(row.last_valid_code_at).getTime() : (authData && authData.lastValidCodeAt),
+        );
+        const lastCodeCaptureAt = normalizeOptionalTimestamp(
+            row.last_code_capture_at ? new Date(row.last_code_capture_at).getTime() : (authData && authData.lastCodeCaptureAt),
+        );
         const identity = normalizeAccountIdentityFields({
             platform: row.platform || 'qq',
             uin: decodePersistedAccountUin(row.uin) || String((authData && authData.uin) || ''),
             qq: String((authData && authData.qq) || ''),
+            openId: row.open_id || String((authData && authData.openId) || ''),
             code: row.code || (authData && authData.code) || '',
             authTicket: String((authData && authData.authTicket) || ''),
         });
@@ -2498,6 +2662,7 @@ async function getAccountFull(accountId) {
             id: row.id,
             uin: identity.uin,
             qq: identity.qq,
+            openId: identity.openId,
             code: identity.code,
             authTicket: identity.authTicket,
             nick: row.nick || '',
@@ -2515,6 +2680,10 @@ async function getAccountFull(accountId) {
             lastStatusAt: runtimeSnapshot.lastStatusAt,
             lastOnlineAt: runtimeSnapshot.lastOnlineAt,
             lastLoginAt,
+            lastValidCodeAt,
+            lastCodeSource: String(row.last_code_source || (authData && authData.lastCodeSource) || '').trim(),
+            lastCodeCaptureAt,
+            lastCodeCaptureBy: String(row.last_code_capture_by || (authData && authData.lastCodeCaptureBy) || '').trim(),
             createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
             updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
         };
@@ -2544,7 +2713,7 @@ function shouldBumpAccountUpdatedAt(existing, payload) {
     if (hasOwn('lastLoginAt')) return true;
     if (hasOwn('running') && !!payload.running !== !!(existing && existing.running)) return true;
 
-    const trackedFields = ['name', 'nick', 'platform', 'uin', 'qq', 'code', 'authTicket', 'avatar', 'username'];
+    const trackedFields = ['name', 'nick', 'platform', 'uin', 'qq', 'openId', 'code', 'authTicket', 'avatar', 'username', 'lastCodeSource', 'lastCodeCaptureBy'];
     const payloadWsError = hasOwn('wsError') ? normalizeAccountWsError(payload.wsError) : undefined;
     const existingWsError = normalizeAccountWsError(existing && existing.wsError);
     if (payloadWsError !== undefined) {
@@ -2572,6 +2741,7 @@ function createAccountRecord(acc, forcedId) {
         platform: identity.platform,
         uin: identity.uin,
         qq: identity.qq,
+        openId: identity.openId,
         authTicket: identity.authTicket,
         avatar: acc.avatar || acc.avatarUrl || '',
         username: acc.username || '',
@@ -2586,6 +2756,10 @@ function createAccountRecord(acc, forcedId) {
         lastStatusAt: Math.max(0, Number(acc.lastStatusAt) || 0),
         lastOnlineAt: Math.max(0, Number(acc.lastOnlineAt) || 0),
         lastLoginAt: normalizeOptionalTimestamp(acc.lastLoginAt),
+        lastValidCodeAt: normalizeOptionalTimestamp(acc.lastValidCodeAt),
+        lastCodeSource: String(acc.lastCodeSource || '').trim(),
+        lastCodeCaptureAt: normalizeOptionalTimestamp(acc.lastCodeCaptureAt),
+        lastCodeCaptureBy: String(acc.lastCodeCaptureBy || '').trim(),
         createdAt: Math.max(0, Number(acc.createdAt) || 0) || now,
         updatedAt: Math.max(0, Number(acc.updatedAt) || 0) || now,
     };
@@ -2905,6 +3079,12 @@ module.exports = {
     setSkipStealRadishConfig,
     getForceGetAllConfig,
     setForceGetAllConfig,
+    getFriendRiskConfig,
+    setFriendRiskConfig,
+    getSpecialCareFriendIds,
+    setSpecialCareFriendIds,
+    getExperimentalFeatures,
+    setExperimentalFeatures,
     getReportConfig,
     setReportConfig,
     getReportState,

@@ -18,6 +18,7 @@ function registerSystemPublicRoutes({
     getProvider,
     getSchedulerRegistrySnapshot,
     adminOperationLogService,
+    jwtService,
     handleApiError,
     readLatestQqFriendDiagnostics,
 }) {
@@ -257,6 +258,18 @@ function registerSystemPublicRoutes({
                 },
             },
         });
+    });
+
+    app.get('/api/auth/session-status', async (req, res) => {
+        try {
+            const data = await jwtService.buildSessionStatus({
+                req,
+                user: req.currentUser,
+            });
+            res.json({ ok: true, data });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
     });
 
     app.get('/api/ui-config', async (req, res) => {

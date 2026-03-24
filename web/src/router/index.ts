@@ -20,10 +20,17 @@ interface SessionValidation {
   user: CurrentUser
 }
 
+interface BootstrapStatus {
+  required: boolean
+  initialized: boolean
+  username?: string
+}
+
 let validatedUser = ''
 let validatedCurrentUser: CurrentUser = null
 let validatingPromise: Promise<SessionValidation> | null = null
 let validatingMarker = ''
+let bootstrapStatusPromise: Promise<BootstrapStatus> | null = null
 
 function readStoredCurrentUser(): CurrentUser {
   try {
@@ -92,6 +99,34 @@ async function ensureTokenValid() {
   return promise
 }
 
+function normalizeBootstrapStatus(data: any): BootstrapStatus {
+  const next = (data && typeof data === 'object') ? data : {}
+  return {
+    required: !!next.required,
+    initialized: next.initialized !== false,
+    username: String(next.username || next.seededUsername || 'admin').trim() || 'admin',
+  }
+}
+
+async function ensureBootstrapStatus() {
+  if (bootstrapStatusPromise)
+    return bootstrapStatusPromise
+
+  bootstrapStatusPromise = api.get('/api/auth/bootstrap-status', {
+    timeout: 6000,
+  }).then((res) => {
+    return normalizeBootstrapStatus(res.data?.data)
+  }).catch(() => ({
+    required: false,
+    initialized: true,
+    username: 'admin',
+  } satisfies BootstrapStatus)).finally(() => {
+    bootstrapStatusPromise = null
+  })
+
+  return bootstrapStatusPromise
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -131,11 +166,38 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/Login.vue'),
     },
+    {
+      path: '/init-password',
+      name: 'init-password',
+      component: () => import('@/views/InitPassword.vue'),
+    },
   ],
 })
 
 router.beforeEach(async (to, _from) => {
   NProgress.start()
+  const bootstrapStatus = await ensureBootstrapStatus()
+
+  if (bootstrapStatus.required) {
+    if (to.name !== 'init-password')
+      return { name: 'init-password' }
+    return true
+  }
+
+  if (to.name === 'init-password') {
+    if (!adminToken.value) {
+      validatedUser = ''
+      validatedCurrentUser = null
+      return { name: 'login' }
+    }
+    const session = await ensureTokenValid()
+    if (session.valid)
+      return { name: 'dashboard' }
+    validatedUser = ''
+    validatedCurrentUser = null
+    clearLocalAuthState()
+    return { name: 'login' }
+  }
 
   if (to.name === 'login') {
     if (!adminToken.value) {

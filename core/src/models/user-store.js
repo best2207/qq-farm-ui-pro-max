@@ -11,6 +11,7 @@ const { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } = require('../
 
 const TRIAL_IP_FILE = getDataFile('trial-ip-history.json');
 const TRIAL_IP_HISTORY_SETTING_KEY = SYSTEM_SETTING_KEYS.TRIAL_IP_HISTORY;
+const ADMIN_BOOTSTRAP_SETTING_KEY = SYSTEM_SETTING_KEYS.ADMIN_BOOTSTRAP_STATE;
 const userStoreLogger = createModuleLogger('user-store');
 const verboseAuthLogsEnabled = String(process.env.FARM_VERBOSE_AUTH_LOGS || '') === '1';
 
@@ -32,6 +33,47 @@ function logUserStoreWarn(message, meta = {}) {
 function logAuthVerbose(message, meta = {}) {
     if (!verboseAuthLogsEnabled) return;
     userStoreLogger.info(message, meta);
+}
+
+function normalizeAdminBootstrapState(input) {
+    const src = (input && typeof input === 'object') ? input : {};
+    const required = !!src.required;
+    const initialized = src.initialized === undefined ? !required : !!src.initialized;
+    return {
+        required,
+        initialized,
+        mode: String(src.mode || 'password_init').trim() || 'password_init',
+        seededUsername: String(src.seededUsername || 'admin').trim() || 'admin',
+        seededAt: Math.max(0, Number(src.seededAt) || 0),
+        initializedAt: Math.max(0, Number(src.initializedAt) || 0),
+        initializedBy: String(src.initializedBy || '').trim(),
+        source: String(src.source || '').trim(),
+    };
+}
+
+async function getAdminBootstrapStatus() {
+    await loadUsers();
+    let stored = null;
+    try {
+        stored = await getSystemSetting(ADMIN_BOOTSTRAP_SETTING_KEY);
+    } catch (error) {
+        logUserStoreError('读取管理员初始化状态失败', error);
+    }
+
+    const normalized = normalizeAdminBootstrapState(stored);
+    const adminUser = users.find(item => item && item.role === 'admin');
+    return {
+        ...normalized,
+        hasAdmin: !!adminUser,
+        canInitialize: !!adminUser && normalized.required,
+        username: normalized.seededUsername || adminUser?.username || 'admin',
+    };
+}
+
+async function setAdminBootstrapStatus(nextState) {
+    const normalized = normalizeAdminBootstrapState(nextState);
+    await setSystemSetting(ADMIN_BOOTSTRAP_SETTING_KEY, normalized);
+    return normalized;
 }
 
 const security = require('../services/security');
@@ -826,13 +868,14 @@ async function initDefaultAdmin() {
         // 从环境变量读取管理员初始密码，若未设置则回退到 'admin'
         const { CONFIG } = require('../config/config');
         const defaultPassword = CONFIG.adminPassword || 'admin';
+        const seededAt = Date.now();
         users.push({
             username: 'admin',
             password: hashPassword(defaultPassword),
             role: 'admin',
             status: 'active',
             card: null,
-            createdAt: Date.now()
+            createdAt: seededAt
         });
         await saveUsers();
         const maskedPwd = defaultPassword.length > 2
@@ -843,6 +886,22 @@ async function initDefaultAdmin() {
             passwordPreview: maskedPwd,
             source: CONFIG.adminPassword ? 'ADMIN_PASSWORD' : 'builtin_default',
         });
+
+        const hasExplicitAdminPassword = !!String(process.env.ADMIN_PASSWORD || '').trim();
+        try {
+            await setAdminBootstrapStatus({
+                required: !hasExplicitAdminPassword,
+                initialized: hasExplicitAdminPassword,
+                mode: 'password_init',
+                seededUsername: 'admin',
+                seededAt,
+                initializedAt: hasExplicitAdminPassword ? seededAt : 0,
+                initializedBy: hasExplicitAdminPassword ? 'environment' : '',
+                source: hasExplicitAdminPassword ? 'environment' : 'builtin_default',
+            });
+        } catch (error) {
+            logUserStoreError('写入管理员初始化状态失败', error);
+        }
     }
 }
 
@@ -1327,6 +1386,56 @@ async function changeAdminPassword(username, oldPassword, newPassword) {
     return { ok: true };
 }
 
+async function initializeAdminPassword(newPassword) {
+    await loadUsers();
+    const bootstrapStatus = await getAdminBootstrapStatus();
+    if (!bootstrapStatus.required) {
+        return { ok: false, error: '当前实例无需初始化管理员密码' };
+    }
+
+    const targetUsername = bootstrapStatus.username || 'admin';
+    const adminUser = users.find(item => item && item.username === targetUsername && item.role === 'admin')
+        || users.find(item => item && item.role === 'admin');
+    if (!adminUser) {
+        return { ok: false, error: '未找到可初始化的管理员账号' };
+    }
+
+    const strength = security.checkPasswordStrength(newPassword);
+    if (!strength.strong) {
+        return { ok: false, error: strength.errors.join('；') };
+    }
+
+    adminUser.password = security.hashPassword(newPassword);
+    adminUser.status = 'active';
+
+    const pool = getPool();
+    if (pool) {
+        await pool.query(
+            'UPDATE users SET password_hash=?, status=? WHERE username=?',
+            [adminUser.password, adminUser.status, adminUser.username]
+        ).catch(e => logUserStoreError('初始化管理员密码写库失败', e, { username: adminUser.username }));
+    } else {
+        await saveUsers();
+    }
+
+    const initializedAt = Date.now();
+    await setAdminBootstrapStatus({
+        ...bootstrapStatus,
+        required: false,
+        initialized: true,
+        initializedAt,
+        initializedBy: adminUser.username,
+        source: 'manual_init',
+    });
+
+    const userInfo = await getUserInfo(adminUser.username);
+    if (!userInfo) {
+        return { ok: false, error: '管理员密码已初始化，但读取账号信息失败' };
+    }
+
+    return { ok: true, data: userInfo };
+}
+
 async function getAllCards() {
     await loadCards();
     const decoratedCards = cards
@@ -1713,6 +1822,8 @@ module.exports = {
     createTrialCard,
     renewTrialUser,
     getUserInfo,
+    getAdminBootstrapStatus,
+    initializeAdminPassword,
     __test__: {
         normalizeCardDaysByType,
         getStoredCardDays,

@@ -27,6 +27,14 @@ router.get('/calculator', (req, res) => {
     }
 });
 
+router.get('/mutation_calc', (req, res) => {
+    try {
+        res.json(farmCalculator.calculate_mutation(req.query));
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 router.get('/level_exp_calc', (req, res) => {
     try {
         res.json(farmCalculator.calculate_exp_plan({ ...req.query, _path: req.path }));
