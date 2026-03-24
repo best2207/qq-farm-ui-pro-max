@@ -6,6 +6,7 @@ RUN npm config set registry https://registry.npmmirror.com && npm install -g pnp
 
 # Copy workspace configuration
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY CHANGELOG.md ./
 
 # Copy project package.json files
 COPY core/package.json ./core/
@@ -16,6 +17,7 @@ RUN npm config set registry https://registry.npmmirror.com && pnpm config set re
 
 # Copy source code
 COPY core ./core
+COPY scripts/utils ./scripts/utils
 COPY scripts/service ./scripts/service
 COPY web ./web
 

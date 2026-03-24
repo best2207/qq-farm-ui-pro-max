@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.27',
+    date: '2026-03-24',
+    title: '帮助中心发布链路修复',
+    summary: '补齐 Docker 构建上下文里的发布同步脚本，修复帮助中心 Release Notes 接入后导致的 Docker / Release / 服务器源码构建失败。',
+  },
+  {
     version: 'v4.5.26',
     date: '2026-03-24',
     title: '帮助中心体系化、首次密码初始化与好友风险洞察',
