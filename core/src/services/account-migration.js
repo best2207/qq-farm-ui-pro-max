@@ -40,6 +40,43 @@ function evaluateAccountCutover(account = {}) {
     };
 }
 
+function buildReloginRiskReadiness({ accounts } = {}) {
+    const list = Array.isArray(accounts) ? accounts : [];
+    let runningAccountCount = 0;
+    let reloginRequiredCount = 0;
+    const blockers = [];
+
+    list.forEach((account) => {
+        const running = !!(account && account.running);
+        if (!running) return;
+
+        runningAccountCount += 1;
+        const cutover = evaluateAccountCutover(account);
+        if (!cutover.needsReloginAfterStop) return;
+
+        reloginRequiredCount += 1;
+        const accountId = String(account && account.id || '').trim();
+        blockers.push({
+            accountId,
+            accountName: String(account && (account.name || account.nick || account.uin || account.id) || '').trim() || accountId,
+            platform: String(account && account.platform || '').trim(),
+            credentialKind: cutover.credentialKind,
+            reasonCode: cutover.cutoverReason,
+            message: cutover.cutoverMessage,
+            needsReloginAfterStop: cutover.needsReloginAfterStop,
+        });
+    });
+
+    return {
+        checkedAt: Date.now(),
+        hasReloginRisk: blockers.length > 0,
+        runningAccountCount,
+        blockerCount: blockers.length,
+        reloginRequiredCount,
+        blockers,
+    };
+}
+
 function buildDrainCutoverReadiness({ accounts, clusterNodes, targetNodeIds } = {}) {
     const list = Array.isArray(accounts) ? accounts : [];
     const nodes = Array.isArray(clusterNodes) ? clusterNodes : [];
@@ -111,5 +148,6 @@ function buildDrainCutoverReadiness({ accounts, clusterNodes, targetNodeIds } = 
 module.exports = {
     normalizeCredentialKind,
     evaluateAccountCutover,
+    buildReloginRiskReadiness,
     buildDrainCutoverReadiness,
 };

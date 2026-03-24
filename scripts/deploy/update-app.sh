@@ -21,6 +21,7 @@ IMAGE_ARCHIVE_OVERRIDE="${IMAGE_ARCHIVE_OVERRIDE:-${IMAGE_ARCHIVE:-}}"
 PRESERVE_COMPOSE_LAYOUT="${PRESERVE_COMPOSE_LAYOUT:-0}"
 OFFICIAL_DOCKERHUB_APP_IMAGE="${OFFICIAL_DOCKERHUB_APP_IMAGE:-smdk000/qq-farm-bot-ui}"
 OFFICIAL_GHCR_APP_IMAGE="${OFFICIAL_GHCR_APP_IMAGE:-ghcr.io/${REPO_SLUG}}"
+ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK:-0}"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -145,6 +146,10 @@ parse_args() {
                 ;;
             --skip-db-repair)
                 SKIP_DB_REPAIR=1
+                shift
+                ;;
+            --allow-relogin-risk)
+                ALLOW_RELOGIN_RISK=1
                 shift
                 ;;
             *)
@@ -965,6 +970,88 @@ stop_app_before_db_repair() {
     APP_STOPPED_FOR_DB_REPAIR=1
 }
 
+check_running_login_code_restart_risk() {
+    local status="missing"
+    local probe_output=""
+    local blocker_count="0"
+
+    if is_truthy "${ALLOW_RELOGIN_RISK}"; then
+        print_warning "检测到 ALLOW_RELOGIN_RISK=${ALLOW_RELOGIN_RISK}，跳过运行中账号重登录风险检查。"
+        return 0
+    fi
+
+    status="$("${DOCKER[@]}" inspect -f '{{.State.Status}}' "${APP_CONTAINER_NAME}" 2>/dev/null || true)"
+    if [ "${status}" != "running" ]; then
+        print_info "主程序容器当前未运行，跳过运行中账号重登录风险检查。"
+        return 0
+    fi
+
+    print_info "检查运行中账号的重登录风险..."
+    if ! probe_output="$("${DOCKER[@]}" compose exec -T "${COMPOSE_APP_SERVICE}" node - <<'NODE'
+const { initMysql, getPool } = require('./src/services/mysql-db');
+
+(async () => {
+    await initMysql();
+    const pool = getPool();
+    try {
+        const [rows] = await pool.query(`
+            SELECT
+                id,
+                COALESCE(NULLIF(name, ''), NULLIF(nick, ''), CAST(id AS CHAR)) AS account_name,
+                COALESCE(NULLIF(platform, ''), 'qq') AS platform,
+                CASE
+                    WHEN COALESCE(JSON_UNQUOTE(JSON_EXTRACT(auth_data, '$.authTicket')), '') <> '' THEN 'auth_ticket'
+                    WHEN COALESCE(code, '') <> '' THEN 'login_code'
+                    ELSE 'none'
+                END AS credential_kind
+            FROM accounts
+            WHERE running = 1
+              AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(auth_data, '$.authTicket')), '') = ''
+              AND COALESCE(code, '') <> ''
+            ORDER BY id ASC
+        `);
+        for (const row of rows) {
+            const id = String(row.id || '').trim();
+            const name = String(row.account_name || '').trim() || id;
+            const platform = String(row.platform || 'qq').trim() || 'qq';
+            const credentialKind = String(row.credential_kind || 'login_code').trim() || 'login_code';
+            console.log(['BLOCKER', id, name, platform, credentialKind].join('\t'));
+        }
+        console.log(['COUNT', String(rows.length)].join('\t'));
+    } finally {
+        await pool.end();
+    }
+})().catch((error) => {
+    console.error(`ERROR\t${error && error.message ? error.message : String(error)}`);
+    process.exit(1);
+});
+NODE
+    )"; then
+        print_error "无法评估运行中账号的重登录风险，已中止更新以避免误停账号。"
+        print_error "如你确认当前没有需要保护的运行中账号，可显式追加 --allow-relogin-risk 或设置 ALLOW_RELOGIN_RISK=1。"
+        return 1
+    fi
+
+    while IFS=$'\t' read -r marker col1 col2 col3 col4; do
+        case "${marker}" in
+            COUNT)
+                blocker_count="${col1:-0}"
+                ;;
+            BLOCKER)
+                print_warning "检测到运行中一次性登录账号: id=${col1:-unknown}, name=${col2:-unknown}, platform=${col3:-unknown}, credential=${col4:-login_code}"
+                ;;
+        esac
+    done <<< "${probe_output}"
+
+    if [ "${blocker_count}" != "0" ]; then
+        print_error "检测到 ${blocker_count} 个运行中账号仅保存一次性登录凭据；继续更新会在重启后高概率要求重新登录或重新扫码。"
+        print_error "请先在后台手动停机并补码，或显式追加 --allow-relogin-risk / ALLOW_RELOGIN_RISK=1 后重试。"
+        return 1
+    fi
+
+    print_success "未检测到运行中一次性登录账号，允许继续更新。"
+}
+
 apply_admin_password_override() {
     if is_worker_role; then
         print_info "当前为 worker 角色，跳过管理员密码同步。"
@@ -1022,7 +1109,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.29}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.30}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"
@@ -1072,6 +1159,7 @@ main() {
     old_image="$("${DOCKER[@]}" inspect -f '{{.Image}}' "${APP_CONTAINER_NAME}" 2>/dev/null || true)"
 
     print_info "仅更新主程序容器，不会重启 MySQL / Redis / ipad860。"
+    check_running_login_code_restart_risk
     if [ "${SKIP_DB_REPAIR}" = "1" ] || [ "${SKIP_DB_REPAIR}" = "true" ]; then
         print_warning "检测到 SKIP_DB_REPAIR=${SKIP_DB_REPAIR}，跳过数据库修复步骤。"
     else

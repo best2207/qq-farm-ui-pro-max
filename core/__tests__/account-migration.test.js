@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
     normalizeCredentialKind,
     evaluateAccountCutover,
+    buildReloginRiskReadiness,
     buildDrainCutoverReadiness,
 } = require('../src/services/account-migration');
 
@@ -45,4 +46,22 @@ test('buildDrainCutoverReadiness only blocks running assigned accounts on target
     assert.equal(readiness.blockerCount, 1);
     assert.equal(readiness.blockers[0].accountId, '1');
     assert.equal(readiness.blockers[0].nodeId, 'worker-a');
+});
+
+test('buildReloginRiskReadiness only blocks running login-code accounts', () => {
+    const readiness = buildReloginRiskReadiness({
+        accounts: [
+            { id: '1', name: '扫码票据', running: true, authTicket: 'ticket-1', code: 'code-a', platform: 'wx_car' },
+            { id: '2', name: '手动补码', running: true, authTicket: '', code: 'code-b', platform: 'qq' },
+            { id: '3', name: '已停止账号', running: false, authTicket: '', code: 'code-c', platform: 'qq' },
+        ],
+    });
+
+    assert.equal(readiness.hasReloginRisk, true);
+    assert.equal(readiness.runningAccountCount, 2);
+    assert.equal(readiness.blockerCount, 1);
+    assert.equal(readiness.reloginRequiredCount, 1);
+    assert.equal(readiness.blockers[0].accountId, '2');
+    assert.equal(readiness.blockers[0].credentialKind, 'login_code');
+    assert.equal(readiness.blockers[0].reasonCode, 'hot_migration_missing_relogin_required');
 });

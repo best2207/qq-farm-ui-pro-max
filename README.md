@@ -2,7 +2,7 @@
 
 > 🔴 **醒目提醒：现在扫码登录失效，等其他大佬修复，本仓库暂停更新功能，仅修复bug了。**基于 Node.js 的 QQ 农场自动化工具，支持多账号管理、Web 控制面板、实时日志与数据分析。
 
-![版本](https://img.shields.io/badge/版本-v4.5.29-blue)
+![版本](https://img.shields.io/badge/版本-v4.5.30-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange)
 ![Redis](https://img.shields.io/badge/Redis-6.0-red)
@@ -309,7 +309,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/smdk000/qq-farm-ui-pro-max/m
 如需固定镜像版本或覆盖仓库，可在 `.env` 中设置：
 
 ```bash
-APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.29
+APP_IMAGE=smdk000/qq-farm-bot-ui:4.5.30
 MYSQL_IMAGE=mysql:8.0
 REDIS_IMAGE=redis:7-alpine
 IPAD860_IMAGE=smdk000/ipad860:latest
@@ -364,7 +364,7 @@ bash install-or-update.sh --action update --preserve-current
 bash update-app.sh
 
 # 如需切到指定版本
-bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.29
+bash update-app.sh --image smdk000/qq-farm-bot-ui:4.5.30
 
 # 弱网 / 离线环境：先 docker load，再用离线镜像包更新
 bash update-app.sh --image-archive /root/qq-farm-bot-images-amd64.tar.gz
@@ -419,8 +419,8 @@ curl http://localhost:3080/api/ping
 
 - `qq-farm-bot-images-amd64.tar.gz`
 - `qq-farm-bot-images-arm64.tar.gz`
-- `qq-farm-bot-v4.5.29-offline-amd64.tar.gz`
-- `qq-farm-bot-v4.5.29-offline-arm64.tar.gz`
+- `qq-farm-bot-v4.5.30-offline-amd64.tar.gz`
+- `qq-farm-bot-v4.5.30-offline-arm64.tar.gz`
 
 其中 `arm64` 离线包里的 `ipad860` 仍是 `linux/amd64`，目标宿主机需支持 QEMU。
 
@@ -454,7 +454,7 @@ echo $GH_PAT | docker login ghcr.io -u smdk000 --password-stdin
 **使用脚本构建（推荐）**:
 ```bash
 chmod +x scripts/docker/docker-build-multiarch.sh
-./scripts/docker/docker-build-multiarch.sh --version 4.5.29
+./scripts/docker/docker-build-multiarch.sh --version 4.5.30
 ```
 
 **手动构建**:
@@ -462,7 +462,7 @@ chmod +x scripts/docker/docker-build-multiarch.sh
 # 构建并推送到 Docker Hub
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t smdk000/qq-farm-bot-ui:4.5.29 \
+  -t smdk000/qq-farm-bot-ui:4.5.30 \
   -t smdk000/qq-farm-bot-ui:latest \
   -f core/Dockerfile . \
   --push
@@ -470,7 +470,7 @@ docker buildx build \
 # 构建并推送到 GitHub Container Registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.29 \
+  -t ghcr.io/smdk000/qq-farm-ui-pro-max:4.5.30 \
   -t ghcr.io/smdk000/qq-farm-ui-pro-max:latest \
   -f core/Dockerfile . \
   --push
@@ -480,7 +480,7 @@ docker buildx build \
 
 ```bash
 chmod +x scripts/release/build-release-assets.sh
-./scripts/release/build-release-assets.sh --version v4.5.29
+./scripts/release/build-release-assets.sh --version v4.5.30
 
 # 产物默认输出到 ./release-assets
 ls release-assets
@@ -490,7 +490,7 @@ ls release-assets
 
 ```bash
 # 查看镜像信息
-docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.29
+docker buildx imagetools inspect smdk000/qq-farm-bot-ui:4.5.30
 
 # Docker Hub 查看
 # https://hub.docker.com/r/smdk000/qq-farm-bot-ui/tags
@@ -724,7 +724,7 @@ Docker 会自动选择适合您系统架构的镜像版本。
 
 **维护者**: smdk000
 **最后更新**: 2026-03-24
-**版本**: v4.5.29
+**版本**: v4.5.30
 
 ## 多用户模式
 
@@ -1098,13 +1098,18 @@ ISC License
 
 ## 🎉 最近更新
 
+### v4.5.30 - 一键更新脚本重登录风险保护 (2026-03-24)
+- ✅ 一键更新脚本现在会在停应用前先检查运行中的一次性登录账号；如果发现账号仍在线但只保存了 `code`、没有 `authTicket`，更新会默认拒绝继续，避免把账号重启成需要重新扫码 / 补码的状态。
+- ✅ `install-or-update.sh`、`safe-update.sh` 和 `update-app.sh` 已统一支持 `--allow-relogin-risk`，只有在明确接受重登录代价时才会显式绕过这层保护。
+- ✅ 运行态“重启后是否需要重新登录”的聚合判定已补到共享服务和测试里，和后台系统更新中台的风控口径保持一致。
+
 ### v4.5.29 - 账号 worker 侧 MySQL 懒初始化与好友风险画像修复 (2026-03-24)
 - ✅ 修复 `standalone + thread` 模式下账号 worker 记录被动偷取事件时直接报“`MySQL 连接池未初始化`”的问题，好友风险画像链路现在会在 worker 首次使用时自动初始化 MySQL。
 - ✅ 账号 worker 停止时会主动执行数据库清理；连接池也区分主进程和账号 worker 的默认规模，避免多账号并发时把主进程的大池配置原样复制到每个 worker。
 - ✅ 新增 `friend-risk-service` 回归测试，覆盖 worker 首次调用只初始化一次连接池的行为，防止同类问题在后续版本里再次回归。
 
 ### v4.5.28 - 帮助中心数据模块入库与归档一致性修复 (2026-03-24)
-- ✅ 帮助中心核心数据模块 [help-center.ts](/Users/smdk000/文稿/qq/qq-farm-bot-ui-main_副本/web/src/data/help-center.ts) 正式纳入版本控制，GitHub checkout、`git archive`、Docker 构建和服务器源码包现在都使用同一份帮助中心数据。
+- ✅ 帮助中心核心数据模块 `web/src/data/help-center.ts` 正式纳入版本控制，GitHub checkout、`git archive`、Docker 构建和服务器源码包现在都使用同一份帮助中心数据。
 - ✅ 根目录 `.gitignore` 已显式放行这份文件，后续帮助中心数据更新不会再被 `data/` 规则静默吞掉。
 - ✅ 版本默认值、部署模板和工作流默认版本统一更新到 `v4.5.28`，避免继续引用已知在干净归档中缺文件的 `v4.5.27`。
 

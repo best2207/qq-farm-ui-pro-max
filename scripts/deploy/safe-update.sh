@@ -19,6 +19,7 @@ APP_CONTAINER_NAME_INPUT="${APP_CONTAINER_NAME:-}"
 APP_CONTAINER_NAME="${APP_CONTAINER_NAME_INPUT:-${STACK_NAME}-bot}"
 APP_IMAGE_OVERRIDE="${APP_IMAGE_OVERRIDE:-}"
 IMAGE_ARCHIVE_OVERRIDE="${IMAGE_ARCHIVE_OVERRIDE:-${IMAGE_ARCHIVE:-}}"
+ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK:-0}"
 SKIP_VERIFY="${SKIP_VERIFY:-0}"
 SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"
 BACKUP_DIR_OVERRIDE="${BACKUP_DIR:-}"
@@ -129,6 +130,10 @@ parse_args() {
                 ;;
             --skip-preflight)
                 SKIP_PREFLIGHT=1
+                shift
+                ;;
+            --allow-relogin-risk)
+                ALLOW_RELOGIN_RISK=1
                 shift
                 ;;
             *)
@@ -398,7 +403,7 @@ run_safe_update() {
     fi
 
     print_info "开始执行带数据库备份的安全升级..."
-    BACKUP_BEFORE_REPAIR=1 STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" "${cmd[@]}"
+    BACKUP_BEFORE_REPAIR=1 STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK}" "${cmd[@]}"
 }
 
 run_verify() {

@@ -21,6 +21,7 @@ UPDATE_MODE="${UPDATE_MODE:-prompt}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-0}"
 IMAGE_ARCHIVE_OVERRIDE="${IMAGE_ARCHIVE_OVERRIDE:-${IMAGE_ARCHIVE:-}}"
 APP_IMAGE_OVERRIDE="${APP_IMAGE_OVERRIDE:-}"
+ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK:-0}"
 SKIP_VERIFY="${SKIP_VERIFY:-0}"
 WEB_PORT_OVERRIDE="${WEB_PORT_OVERRIDE:-}"
 DOCKER=(docker)
@@ -133,6 +134,10 @@ parse_args() {
                 ;;
             --skip-verify)
                 SKIP_VERIFY=1
+                shift
+                ;;
+            --allow-relogin-risk)
+                ALLOW_RELOGIN_RISK=1
                 shift
                 ;;
             *)
@@ -360,7 +365,7 @@ run_update_flow() {
     fi
 
     print_info "进入更新流程: ${existing_dir}"
-    if ! STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" SOURCE_CACHE_DIR="${SOURCE_CACHE_DIR}" "${cmd[@]}"; then
+    if ! STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" SOURCE_CACHE_DIR="${SOURCE_CACHE_DIR}" ALLOW_RELOGIN_RISK="${ALLOW_RELOGIN_RISK}" "${cmd[@]}"; then
         offer_manual_repair "${existing_dir}" "更新流程失败"
         return 1
     fi

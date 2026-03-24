@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.30',
+    date: '2026-03-24',
+    title: '一键更新脚本重登录风险保护',
+    summary: '更新脚本会在停应用前检查运行中的一次性登录账号，默认阻止把 `code-only` 账号重启成需要重新扫码/补码的状态，并提供显式 override 入口。',
+  },
+  {
     version: 'v4.5.29',
     date: '2026-03-24',
     title: '账号 worker 侧 MySQL 懒初始化与好友风险画像修复',
