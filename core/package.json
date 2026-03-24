@@ -1,6 +1,6 @@
 {
   "name": "qq-farm-bot",
-  "version": "4.5.30",
+  "version": "4.5.31",
   "description": "",
   "license": "ISC",
   "author": "",
@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node client.js",
     "dev": "node client.js",
+    "start:headless-api": "FARM_SERVICE_PROFILE=headless-api node client.js",
+    "start:headless-runtime": "FARM_SERVICE_PROFILE=headless-runtime node client.js",
     "build:release": "pkg . --no-bytecode --targets node18-win-x64,node18-linux-x64,node18-macos-x64,node18-macos-arm64 --out-path dist",
     "build:win": "pkg . --no-bytecode --targets node18-win-x64 --out-path dist",
     "build:linux": "pkg . --no-bytecode --targets node18-linux-x64 --out-path dist",

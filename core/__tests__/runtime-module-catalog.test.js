@@ -12,7 +12,7 @@ test('runtime module catalog exposes module definitions and reload plans with de
     const definitions = createRuntimeModuleDefinitions({});
     const names = definitions.map(item => item.name);
 
-    assert.deepEqual(names, ['session-control', 'farm', 'friend', 'task', 'warehouse']);
+    assert.deepEqual(names, ['session-control', 'farm', 'friend', 'task', 'redpacket', 'behavior-report', 'warehouse']);
     assert.equal(definitions.find(item => item.name === 'session-control').reloadable, false);
     assert.equal(definitions.find(item => item.name === 'farm').reloadable, true);
 
@@ -22,7 +22,7 @@ test('runtime module catalog exposes module definitions and reload plans with de
 
     assert.deepEqual(farmPlan.modules, ['farm', 'friend']);
     assert.deepEqual(warehousePlan.modules, ['warehouse', 'farm', 'friend']);
-    assert.deepEqual(businessPlan.modules, ['farm', 'friend', 'task', 'warehouse']);
+    assert.deepEqual(businessPlan.modules, ['farm', 'friend', 'task', 'redpacket', 'behavior-report', 'warehouse']);
     assert.ok(farmPlan.cacheKeys.length >= 2);
     assert.ok(warehousePlan.cacheKeys.length >= farmPlan.cacheKeys.length);
     assert.equal(getRuntimeModuleReloadPlan('missing'), null);
@@ -56,7 +56,7 @@ test('runtime module catalog builds dynamic reload previews with queue impact an
                 cooldownMs: 15_000,
                 lastReloadSummary: {
                     target: 'business',
-                    modules: ['farm', 'friend', 'task', 'warehouse'],
+                    modules: ['farm', 'friend', 'task', 'redpacket', 'behavior-report', 'warehouse'],
                     forced: true,
                     result: 'ok',
                     source: 'admin_api',

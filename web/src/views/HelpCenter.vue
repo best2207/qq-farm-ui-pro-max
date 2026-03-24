@@ -47,7 +47,13 @@ const searchIndexState = ref<'idle' | 'loading' | 'ready'>('idle')
 const searchIndexedArticles = ref<Record<string, ResolvedHelpArticle>>({})
 const articleBodyReadyTick = ref(0)
 const isSidebarSummaryExpanded = ref(false)
+const isMiniMapExpanded = ref(false)
 const navRef = ref<HTMLElement | null>(null)
+const miniMapRef = ref<HTMLElement | null>(null)
+const navOverflowTop = ref(false)
+const navOverflowBottom = ref(false)
+const navHiddenTopCount = ref(0)
+const navHiddenBottomCount = ref(0)
 
 function findArticle(articleId: string) {
   return helpArticles.find(article => article.id === articleId) || null
@@ -296,6 +302,71 @@ const categoryCards = computed(() => {
     .filter(category => category.items.length > 0)
 })
 
+const activeCategoryCard = computed(() => {
+  const currentCategoryName = currentArticle.value?.category
+  return categoryCards.value.find(category => category.name === expandedCategory.value)
+    || categoryCards.value.find(category => category.name === currentCategoryName)
+    || categoryCards.value.find(category => category.items.some(article => article.id === selectedArticleId.value))
+    || categoryCards.value[0]
+    || null
+})
+
+const activeCategoryProgress = computed(() => {
+  const category = activeCategoryCard.value
+  if (!category)
+    return { current: 0, total: 0, percent: 0 }
+
+  const total = category.items.length
+  const index = category.items.findIndex(article => article.id === selectedArticleId.value)
+  const current = index >= 0 ? index + 1 : 0
+  const percent = total && current ? Math.round((current / total) * 100) : 0
+
+  return {
+    current,
+    total,
+    percent,
+  }
+})
+
+const activeCategoryProgressCopy = computed(() => {
+  const category = activeCategoryCard.value
+  const progress = activeCategoryProgress.value
+  if (!category || !progress.total)
+    return ''
+  if (progress.current)
+    return `当前文章位于该分类第 ${progress.current} 篇，共 ${progress.total} 篇`
+  return `当前分类共 ${progress.total} 篇文档`
+})
+
+const activeCategoryMiniMap = computed(() => {
+  const category = activeCategoryCard.value
+  if (!category) {
+    return {
+      items: [] as Array<{ article: HelpArticle, order: number, active: boolean, passed: boolean }>,
+      currentIndex: -1,
+      previous: null as HelpArticle | null,
+      next: null as HelpArticle | null,
+      total: 0,
+    }
+  }
+
+  const currentIndex = category.items.findIndex(article => article.id === selectedArticleId.value)
+  const items = category.items.map((article, index) => ({
+    article,
+    order: index + 1,
+    active: article.id === selectedArticleId.value,
+    passed: currentIndex >= 0 && index < currentIndex,
+  }))
+
+  return {
+    items,
+    currentIndex,
+    previous: currentIndex > 0 ? category.items[currentIndex - 1] : null,
+    next: currentIndex >= 0 && currentIndex < category.items.length - 1 ? category.items[currentIndex + 1] : null,
+    total: category.items.length,
+  }
+})
+
 function scoreArticle(article: HelpArticle, keywords: string[]) {
   let score = 0
   const title = article.title.toLowerCase()
@@ -376,6 +447,102 @@ function toggleSidebarSummary() {
   isSidebarSummaryExpanded.value = !isSidebarSummaryExpanded.value
 }
 
+function updateNavOverflow() {
+  const nav = navRef.value
+  if (!nav) {
+    navOverflowTop.value = false
+    navOverflowBottom.value = false
+    navHiddenTopCount.value = 0
+    navHiddenBottomCount.value = 0
+    return
+  }
+
+  const topBoundary = nav.scrollTop + 4
+  const bottomBoundary = nav.scrollTop + nav.clientHeight - 4
+  const groups = Array.from(nav.querySelectorAll<HTMLElement>('.help-nav-group'))
+
+  let hiddenTopCount = 0
+  let hiddenBottomCount = 0
+
+  for (const group of groups) {
+    const groupTop = group.offsetTop
+    const groupBottom = groupTop + group.offsetHeight
+
+    if (groupBottom <= topBoundary)
+      hiddenTopCount += 1
+    else if (groupTop >= bottomBoundary)
+      hiddenBottomCount += 1
+  }
+
+  navOverflowTop.value = nav.scrollTop > 4
+  navOverflowBottom.value = nav.scrollTop + nav.clientHeight < nav.scrollHeight - 4
+  navHiddenTopCount.value = hiddenTopCount
+  navHiddenBottomCount.value = hiddenBottomCount
+}
+
+function scrollLibraryNav(direction: 'up' | 'down') {
+  const nav = navRef.value
+  if (!nav)
+    return
+
+  const groups = Array.from(nav.querySelectorAll<HTMLElement>('.help-nav-group'))
+  if (!groups.length)
+    return
+
+  const topBoundary = nav.scrollTop + 8
+  const bottomBoundary = nav.scrollTop + nav.clientHeight - 8
+  const target = direction === 'down'
+    ? groups.find(group => group.offsetTop + 4 > bottomBoundary || group.offsetTop + group.offsetHeight > bottomBoundary)
+    : [...groups].reverse().find(group => group.offsetTop + group.offsetHeight < topBoundary || group.offsetTop < topBoundary - 8)
+
+  const nextTop = target
+    ? Math.max(0, target.offsetTop - 8)
+    : (direction === 'down' ? nav.scrollHeight : 0)
+
+  nav.scrollTo({
+    top: nextTop,
+    behavior: 'smooth',
+  })
+}
+
+function focusActiveCategory() {
+  const category = activeCategoryCard.value
+  if (!category)
+    return
+
+  if (expandedCategory.value !== category.name)
+    expandedCategory.value = category.name
+
+  void syncActiveNavItemIntoView('smooth')
+  void syncActiveMiniMapItemIntoView('smooth')
+}
+
+function toggleMiniMapExpanded() {
+  isMiniMapExpanded.value = !isMiniMapExpanded.value
+  if (isMiniMapExpanded.value)
+    void syncActiveMiniMapItemIntoView('smooth')
+}
+
+async function syncActiveMiniMapItemIntoView(behavior: ScrollBehavior = 'smooth') {
+  await nextTick()
+
+  const miniMap = miniMapRef.value
+  if (!miniMap)
+    return
+
+  const activeItem = miniMap.querySelector<HTMLElement>('.help-nav-mini-map__item--active')
+  if (!activeItem)
+    return
+
+  const itemLeft = activeItem.offsetLeft
+  const nextLeft = Math.max(0, itemLeft - (miniMap.clientWidth / 2) + (activeItem.clientWidth / 2))
+
+  miniMap.scrollTo({
+    left: nextLeft,
+    behavior,
+  })
+}
+
 async function syncActiveNavItemIntoView(behavior: ScrollBehavior = 'smooth') {
   if (isSearching.value)
     return
@@ -401,6 +568,8 @@ async function syncActiveNavItemIntoView(behavior: ScrollBehavior = 'smooth') {
     top: nextTop,
     behavior,
   })
+
+  updateNavOverflow()
 }
 
 function copyCurrentPlainText() {
@@ -653,9 +822,19 @@ watch(filteredArticles, (articles) => {
 watch(
   () => [selectedArticleId.value, expandedCategory.value, isSearching.value],
   ([, , searching], [, , previousSearching]) => {
-    if (searching)
-      return
-    void syncActiveNavItemIntoView(previousSearching ? 'auto' : 'smooth')
+    if (!searching)
+      void syncActiveNavItemIntoView(previousSearching ? 'auto' : 'smooth')
+
+    void syncActiveMiniMapItemIntoView(previousSearching ? 'auto' : 'smooth')
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () => [expandedCategory.value, filteredArticles.value.length, isSidebarSummaryExpanded.value],
+  async () => {
+    await nextTick()
+    updateNavOverflow()
   },
   { flush: 'post' },
 )
@@ -664,6 +843,7 @@ onMounted(() => {
   appStore.fetchUIConfig()
   currentUserRole.value = readCurrentUserRole()
   window.addEventListener('storage', handleStorageChange)
+  window.addEventListener('resize', updateNavOverflow)
   const normalized = normalizeArticleQuery(route.query[ARTICLE_QUERY_KEY])
   const normalizedSection = normalizeSectionQuery(route.query[SECTION_QUERY_KEY])
   const rawAudience = Array.isArray(route.query[AUDIENCE_QUERY_KEY])
@@ -682,17 +862,23 @@ onMounted(() => {
   else
     syncAudienceFilter(normalizedAudience, { updateRoute: false })
   void syncActiveNavItemIntoView('auto')
+  void syncActiveMiniMapItemIntoView('auto')
+  void nextTick(() => {
+    updateNavOverflow()
+  })
 })
 
 onBeforeUnmount(() => {
-  if (typeof window !== 'undefined')
+  if (typeof window !== 'undefined') {
     window.removeEventListener('storage', handleStorageChange)
+    window.removeEventListener('resize', updateNavOverflow)
+  }
 })
 </script>
 
 <template>
   <div class="help-center-page ui-page-shell ui-page-density-reading h-full min-h-0 w-full flex flex-col overflow-hidden">
-    <div class="help-center-shell h-full min-h-0 w-full flex flex-col gap-4 xl:grid xl:grid-cols-[18.75rem_minmax(0,1fr)] xl:gap-5">
+    <div class="help-center-shell h-full min-h-0 w-full flex flex-col gap-4">
       <aside class="help-sidebar glass-panel min-h-0 overflow-hidden rounded-[1.75rem] p-[0.875rem] shadow-sm">
         <div class="help-sidebar-top">
           <div class="help-sidebar-brand">
@@ -755,63 +941,185 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <nav ref="navRef" class="help-nav min-h-0 flex-1 overflow-y-auto pr-1">
-            <div
-              v-for="category in categoryCards"
-              :key="category.name"
-              class="help-nav-group"
-            >
-              <button
-                type="button"
-                class="help-nav-group__button"
-                :class="{ 'help-nav-group__button--active': category.expanded }"
-                :data-help-category="category.name"
-                @click="toggleCategory(category.name)"
-              >
-                <div class="flex items-center gap-3">
-                  <div class="text-lg" :class="category.icon" />
-                  <div class="min-w-0">
-                    <div class="help-nav-group__title">
-                      {{ category.name }}
-                    </div>
-                    <div v-if="category.expanded" class="help-nav-group__desc">
-                      {{ category.description }}
-                    </div>
-                  </div>
-                </div>
-                <div class="help-nav-group__trailing">
-                  <div class="help-nav-group__count">
-                    {{ category.items.length }}
-                  </div>
-                  <div class="i-carbon-chevron-down help-nav-group__chevron" :class="{ 'help-nav-group__chevron--active': category.expanded }" />
-                </div>
-              </button>
+          <div class="help-nav-shell">
+            <div v-if="activeCategoryCard" class="help-nav-status">
+              <div class="help-nav-status__meta">
+                <span class="help-nav-status__eyebrow">当前分类</span>
+                <button
+                  type="button"
+                  class="help-nav-status__action"
+                  @click="focusActiveCategory"
+                >
+                  定位当前
+                </button>
+              </div>
 
-              <transition
-                enter-active-class="transition-all duration-250 ease-out overflow-hidden"
-                enter-from-class="opacity-0 max-h-0 -translate-y-1"
-                enter-to-class="opacity-100 max-h-[32rem] translate-y-0"
-                leave-active-class="transition-all duration-200 ease-in overflow-hidden"
-                leave-from-class="opacity-100 max-h-[32rem] translate-y-0"
-                leave-to-class="opacity-0 max-h-0 -translate-y-1"
-              >
-                <div v-if="category.expanded" class="help-nav-items">
-                  <button
-                    v-for="article in category.items"
-                    :key="article.id"
-                    type="button"
-                    class="help-nav-item"
-                    :class="{ 'help-nav-item--active': selectedArticleId === article.id && !isSearching }"
-                    :data-help-article-id="article.id"
-                    @click="syncSelectedArticle(article.id)"
-                  >
-                    <div class="text-base" :class="article.icon" />
-                    <span class="truncate">{{ article.title }}</span>
-                  </button>
+              <div class="help-nav-status__row">
+                <div class="help-nav-status__title-wrap">
+                  <div class="text-base" :class="activeCategoryCard.icon" />
+                  <span class="help-nav-status__title">{{ activeCategoryCard.name }}</span>
                 </div>
-              </transition>
+                <span class="help-nav-status__count">
+                  {{ activeCategoryProgress.current ? `${activeCategoryProgress.current}/${activeCategoryProgress.total}` : `${activeCategoryProgress.total} 篇` }}
+                </span>
+              </div>
+
+              <div class="help-nav-status__progress-meta">
+                <span>{{ activeCategoryProgressCopy }}</span>
+                <span>{{ activeCategoryProgress.percent }}%</span>
+              </div>
+
+              <div class="help-nav-status__track">
+                <div class="help-nav-status__value" :style="{ width: `${activeCategoryProgress.percent}%` }" />
+              </div>
+
+              <div
+                v-if="activeCategoryMiniMap.total > 1"
+                class="help-nav-mini-map"
+                :class="{ 'help-nav-mini-map--expanded': isMiniMapExpanded }"
+              >
+                <div class="help-nav-mini-map__header">
+                  <span class="help-nav-mini-map__eyebrow">分类内顺序</span>
+                  <div class="help-nav-mini-map__header-tools">
+                    <span class="help-nav-mini-map__count">{{ activeCategoryProgress.current || 1 }}/{{ activeCategoryMiniMap.total }}</span>
+                    <button type="button" class="help-nav-mini-map__toggle" @click="toggleMiniMapExpanded">
+                      {{ isMiniMapExpanded ? '收起' : '展开' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="help-nav-mini-map__summary">
+                  <span class="help-nav-mini-map__summary-label">当前</span>
+                  <span class="help-nav-mini-map__summary-title">{{ currentArticle?.title || activeCategoryCard.name }}</span>
+                </div>
+
+                <div class="help-nav-mini-map__detail">
+                  <div ref="miniMapRef" class="help-nav-mini-map__track">
+                    <button
+                      v-for="item in activeCategoryMiniMap.items"
+                      :key="`mini-map-${item.article.id}`"
+                      type="button"
+                      class="help-nav-mini-map__item"
+                      :class="{
+                        'help-nav-mini-map__item--active': item.active,
+                        'help-nav-mini-map__item--passed': item.passed,
+                      }"
+                      @click="syncSelectedArticle(item.article.id)"
+                    >
+                      <span class="help-nav-mini-map__index">{{ item.order }}</span>
+                      <span class="help-nav-mini-map__title">{{ item.article.title }}</span>
+                    </button>
+                  </div>
+
+                  <div class="help-nav-mini-map__neighbors">
+                    <button
+                      v-if="activeCategoryMiniMap.previous"
+                      type="button"
+                      class="help-nav-mini-map__neighbor"
+                      @click="syncSelectedArticle(activeCategoryMiniMap.previous.id)"
+                    >
+                      <span class="help-nav-mini-map__neighbor-label">上一篇</span>
+                      <span class="help-nav-mini-map__neighbor-title">{{ activeCategoryMiniMap.previous.title }}</span>
+                    </button>
+                    <button
+                      v-if="activeCategoryMiniMap.next"
+                      type="button"
+                      class="help-nav-mini-map__neighbor"
+                      @click="syncSelectedArticle(activeCategoryMiniMap.next.id)"
+                    >
+                      <span class="help-nav-mini-map__neighbor-label">下一篇</span>
+                      <span class="help-nav-mini-map__neighbor-title">{{ activeCategoryMiniMap.next.title }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </nav>
+
+            <div class="help-nav-viewport">
+              <div v-if="navOverflowTop" class="help-nav-fade help-nav-fade--top" />
+
+              <nav ref="navRef" class="help-nav min-h-0 flex-1 overflow-y-auto pr-1" @scroll="updateNavOverflow">
+                <div
+                  v-for="category in categoryCards"
+                  :key="category.name"
+                  class="help-nav-group"
+                >
+                  <button
+                    type="button"
+                    class="help-nav-group__button"
+                    :class="{ 'help-nav-group__button--active': category.expanded }"
+                    :data-help-category="category.name"
+                    @click="toggleCategory(category.name)"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="text-lg" :class="category.icon" />
+                      <div class="min-w-0">
+                        <div class="help-nav-group__title">
+                          {{ category.name }}
+                        </div>
+                        <div v-if="category.expanded" class="help-nav-group__desc">
+                          {{ category.description }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="help-nav-group__trailing">
+                      <div class="help-nav-group__count">
+                        {{ category.items.length }}
+                      </div>
+                      <div class="i-carbon-chevron-down help-nav-group__chevron" :class="{ 'help-nav-group__chevron--active': category.expanded }" />
+                    </div>
+                  </button>
+
+                  <transition
+                    enter-active-class="transition-all duration-250 ease-out overflow-hidden"
+                    enter-from-class="opacity-0 max-h-0 -translate-y-1"
+                    enter-to-class="opacity-100 max-h-[32rem] translate-y-0"
+                    leave-active-class="transition-all duration-200 ease-in overflow-hidden"
+                    leave-from-class="opacity-100 max-h-[32rem] translate-y-0"
+                    leave-to-class="opacity-0 max-h-0 -translate-y-1"
+                  >
+                    <div v-if="category.expanded" class="help-nav-items">
+                      <button
+                        v-for="article in category.items"
+                        :key="article.id"
+                        type="button"
+                        class="help-nav-item"
+                        :class="{ 'help-nav-item--active': selectedArticleId === article.id && !isSearching }"
+                        :data-help-article-id="article.id"
+                        @click="syncSelectedArticle(article.id)"
+                      >
+                        <div class="text-base" :class="article.icon" />
+                        <span class="help-nav-item__label">{{ article.title }}</span>
+                      </button>
+                    </div>
+                  </transition>
+                </div>
+              </nav>
+
+              <div v-if="navOverflowBottom" class="help-nav-fade help-nav-fade--bottom" />
+
+              <div class="help-nav-guides" :class="{ 'help-nav-guides--visible': navOverflowTop || navOverflowBottom }">
+                <button
+                  v-if="navOverflowTop"
+                  type="button"
+                  class="help-nav-guide help-nav-guide--ghost"
+                  @click="scrollLibraryNav('up')"
+                >
+                  <div class="i-carbon-chevron-up text-xs" />
+                  <span>{{ navHiddenTopCount ? `上方还有 ${navHiddenTopCount} 个分类` : '回到上方' }}</span>
+                </button>
+                <button
+                  v-if="navOverflowBottom"
+                  type="button"
+                  class="help-nav-guide"
+                  @click="scrollLibraryNav('down')"
+                >
+                  <span>{{ navHiddenBottomCount ? `下方还有 ${navHiddenBottomCount} 个分类` : '继续查看更多分类' }}</span>
+                  <div class="i-carbon-chevron-down text-xs" />
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       </aside>
 
@@ -1238,6 +1546,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .help-center-page {
   color: var(--ui-text-1);
+}
+
+.help-center-shell {
+  min-width: 0;
 }
 
 .help-sidebar,
@@ -1825,14 +2137,480 @@ onBeforeUnmount(() => {
   -webkit-box-orient: vertical;
 }
 
+.help-nav-shell {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.help-nav-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+  padding: 0.72rem 0.8rem 0.76rem;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 16%, var(--ui-border-subtle) 84%);
+  border-radius: 1rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ui-brand-soft-12) 58%, var(--ui-bg-surface-raised) 42%),
+    color-mix(in srgb, var(--ui-bg-surface) 96%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 10px 22px color-mix(in srgb, var(--ui-shadow-panel) 9%, transparent);
+}
+
+.help-nav-status__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.help-nav-status__eyebrow {
+  color: var(--ui-text-2);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.help-nav-status__action {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  padding: 0.16rem 0.52rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-nav-status__action:hover {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 30%, var(--ui-border-subtle) 70%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+  color: var(--ui-text-1);
+}
+
+.help-nav-status__row,
+.help-nav-status__title-wrap,
+.help-nav-status__progress-meta {
+  display: flex;
+  align-items: center;
+}
+
+.help-nav-status__row,
+.help-nav-status__progress-meta {
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.help-nav-status__title-wrap {
+  min-width: 0;
+  gap: 0.55rem;
+}
+
+.help-nav-status__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-1);
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.help-nav-status__count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.5rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface) 92%, transparent);
+  color: var(--ui-text-1);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.help-nav-status__progress-meta {
+  color: var(--ui-text-2);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.help-nav-status__progress-meta span:first-child {
+  min-width: 0;
+}
+
+.help-nav-status__track {
+  height: 0.36rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface) 92%, transparent);
+}
+
+.help-nav-status__value {
+  height: 100%;
+  min-width: 0.45rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ui-brand-500), var(--ui-brand-700));
+}
+
+.help-nav-mini-map {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--ui-border-subtle) 82%, transparent);
+}
+
+.help-nav-mini-map__header,
+.help-nav-mini-map__neighbors {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.help-nav-mini-map__header-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.help-nav-mini-map__eyebrow {
+  color: var(--ui-text-2);
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.help-nav-mini-map__count {
+  color: var(--ui-text-2);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.help-nav-mini-map__toggle {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  padding: 0.14rem 0.46rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  font-size: 0.63rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-nav-mini-map__toggle:hover {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+  color: var(--ui-text-1);
+}
+
+.help-nav-mini-map__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  padding: 0.32rem 0.02rem 0;
+}
+
+.help-nav-mini-map__summary-label {
+  flex: 0 0 auto;
+  color: var(--ui-text-2);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.help-nav-mini-map__summary-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-1);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.help-nav-mini-map__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.14rem);
+  transition:
+    max-height var(--ui-motion-fast) ease,
+    opacity var(--ui-motion-fast) ease,
+    transform var(--ui-motion-fast) ease;
+}
+
+.help-nav-mini-map:hover .help-nav-mini-map__detail,
+.help-nav-mini-map:focus-within .help-nav-mini-map__detail,
+.help-nav-mini-map--expanded .help-nav-mini-map__detail {
+  max-height: 12rem;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.help-nav-mini-map__track {
+  display: flex;
+  gap: 0.42rem;
+  overflow-x: auto;
+  padding: 0.02rem 0.02rem 0.1rem;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.3rem;
+  scroll-behavior: smooth;
+}
+
+.help-nav-mini-map__track::-webkit-scrollbar {
+  display: none;
+}
+
+.help-nav-mini-map__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 10.75rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  padding: 0.34rem 0.58rem 0.34rem 0.38rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-nav-mini-map__item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+  color: var(--ui-text-1);
+}
+
+.help-nav-mini-map__item--passed {
+  color: color-mix(in srgb, var(--ui-text-2) 86%, transparent);
+}
+
+.help-nav-mini-map__item--active {
+  border-color: color-mix(in srgb, var(--ui-brand-500) 34%, var(--ui-border-subtle) 66%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 82%, var(--ui-bg-surface) 18%);
+  color: var(--ui-text-1);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.help-nav-mini-map__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 90%, transparent);
+  color: inherit;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.help-nav-mini-map__item--active .help-nav-mini-map__index {
+  background: color-mix(in srgb, var(--ui-brand-500) 14%, var(--ui-bg-surface) 86%);
+}
+
+.help-nav-mini-map__title,
+.help-nav-mini-map__neighbor-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-nav-mini-map__title {
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.help-nav-mini-map__neighbors {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.help-nav-mini-map__neighbor {
+  appearance: none;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 0.8rem;
+  padding: 0.34rem 0.5rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 88%, transparent);
+  color: var(--ui-text-1);
+  cursor: pointer;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease;
+}
+
+.help-nav-mini-map__neighbor:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 70%, transparent);
+}
+
+.help-nav-mini-map__neighbor-label {
+  flex: 0 0 auto;
+  color: var(--ui-text-2);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.help-nav-mini-map__neighbor-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.help-nav-viewport {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
 .help-nav {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1 1 auto;
   min-height: 0;
   padding-top: 0.05rem;
   padding-right: 0.25rem;
+  padding-bottom: 3.1rem;
+  scroll-padding-block: 3rem;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-brand-500) 38%, transparent) transparent;
+}
+
+.help-nav::-webkit-scrollbar {
+  width: 0.45rem;
+}
+
+.help-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.help-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-brand-500) 26%, var(--ui-bg-surface-raised) 74%);
+}
+
+.help-nav-fade {
+  position: absolute;
+  left: 0;
+  right: 0.45rem;
+  height: 2.75rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.help-nav-fade--top {
+  top: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-bg-surface-raised) 98%, transparent), transparent);
+}
+
+.help-nav-fade--bottom {
+  bottom: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--ui-bg-surface-raised) 98%, transparent), transparent);
+}
+
+.help-nav-guides {
+  position: absolute;
+  inset-inline: 0.2rem 0.55rem;
+  bottom: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.38rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition:
+    opacity var(--ui-motion-fast) ease,
+    transform var(--ui-motion-fast) ease;
+  z-index: 3;
+}
+
+.help-nav-guides--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.help-nav-guide {
+  pointer-events: auto;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--ui-brand-500) 22%, var(--ui-border-subtle) 78%);
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 94%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--ui-shadow-panel) 14%, transparent);
+  color: var(--ui-text-1);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease;
+}
+
+.help-nav-guide:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 34%, var(--ui-border-subtle) 66%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 72%, var(--ui-bg-surface) 28%);
+}
+
+.help-nav-guide--ghost {
+  color: var(--ui-text-2);
 }
 
 .help-nav-group {
@@ -1953,7 +2731,7 @@ onBeforeUnmount(() => {
 .help-nav-item {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.58rem;
   width: 100%;
   border: 1px solid transparent;
@@ -1993,6 +2771,14 @@ onBeforeUnmount(() => {
   box-shadow:
     0 10px 24px color-mix(in srgb, var(--ui-brand-500) 10%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.help-nav-item__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.42;
 }
 
 .help-nav-item--active::before {
@@ -2550,6 +3336,13 @@ onBeforeUnmount(() => {
 }
 
 @media (min-width: 1280px) {
+  .help-center-shell {
+    display: grid;
+    grid-template-columns: clamp(21rem, 24vw, 25rem) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: stretch;
+  }
+
   .help-content-grid {
     display: grid;
     grid-template-columns: minmax(13.5rem, 14.5rem) minmax(0, 1fr);

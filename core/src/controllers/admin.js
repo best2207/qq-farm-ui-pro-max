@@ -24,6 +24,10 @@ const { getPool } = require('../services/mysql-db');
 const { getAnnouncements, saveAnnouncement, deleteAnnouncement, getReportLogs, getReportLogStats, exportReportLogs, deleteReportLogsByIds, clearReportLogs } = require('../services/database');
 const { MiniProgramLoginSession } = require('../services/qrlogin');
 const { getSchedulerRegistrySnapshot } = require('../services/scheduler');
+const { createStatsSummaryService } = require('../services/stats-summary');
+const { createHealthProbeService } = require('../services/health-probe');
+const { getServiceProfileConfig, resolveServiceProfileSnapshot } = require('../services/service-profile');
+const { createProxyPoolService } = require('../services/proxy-pool-service');
 const { cleanupUiBackgrounds } = require('../services/ui-assets');
 const { validateSettings } = require('../services/config-validator');
 const { inspectSystemSettingsHealth } = require('../services/system-settings');
@@ -49,6 +53,7 @@ const { registerAccountReadRoutes, registerLogReadRoutes } = require('./admin/ac
 const { registerFriendBlacklistRoutes, registerAccountControlRoutes } = require('./admin/account-control-routes');
 const { registerAnnouncementAdminRoutes } = require('./admin/announcement-admin-routes');
 const { registerSystemUpdateAdminRoutes } = require('./admin/system-update-admin-routes');
+const { registerStatsSummaryRoutes } = require('./admin/stats-summary-routes');
 const { getDispatcher } = require('../cluster/master-dispatcher');
 const { registerSystemPublicRoutes, registerNotificationsRoute } = require('./admin/system-public-routes');
 const { registerAccountStateRoutes } = require('./admin/account-state-routes');
@@ -57,6 +62,10 @@ const { registerAccountManagementRoutes } = require('./admin/account-management-
 const { registerAccountSettingsRoutes } = require('./admin/account-settings-routes');
 const { createAdminAuthMiddlewares } = require('./admin/auth-middleware');
 const { registerAuthRoutes, registerLegacyLogoutRoute } = require('./admin/auth-routes');
+const { registerOpenApiRoutes } = require('./admin/openapi-routes');
+const { registerExternalApiRoutes } = require('./admin/external-api-routes');
+const { registerPlatformCapabilitiesRoutes } = require('./admin/platform-capabilities-routes');
+const { registerProxyAdminRoutes } = require('./admin/proxy-admin-routes');
 const { registerQrRoutes } = require('./admin/qr-routes');
 const { createSocketAuthMiddleware, createSocketSubscriptionHandler, createSocketConnectionHandler } = require('./admin/socket-runtime');
 const { registerAdminOperationLogRoutes } = require('./admin/admin-operation-log-routes');
@@ -84,6 +93,23 @@ let serverStartPromise = null;
 let applySocketSubscription = async () => { };
 let maintenanceContext = null;
 let maintenanceTasks = null;
+let healthProbeService = null;
+let statsSummaryService = null;
+let proxyPoolService = null;
+
+async function readAiServiceStatusSummary() {
+    try {
+        const { getPidFileStatus } = require('../../scripts/service/ai-autostart');
+        return {
+            daemon: getPidFileStatus(),
+        };
+    } catch (error) {
+        return {
+            daemon: null,
+            error: error && error.message ? error.message : String(error),
+        };
+    }
+}
 
 function ensureUiBackgroundDir() {
     const dir = path.join(ensureDataDir(), 'ui-backgrounds');
@@ -183,6 +209,9 @@ function cleanupFailedAdminStart() {
         server = null;
     }
 
+    healthProbeService = null;
+    statsSummaryService = null;
+    proxyPoolService = null;
     serverStartPromise = null;
 }
 
@@ -205,6 +234,9 @@ async function stopAdminServer() {
     io = null;
     server = null;
     provider = null;
+    healthProbeService = null;
+    statsSummaryService = null;
+    proxyPoolService = null;
     serverStartPromise = null;
 }
 
@@ -249,6 +281,33 @@ function startAdminServer(dataProvider) {
         });
         app = shell.app;
         const { webDist } = shell;
+
+        const resolveServiceProfile = async () => {
+            const config = await getServiceProfileConfig().catch(() => null);
+            return resolveServiceProfileSnapshot({
+                env: process.env,
+                config,
+            });
+        };
+
+        statsSummaryService = createStatsSummaryService({
+            getPool,
+            getAccountsSnapshot,
+        });
+        healthProbeService = createHealthProbeService({
+            getPool,
+            getAccountsSnapshot,
+            inspectSystemSettingsHealth,
+            inspectWebDistState,
+            getSchedulerRegistrySnapshot,
+            version,
+            processRef: process,
+            readAiServiceStatus: readAiServiceStatusSummary,
+            resolveServiceProfile,
+        });
+        proxyPoolService = createProxyPoolService({
+            getPool,
+        });
 
         const featureRuntime = registerAdminFeatureRoutes({
             app,
@@ -330,9 +389,18 @@ function startAdminServer(dataProvider) {
             consoleRef: console,
             getIo: () => io,
             getDispatcher: () => getDispatcher(),
+            healthProbeService,
+            statsSummaryService,
+            proxyPoolService,
+            resolveServiceProfile,
             registerAuthRoutes,
+            registerOpenApiRoutes,
             registerLegacyLogoutRoute,
             registerSystemPublicRoutes,
+            registerExternalApiRoutes,
+            registerPlatformCapabilitiesRoutes,
+            registerProxyAdminRoutes,
+            registerStatsSummaryRoutes,
             registerAccountStateRoutes,
             registerAutomationRoutes,
             registerFriendOperationRoutes,

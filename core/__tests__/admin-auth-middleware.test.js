@@ -37,6 +37,8 @@ test('public api whitelist keeps expected unauthenticated endpoints', () => {
     assert.deepEqual(PUBLIC_API_PATHS, [
         '/login',
         '/auth/register',
+        '/auth/bootstrap-status',
+        '/auth/init-password',
         '/auth/refresh',
         '/auth/logout',
         '/qr/create',
@@ -46,6 +48,8 @@ test('public api whitelist keeps expected unauthenticated endpoints', () => {
         '/trial-card',
         '/ui-config',
         '/ping',
+        '/health/basic',
+        '/system/service-profile',
     ]);
 });
 

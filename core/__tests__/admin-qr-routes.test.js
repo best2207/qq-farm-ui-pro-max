@@ -116,14 +116,12 @@ test('qr create route uses Ipad860 car endpoint and normalizes base64 header', a
 
     assert.equal(res.statusCode, 200);
     assert.equal(fetchCalls[0][0], 'http://ipad860.local/api/Login/LoginGetQRCar');
-    assert.deepEqual(res.body, {
-        ok: true,
-        data: {
-            qrcode: 'data:image/png;base64,ABC123',
-            code: 'uuid-car',
-            platform: 'wx_car',
-        },
-    });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.qrcode, 'data:image/png;base64,ABC123');
+    assert.equal(res.body.data.code, 'uuid-car');
+    assert.equal(res.body.data.platform, 'wx_car');
+    assert.equal(res.body.data.status, 'Wait');
+    assert.equal(res.body.data.retryable, true);
 });
 
 test('qr create route delegates qq login code request with trimmed uin', async () => {
@@ -147,7 +145,11 @@ test('qr create route delegates qq login code request with trimmed uin', async (
     await handler({ body: { platform: 'qq', uin: ' 10001 ' } }, res);
 
     assert.deepEqual(calls, [['10001']]);
-    assert.deepEqual(res.body, { ok: true, data: { code: 'qq-code', image: 'img-data' } });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.code, 'qq-code');
+    assert.equal(res.body.data.image, 'img-data');
+    assert.equal(res.body.data.status, 'Wait');
+    assert.equal(res.body.data.retryable, true);
 });
 
 test('qr check route rejects empty code before any upstream call', async () => {
@@ -193,16 +195,13 @@ test('qr check route returns OK for Ipad860 success path after JSLogin', async (
 
     assert.equal(fetchCalls[0][0], 'http://ipad860.local/api/Login/LoginCheckQR?uuid=qr-uuid');
     assert.equal(fetchCalls[1][0], 'http://ipad860.local/api/Wxapp/JSLogin');
-    assert.deepEqual(res.body, {
-        ok: true,
-        data: {
-            status: 'OK',
-            code: 'auth-code-123',
-            uin: 'wxid_123',
-            avatar: 'https://wx.example/avatar.png',
-            nickname: '微信昵称',
-        },
-    });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'OK');
+    assert.equal(res.body.data.code, 'auth-code-123');
+    assert.equal(res.body.data.uin, 'wxid_123');
+    assert.equal(res.body.data.avatar, 'https://wx.example/avatar.png');
+    assert.equal(res.body.data.nickname, '微信昵称');
+    assert.equal(res.body.data.retryable, false);
 });
 
 test('qr check route returns OK for wx third-party login and extracts raw auth code', async () => {
@@ -229,16 +228,13 @@ test('qr check route returns OK for wx third-party login and extracts raw auth c
 
     assert.equal(fetchCalls[0][0], 'http://wx.local/api?api_key=wx-key&action=checkqr');
     assert.equal(fetchCalls[1][0], 'http://wx.local/api?api_key=wx-key&action=jslogin');
-    assert.deepEqual(res.body, {
-        ok: true,
-        data: {
-            status: 'OK',
-            code: 'raw-auth-code',
-            uin: 'wxid_third',
-            avatar: '',
-            nickname: '三方昵称',
-        },
-    });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'OK');
+    assert.equal(res.body.data.code, 'raw-auth-code');
+    assert.equal(res.body.data.uin, 'wxid_third');
+    assert.equal(res.body.data.avatar, '');
+    assert.equal(res.body.data.nickname, '三方昵称');
+    assert.equal(res.body.data.retryable, false);
 });
 
 test('qr check route returns QQ authCode fallback result and avatar url', async () => {
@@ -268,17 +264,14 @@ test('qr check route returns QQ authCode fallback result and avatar url', async 
         ['queryStatus', 'qq-uuid', '12345'],
         ['getAuthCode', 'ticket-1', '1112386029'],
     ]);
-    assert.deepEqual(res.body, {
-        ok: true,
-        data: {
-            status: 'OK',
-            code: 'qq-auth-code',
-            ticket: 'ticket-1',
-            uin: '12345',
-            avatar: 'https://q1.qlogo.cn/g?b=qq&nk=12345&s=640',
-            nickname: 'QQ昵称',
-        },
-    });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'OK');
+    assert.equal(res.body.data.code, 'qq-auth-code');
+    assert.equal(res.body.data.ticket, 'ticket-1');
+    assert.equal(res.body.data.uin, '12345');
+    assert.equal(res.body.data.avatar, 'https://q1.qlogo.cn/g?b=qq&nk=12345&s=640');
+    assert.equal(res.body.data.nickname, 'QQ昵称');
+    assert.equal(res.body.data.retryable, false);
 });
 
 test('qr check route falls back to openId avatar when qq uin is unavailable', async () => {
@@ -314,15 +307,13 @@ test('qr check route falls back to openId avatar when qq uin is unavailable', as
         ['queryStatus', 'qq-openid', ''],
         ['getAuthCode', 'ticket-openid', '1112386029'],
     ]);
-    assert.deepEqual(res.body, {
-        ok: true,
-        data: {
-            status: 'OK',
-            code: 'qq-auth-openid',
-            ticket: 'ticket-openid',
-            uin: '',
-            avatar: 'https://thirdqq.qlogo.cn/qqapp/1112386029/68AF60B1D1B712B9F41693B3FA378DE1/100',
-            nickname: 'QQ开放平台昵称',
-        },
-    });
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.data.status, 'OK');
+    assert.equal(res.body.data.code, 'qq-auth-openid');
+    assert.equal(res.body.data.ticket, 'ticket-openid');
+    assert.equal(res.body.data.uin, '');
+    assert.equal(res.body.data.openId, '68AF60B1D1B712B9F41693B3FA378DE1');
+    assert.equal(res.body.data.avatar, 'https://thirdqq.qlogo.cn/qqapp/1112386029/68AF60B1D1B712B9F41693B3FA378DE1/100');
+    assert.equal(res.body.data.nickname, 'QQ开放平台昵称');
+    assert.equal(res.body.data.retryable, false);
 });

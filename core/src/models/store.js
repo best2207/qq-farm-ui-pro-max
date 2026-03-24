@@ -161,8 +161,29 @@ const DEFAULT_FRIEND_RISK_CONFIG = {
     autoDeprioritize: false,
     eventRetentionDays: 30,
 };
+const DEFAULT_REDPACKET_CONFIG = {
+    enabled: false,
+    mode: 'daily',
+    checkIntervalSec: 3600,
+    notifyTriggeredEnabled: false,
+    claimCooldownSec: 600,
+};
+const DEFAULT_BEHAVIOR_REPORT_CONFIG = {
+    enabled: false,
+    startupSequenceEnabled: true,
+    playTimeReportEnabled: true,
+    flushIntervalSec: 10,
+    maxBufferSize: 10,
+};
+const DEFAULT_PROXY_BINDING_CONFIG = {
+    enabled: false,
+    proxyId: '',
+    fallbackToDirect: true,
+};
 const DEFAULT_EXPERIMENTAL_FEATURES = {
     focusStealEnabled: false,
+    tlogFlowReportEnabled: false,
+    advancedRedpacketTriggerEnabled: false,
 };
 // ============ 全局配置 ============
 const DEFAULT_ACCOUNT_CONFIG = {
@@ -241,6 +262,9 @@ const DEFAULT_ACCOUNT_CONFIG = {
     friendRiskConfig: { ...DEFAULT_FRIEND_RISK_CONFIG },
     specialCareFriendIds: [],
     experimentalFeatures: { ...DEFAULT_EXPERIMENTAL_FEATURES },
+    redpacketConfig: { ...DEFAULT_REDPACKET_CONFIG },
+    behaviorReportConfig: { ...DEFAULT_BEHAVIOR_REPORT_CONFIG },
+    proxyBindingConfig: { ...DEFAULT_PROXY_BINDING_CONFIG },
     workflowConfig: {
         farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] },
         friend: { enabled: false, minInterval: 60, maxInterval: 300, nodes: [] },
@@ -265,6 +289,9 @@ let accountFallbackConfig = {
     friendRiskConfig: { ...DEFAULT_ACCOUNT_CONFIG.friendRiskConfig },
     specialCareFriendIds: [...DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds],
     experimentalFeatures: { ...DEFAULT_ACCOUNT_CONFIG.experimentalFeatures },
+    redpacketConfig: { ...DEFAULT_ACCOUNT_CONFIG.redpacketConfig },
+    behaviorReportConfig: { ...DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig },
+    proxyBindingConfig: { ...DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig },
 };
 
 const globalConfig = {
@@ -421,6 +448,42 @@ function normalizeReportConfig(rawConfig, fallbackConfig = DEFAULT_REPORT_CONFIG
         dailyHour: clampInteger(raw.dailyHour, fallback.dailyHour, 0, 23),
         dailyMinute: clampInteger(raw.dailyMinute, fallback.dailyMinute, 0, 59),
         retentionDays: clampInteger(raw.retentionDays, fallback.retentionDays, 0, 365),
+    };
+}
+
+function normalizeRedpacketConfig(rawConfig, fallbackConfig = DEFAULT_REDPACKET_CONFIG) {
+    const raw = (rawConfig && typeof rawConfig === 'object') ? rawConfig : {};
+    const fallback = (fallbackConfig && typeof fallbackConfig === 'object') ? fallbackConfig : DEFAULT_REDPACKET_CONFIG;
+    const rawMode = String(raw.mode !== undefined ? raw.mode : fallback.mode || DEFAULT_REDPACKET_CONFIG.mode).trim().toLowerCase();
+    const mode = new Set(['daily', 'notify', 'hybrid']).has(rawMode) ? rawMode : DEFAULT_REDPACKET_CONFIG.mode;
+    return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : !!fallback.enabled,
+        mode,
+        checkIntervalSec: clampInteger(raw.checkIntervalSec, fallback.checkIntervalSec, 60, 86400),
+        notifyTriggeredEnabled: raw.notifyTriggeredEnabled !== undefined ? !!raw.notifyTriggeredEnabled : !!fallback.notifyTriggeredEnabled,
+        claimCooldownSec: clampInteger(raw.claimCooldownSec, fallback.claimCooldownSec, 30, 86400),
+    };
+}
+
+function normalizeBehaviorReportConfig(rawConfig, fallbackConfig = DEFAULT_BEHAVIOR_REPORT_CONFIG) {
+    const raw = (rawConfig && typeof rawConfig === 'object') ? rawConfig : {};
+    const fallback = (fallbackConfig && typeof fallbackConfig === 'object') ? fallbackConfig : DEFAULT_BEHAVIOR_REPORT_CONFIG;
+    return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : !!fallback.enabled,
+        startupSequenceEnabled: raw.startupSequenceEnabled !== undefined ? !!raw.startupSequenceEnabled : !!fallback.startupSequenceEnabled,
+        playTimeReportEnabled: raw.playTimeReportEnabled !== undefined ? !!raw.playTimeReportEnabled : !!fallback.playTimeReportEnabled,
+        flushIntervalSec: clampInteger(raw.flushIntervalSec, fallback.flushIntervalSec, 5, 3600),
+        maxBufferSize: clampInteger(raw.maxBufferSize, fallback.maxBufferSize, 1, 100),
+    };
+}
+
+function normalizeProxyBindingConfig(rawConfig, fallbackConfig = DEFAULT_PROXY_BINDING_CONFIG) {
+    const raw = (rawConfig && typeof rawConfig === 'object') ? rawConfig : {};
+    const fallback = (fallbackConfig && typeof fallbackConfig === 'object') ? fallbackConfig : DEFAULT_PROXY_BINDING_CONFIG;
+    return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : !!fallback.enabled,
+        proxyId: String(raw.proxyId !== undefined ? raw.proxyId : fallback.proxyId || '').trim(),
+        fallbackToDirect: raw.fallbackToDirect !== undefined ? !!raw.fallbackToDirect : !!fallback.fallbackToDirect,
     };
 }
 
@@ -858,6 +921,9 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
     const friendRiskConfig = normalizeFriendRiskConfig(base.friendRiskConfig, DEFAULT_ACCOUNT_CONFIG.friendRiskConfig);
     const specialCareFriendIds = normalizeSpecialCareFriendIds(base.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds);
     const experimentalFeatures = normalizeExperimentalFeatures(base.experimentalFeatures, DEFAULT_ACCOUNT_CONFIG.experimentalFeatures);
+    const redpacketConfig = normalizeRedpacketConfig(base.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+    const behaviorReportConfig = normalizeBehaviorReportConfig(base.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+    const proxyBindingConfig = normalizeProxyBindingConfig(base.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
     const accountMode = normalizeAccountMode(base.accountMode, DEFAULT_ACCOUNT_CONFIG.accountMode);
     const modeScope = normalizeModeScope(base.modeScope, DEFAULT_MODE_SCOPE);
     const harvestDelay = normalizeHarvestDelay(base.harvestDelay, getAccountModePreset(accountMode).harvestDelay, accountMode);
@@ -886,6 +952,9 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         friendRiskConfig,
         specialCareFriendIds,
         experimentalFeatures,
+        redpacketConfig,
+        behaviorReportConfig,
+        proxyBindingConfig,
         workflowConfig: normalizeWorkflowConfig(base.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         tradeConfig: normalizeTradeConfig(base.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
         reportConfig: normalizeReportConfig(base.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -1023,6 +1092,21 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
         cfg.experimentalFeatures = normalizeExperimentalFeatures(src.experimentalFeatures, cfg.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
     } else {
         cfg.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES);
+    }
+    if (src.redpacketConfig && typeof src.redpacketConfig === 'object') {
+        cfg.redpacketConfig = normalizeRedpacketConfig(src.redpacketConfig, cfg.redpacketConfig || DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+    } else {
+        cfg.redpacketConfig = normalizeRedpacketConfig(cfg.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+    }
+    if (src.behaviorReportConfig && typeof src.behaviorReportConfig === 'object') {
+        cfg.behaviorReportConfig = normalizeBehaviorReportConfig(src.behaviorReportConfig, cfg.behaviorReportConfig || DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+    } else {
+        cfg.behaviorReportConfig = normalizeBehaviorReportConfig(cfg.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+    }
+    if (src.proxyBindingConfig && typeof src.proxyBindingConfig === 'object') {
+        cfg.proxyBindingConfig = normalizeProxyBindingConfig(src.proxyBindingConfig, cfg.proxyBindingConfig || DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
+    } else {
+        cfg.proxyBindingConfig = normalizeProxyBindingConfig(cfg.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
     }
     if (src.workflowConfig && typeof src.workflowConfig === 'object') {
         cfg.workflowConfig = normalizeWorkflowConfig(src.workflowConfig, cfg.workflowConfig || DEFAULT_ACCOUNT_CONFIG.workflowConfig);
@@ -1192,6 +1276,9 @@ async function loadGlobalConfigFromDB() {
                 friendRiskConfig: adv.friendRiskConfig,
                 specialCareFriendIds: adv.specialCareFriendIds,
                 experimentalFeatures: adv.experimentalFeatures,
+                redpacketConfig: adv.redpacketConfig,
+                behaviorReportConfig: adv.behaviorReportConfig,
+                proxyBindingConfig: adv.proxyBindingConfig,
                 workflowConfig: adv.workflowConfig,
                 tradeConfig: adv.tradeConfig,
                 reportConfig: adv.reportConfig,
@@ -1472,6 +1559,9 @@ async function saveGlobalConfigImmediate() {
                         friendRiskConfig: normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG),
                         specialCareFriendIds: normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds),
                         experimentalFeatures: normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES),
+                        redpacketConfig: normalizeRedpacketConfig(cfg.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig),
+                        behaviorReportConfig: normalizeBehaviorReportConfig(cfg.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig),
+                        proxyBindingConfig: normalizeProxyBindingConfig(cfg.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig),
                         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
                         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
                         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -1598,6 +1688,9 @@ function getConfigSnapshot(accountId) {
         friendRiskConfig: normalizeFriendRiskConfig(cfg.friendRiskConfig, DEFAULT_FRIEND_RISK_CONFIG),
         specialCareFriendIds: normalizeSpecialCareFriendIds(cfg.specialCareFriendIds, DEFAULT_ACCOUNT_CONFIG.specialCareFriendIds),
         experimentalFeatures: normalizeExperimentalFeatures(cfg.experimentalFeatures, DEFAULT_EXPERIMENTAL_FEATURES),
+        redpacketConfig: normalizeRedpacketConfig(cfg.redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig),
+        behaviorReportConfig: normalizeBehaviorReportConfig(cfg.behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig),
+        proxyBindingConfig: normalizeProxyBindingConfig(cfg.proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig),
         workflowConfig: normalizeWorkflowConfig(cfg.workflowConfig, DEFAULT_ACCOUNT_CONFIG.workflowConfig),
         tradeConfig: normalizeTradeConfig(cfg.tradeConfig, DEFAULT_ACCOUNT_CONFIG.tradeConfig),
         reportConfig: normalizeReportConfig(cfg.reportConfig, DEFAULT_ACCOUNT_CONFIG.reportConfig),
@@ -1739,6 +1832,15 @@ function applyConfigSnapshot(snapshot, options = {}) {
     }
     if (cfg.experimentalFeatures && typeof cfg.experimentalFeatures === 'object') {
         next.experimentalFeatures = normalizeExperimentalFeatures(cfg.experimentalFeatures, next.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
+    }
+    if (cfg.redpacketConfig && typeof cfg.redpacketConfig === 'object') {
+        next.redpacketConfig = normalizeRedpacketConfig(cfg.redpacketConfig, next.redpacketConfig || DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+    }
+    if (cfg.behaviorReportConfig && typeof cfg.behaviorReportConfig === 'object') {
+        next.behaviorReportConfig = normalizeBehaviorReportConfig(cfg.behaviorReportConfig, next.behaviorReportConfig || DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+    }
+    if (cfg.proxyBindingConfig && typeof cfg.proxyBindingConfig === 'object') {
+        next.proxyBindingConfig = normalizeProxyBindingConfig(cfg.proxyBindingConfig, next.proxyBindingConfig || DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
     }
 
     if (cfg.workflowConfig && typeof cfg.workflowConfig === 'object') {
@@ -1899,6 +2001,8 @@ function normalizeExperimentalFeatures(cfg, fallback = DEFAULT_EXPERIMENTAL_FEAT
     const input = (cfg && typeof cfg === 'object') ? cfg : {};
     return {
         focusStealEnabled: input.focusStealEnabled !== undefined ? !!input.focusStealEnabled : !!current.focusStealEnabled,
+        tlogFlowReportEnabled: input.tlogFlowReportEnabled !== undefined ? !!input.tlogFlowReportEnabled : !!current.tlogFlowReportEnabled,
+        advancedRedpacketTriggerEnabled: input.advancedRedpacketTriggerEnabled !== undefined ? !!input.advancedRedpacketTriggerEnabled : !!current.advancedRedpacketTriggerEnabled,
     };
 }
 
@@ -2035,6 +2139,42 @@ function setExperimentalFeatures(accountId, cfg) {
     next.experimentalFeatures = normalizeExperimentalFeatures(cfg, next.experimentalFeatures || DEFAULT_EXPERIMENTAL_FEATURES);
     setAccountConfigSnapshot(accountId, next);
     return getExperimentalFeatures(accountId);
+}
+
+function getRedpacketConfig(accountId) {
+    return normalizeRedpacketConfig(getAccountConfigSnapshot(accountId).redpacketConfig, DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+}
+
+function setRedpacketConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.redpacketConfig = normalizeRedpacketConfig(cfg, next.redpacketConfig || DEFAULT_ACCOUNT_CONFIG.redpacketConfig);
+    setAccountConfigSnapshot(accountId, next);
+    return getRedpacketConfig(accountId);
+}
+
+function getBehaviorReportConfig(accountId) {
+    return normalizeBehaviorReportConfig(getAccountConfigSnapshot(accountId).behaviorReportConfig, DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+}
+
+function setBehaviorReportConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.behaviorReportConfig = normalizeBehaviorReportConfig(cfg, next.behaviorReportConfig || DEFAULT_ACCOUNT_CONFIG.behaviorReportConfig);
+    setAccountConfigSnapshot(accountId, next);
+    return getBehaviorReportConfig(accountId);
+}
+
+function getProxyBindingConfig(accountId) {
+    return normalizeProxyBindingConfig(getAccountConfigSnapshot(accountId).proxyBindingConfig, DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
+}
+
+function setProxyBindingConfig(accountId, cfg) {
+    const current = getAccountConfigSnapshot(accountId);
+    const next = normalizeAccountConfig(current, accountFallbackConfig);
+    next.proxyBindingConfig = normalizeProxyBindingConfig(cfg, next.proxyBindingConfig || DEFAULT_ACCOUNT_CONFIG.proxyBindingConfig);
+    setAccountConfigSnapshot(accountId, next);
+    return getProxyBindingConfig(accountId);
 }
 
 function getReportConfig(accountId) {
@@ -2904,6 +3044,17 @@ const DEFAULT_TIMING_CONFIG = {
     optimizedSchedulerNamespaces: 'system-jobs,account-report-service,worker_manager',
     optimizedSchedulerTickMs: 100,
     optimizedSchedulerWheelSize: 600,
+    // 人类化调度策略
+    humanModeEnabled: true,
+    humanModeIntensity: 'medium',   // low | medium | high
+    schedulerJitterRatio: 0.12,
+    interTaskDelayMinMs: 250,
+    interTaskDelayMaxMs: 900,
+    restIntervalMinMs: 45 * 60 * 1000,
+    restIntervalMaxMs: 90 * 60 * 1000,
+    restDurationMinMs: 2 * 60 * 1000,
+    restDurationMaxMs: 8 * 60 * 1000,
+    eventTriggerDebounceMs: 600,
 };
 
 function normalizeTimingConfig(cfg, fallback = DEFAULT_TIMING_CONFIG) {
@@ -2913,7 +3064,9 @@ function normalizeTimingConfig(cfg, fallback = DEFAULT_TIMING_CONFIG) {
 
     for (const key of Object.keys(DEFAULT_TIMING_CONFIG)) {
         if (input[key] !== undefined) {
-            if (typeof DEFAULT_TIMING_CONFIG[key] === 'number') {
+            if (typeof DEFAULT_TIMING_CONFIG[key] === 'boolean') {
+                next[key] = !!input[key];
+            } else if (typeof DEFAULT_TIMING_CONFIG[key] === 'number') {
                 next[key] = Number(input[key]);
                 if (!Number.isFinite(next[key])) next[key] = current[key];
             } else {
@@ -3085,6 +3238,12 @@ module.exports = {
     setSpecialCareFriendIds,
     getExperimentalFeatures,
     setExperimentalFeatures,
+    getRedpacketConfig,
+    setRedpacketConfig,
+    getBehaviorReportConfig,
+    setBehaviorReportConfig,
+    getProxyBindingConfig,
+    setProxyBindingConfig,
     getReportConfig,
     setReportConfig,
     getReportState,

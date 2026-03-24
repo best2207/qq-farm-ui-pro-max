@@ -53,6 +53,7 @@ const focusedStealOverview = ref({
   topFriends: [] as Array<any>,
 })
 const focusedStealList = ref<Array<any>>([])
+const globalStatsSummary = ref<any | null>(null)
 
 // 经验金币走势
 const trendOption = ref<any>({})
@@ -79,7 +80,7 @@ function readThemeVars() {
 async function fetchAnalytics() {
   loading.value = true
   try {
-    const requests: Promise<any>[] = [api.get('/api/stats/trend')]
+    const requests: Promise<any>[] = [api.get('/api/stats/trend'), api.get('/api/stats/summary').catch(() => null)]
     if (selectedAccountId.value) {
       const headers = { 'x-account-id': selectedAccountId.value }
       requests.push(
@@ -87,7 +88,7 @@ async function fetchAnalytics() {
         api.get('/api/friend-steal-stats', { headers, params: { limit: 12 } }),
       )
     }
-    const [trendRes, riskRes, stealRes] = await Promise.all(requests)
+    const [trendRes, summaryRes, riskRes, stealRes] = await Promise.all(requests)
     if (trendRes.data && trendRes.data.ok) {
       const { dates, series } = trendRes.data.data
       analyticsSnapshot.value = {
@@ -146,6 +147,8 @@ async function fetchAnalytics() {
       }
     }
 
+    globalStatsSummary.value = summaryRes?.data?.ok ? (summaryRes.data.data || null) : null
+
     focusedRiskSummary.value = riskRes?.data?.ok
       ? {
           total: Number(riskRes.data.data?.total || 0),
@@ -203,6 +206,30 @@ const analyticsSummaryCards = computed(() => {
     : (dates[0] || '暂无日期')
 
   return [
+    {
+      key: 'today-gold',
+      label: '今日金币',
+      value: `${Number(globalStatsSummary.value?.buckets?.today?.gold || 0).toLocaleString()} 金币`,
+      tone: 'analytics-summary-card--warning',
+    },
+    {
+      key: 'week-gold',
+      label: '本周金币',
+      value: `${Number(globalStatsSummary.value?.buckets?.week?.gold || 0).toLocaleString()} 金币`,
+      tone: 'analytics-summary-card--info',
+    },
+    {
+      key: 'month-steal',
+      label: '本月偷取',
+      value: `${Number(globalStatsSummary.value?.buckets?.month?.steal || 0).toLocaleString()} 次`,
+      tone: 'analytics-summary-card--brand',
+    },
+    {
+      key: 'account-total',
+      label: '账号总数',
+      value: `${Number(globalStatsSummary.value?.accounts?.total || accounts.value.length || 0).toLocaleString()} 个`,
+      tone: 'analytics-summary-card--success',
+    },
     {
       key: 'range',
       label: '时间范围',

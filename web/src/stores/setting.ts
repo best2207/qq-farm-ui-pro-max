@@ -126,6 +126,30 @@ export interface FriendRiskConfig {
 
 export interface ExperimentalFeaturesConfig {
   focusStealEnabled?: boolean
+  tlogFlowReportEnabled?: boolean
+  advancedRedpacketTriggerEnabled?: boolean
+}
+
+export interface RedpacketConfig {
+  enabled?: boolean
+  mode?: 'daily' | 'notify' | 'hybrid'
+  checkIntervalSec?: number
+  notifyTriggeredEnabled?: boolean
+  claimCooldownSec?: number
+}
+
+export interface BehaviorReportConfig {
+  enabled?: boolean
+  startupSequenceEnabled?: boolean
+  playTimeReportEnabled?: boolean
+  flushIntervalSec?: number
+  maxBufferSize?: number
+}
+
+export interface ProxyBindingConfig {
+  enabled?: boolean
+  proxyId?: string
+  fallbackToDirect?: boolean
 }
 
 export interface OfflineConfig {
@@ -230,6 +254,8 @@ export interface ThirdPartyApiConfig {
   wxApiKey?: string
   wxApiUrl?: string
   wxAppId?: string
+  ipad860Url?: string
+  aineisheKey?: string
 }
 
 export interface UIConfig {
@@ -266,6 +292,16 @@ export interface TimingConfig {
   optimizedSchedulerNamespaces: string
   optimizedSchedulerTickMs: number
   optimizedSchedulerWheelSize: number
+  humanModeEnabled: boolean
+  humanModeIntensity: 'low' | 'medium' | 'high' | string
+  schedulerJitterRatio: number
+  interTaskDelayMinMs: number
+  interTaskDelayMaxMs: number
+  restIntervalMinMs: number
+  restIntervalMaxMs: number
+  restDurationMinMs: number
+  restDurationMaxMs: number
+  eventTriggerDebounceMs: number
 }
 
 export interface TimingParameter {
@@ -468,6 +504,9 @@ export interface SettingsState {
   friendRiskConfig: FriendRiskConfig
   specialCareFriendIds: number[]
   experimentalFeatures: ExperimentalFeaturesConfig
+  redpacketConfig: RedpacketConfig
+  behaviorReportConfig: BehaviorReportConfig
+  proxyBindingConfig: ProxyBindingConfig
   tradeConfig: TradeConfig
   automation: AutomationConfig
   reportConfig: ReportConfig
@@ -541,6 +580,27 @@ export const useSettingStore = defineStore('setting', () => {
     specialCareFriendIds: [],
     experimentalFeatures: {
       focusStealEnabled: false,
+      tlogFlowReportEnabled: false,
+      advancedRedpacketTriggerEnabled: false,
+    },
+    redpacketConfig: {
+      enabled: false,
+      mode: 'daily',
+      checkIntervalSec: 3600,
+      notifyTriggeredEnabled: false,
+      claimCooldownSec: 600,
+    },
+    behaviorReportConfig: {
+      enabled: false,
+      startupSequenceEnabled: true,
+      playTimeReportEnabled: true,
+      flushIntervalSec: 10,
+      maxBufferSize: 10,
+    },
+    proxyBindingConfig: {
+      enabled: false,
+      proxyId: '',
+      fallbackToDirect: true,
     },
     tradeConfig: createDefaultTradeConfig(),
     automation: {},
@@ -590,6 +650,8 @@ export const useSettingStore = defineStore('setting', () => {
       wxApiKey: '',
       wxApiUrl: '',
       wxAppId: '',
+      ipad860Url: '',
+      aineisheKey: '',
     },
     workflowConfig: {
       farm: { enabled: false, minInterval: 30, maxInterval: 120, nodes: [] },
@@ -607,6 +669,16 @@ export const useSettingStore = defineStore('setting', () => {
       optimizedSchedulerNamespaces: 'system-jobs,account-report-service,worker_manager',
       optimizedSchedulerTickMs: 100,
       optimizedSchedulerWheelSize: 600,
+      humanModeEnabled: true,
+      humanModeIntensity: 'medium',
+      schedulerJitterRatio: 0.12,
+      interTaskDelayMinMs: 250,
+      interTaskDelayMaxMs: 900,
+      restIntervalMinMs: 45 * 60 * 1000,
+      restIntervalMaxMs: 90 * 60 * 1000,
+      restDurationMinMs: 2 * 60 * 1000,
+      restDurationMaxMs: 8 * 60 * 1000,
+      eventTriggerDebounceMs: 600,
     },
     defaultTimingConfig: {
       heartbeatIntervalMs: 25000,
@@ -620,6 +692,16 @@ export const useSettingStore = defineStore('setting', () => {
       optimizedSchedulerNamespaces: 'system-jobs,account-report-service,worker_manager',
       optimizedSchedulerTickMs: 100,
       optimizedSchedulerWheelSize: 600,
+      humanModeEnabled: true,
+      humanModeIntensity: 'medium',
+      schedulerJitterRatio: 0.12,
+      interTaskDelayMinMs: 250,
+      interTaskDelayMaxMs: 900,
+      restIntervalMinMs: 45 * 60 * 1000,
+      restIntervalMaxMs: 90 * 60 * 1000,
+      restDurationMinMs: 2 * 60 * 1000,
+      restDurationMaxMs: 8 * 60 * 1000,
+      eventTriggerDebounceMs: 600,
     },
     readonlyTimingParams: [],
     clusterConfig: {
@@ -683,7 +765,30 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.specialCareFriendIds = Array.isArray(d.specialCareFriendIds)
           ? d.specialCareFriendIds.map((item: any) => Math.max(0, Number.parseInt(String(item), 10) || 0)).filter((item: number) => item > 0)
           : []
-        settings.value.experimentalFeatures = d.experimentalFeatures || { focusStealEnabled: false }
+        settings.value.experimentalFeatures = d.experimentalFeatures || {
+          focusStealEnabled: false,
+          tlogFlowReportEnabled: false,
+          advancedRedpacketTriggerEnabled: false,
+        }
+        settings.value.redpacketConfig = d.redpacketConfig || {
+          enabled: false,
+          mode: 'daily',
+          checkIntervalSec: 3600,
+          notifyTriggeredEnabled: false,
+          claimCooldownSec: 600,
+        }
+        settings.value.behaviorReportConfig = d.behaviorReportConfig || {
+          enabled: false,
+          startupSequenceEnabled: true,
+          playTimeReportEnabled: true,
+          flushIntervalSec: 10,
+          maxBufferSize: 10,
+        }
+        settings.value.proxyBindingConfig = d.proxyBindingConfig || {
+          enabled: false,
+          proxyId: '',
+          fallbackToDirect: true,
+        }
         settings.value.tradeConfig = normalizeTradeConfig(d.tradeConfig)
         settings.value.automation = d.automation || {}
         settings.value.reportConfig = d.reportConfig || {
@@ -755,6 +860,9 @@ export const useSettingStore = defineStore('setting', () => {
           ? newSettings.specialCareFriendIds.map((item: any) => Math.max(0, Number.parseInt(String(item), 10) || 0)).filter((item: number) => item > 0)
           : [],
         experimentalFeatures: newSettings.experimentalFeatures,
+        redpacketConfig: newSettings.redpacketConfig,
+        behaviorReportConfig: newSettings.behaviorReportConfig,
+        proxyBindingConfig: newSettings.proxyBindingConfig,
         tradeConfig: normalizeTradeConfig(newSettings.tradeConfig),
         automation: newSettings.automation,
       }

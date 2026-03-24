@@ -21,6 +21,8 @@ function registerSystemPublicRoutes({
     jwtService,
     handleApiError,
     readLatestQqFriendDiagnostics,
+    healthProbeService,
+    resolveServiceProfile,
 }) {
     const diagnosticsReader = typeof readLatestQqFriendDiagnostics === 'function'
         ? readLatestQqFriendDiagnostics
@@ -244,6 +246,61 @@ function registerSystemPublicRoutes({
                 webAssets: buildPublicWebAssetsSnapshot(),
             },
         });
+    });
+
+    app.get('/api/health/basic', async (req, res) => {
+        try {
+            const data = healthProbeService
+                ? await healthProbeService.getBasicSnapshot()
+                : {
+                    ok: true,
+                    version,
+                    uptimeSec: Number(processRef.uptime()),
+                    checkedAt: Date.now(),
+                };
+            res.json({ ok: true, data });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    app.get('/api/health/dependencies', async (req, res) => {
+        try {
+            if (req.currentUser?.role !== 'admin') {
+                return res.status(403).json({ ok: false, error: '仅管理员可查看依赖健康详情' });
+            }
+            const data = healthProbeService
+                ? await healthProbeService.getDependenciesSnapshot()
+                : null;
+            res.json({ ok: true, data });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    app.get('/api/health/runtime', async (req, res) => {
+        try {
+            if (req.currentUser?.role !== 'admin') {
+                return res.status(403).json({ ok: false, error: '仅管理员可查看运行时健康详情' });
+            }
+            const data = healthProbeService
+                ? await healthProbeService.getRuntimeSnapshot()
+                : null;
+            res.json({ ok: true, data });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    app.get('/api/system/service-profile', async (req, res) => {
+        try {
+            const data = typeof resolveServiceProfile === 'function'
+                ? await Promise.resolve(resolveServiceProfile())
+                : null;
+            res.json({ ok: true, data });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message });
+        }
     });
 
     app.get('/api/auth/validate', async (req, res) => {

@@ -319,6 +319,30 @@ const FRIEND_RISK_CONFIG_SCHEMA = {
 
 const EXPERIMENTAL_FEATURES_SCHEMA = {
     focusStealEnabled: { type: 'boolean', default: false, label: '实验性重点偷取开关' },
+    tlogFlowReportEnabled: { type: 'boolean', default: false, label: '实验性行为流上报开关' },
+    advancedRedpacketTriggerEnabled: { type: 'boolean', default: false, label: '实验性红包触发增强' },
+};
+
+const REDPACKET_CONFIG_SCHEMA = {
+    enabled: { type: 'boolean', default: false, label: '红包模块开关' },
+    mode: { type: 'string', enum: ['daily', 'notify', 'hybrid'], default: 'daily', label: '红包触发模式' },
+    checkIntervalSec: { type: 'integer', min: 60, max: 86400, default: 3600, label: '红包检查周期(秒)' },
+    notifyTriggeredEnabled: { type: 'boolean', default: false, label: '收到推送后触发检查' },
+    claimCooldownSec: { type: 'integer', min: 30, max: 86400, default: 600, label: '领取冷却(秒)' },
+};
+
+const BEHAVIOR_REPORT_CONFIG_SCHEMA = {
+    enabled: { type: 'boolean', default: false, label: '行为流上报开关' },
+    startupSequenceEnabled: { type: 'boolean', default: true, label: '启动序列上报' },
+    playTimeReportEnabled: { type: 'boolean', default: true, label: '在线时长上报' },
+    flushIntervalSec: { type: 'integer', min: 5, max: 3600, default: 10, label: '批量上报周期(秒)' },
+    maxBufferSize: { type: 'integer', min: 1, max: 100, default: 10, label: '缓冲区上限' },
+};
+
+const PROXY_BINDING_CONFIG_SCHEMA = {
+    enabled: { type: 'boolean', default: false, label: '代理绑定开关' },
+    proxyId: { type: 'string', max: 128, default: '', label: '绑定代理ID' },
+    fallbackToDirect: { type: 'boolean', default: true, label: '代理失效时回退直连' },
 };
 
 const WORKFLOW_SCOPE_SCHEMA = {
@@ -519,6 +543,21 @@ const SETTINGS_SCHEMA = {
         label: '实验性功能',
         properties: EXPERIMENTAL_FEATURES_SCHEMA,
     },
+    redpacketConfig: {
+        type: 'object',
+        label: '红包模块',
+        properties: REDPACKET_CONFIG_SCHEMA,
+    },
+    behaviorReportConfig: {
+        type: 'object',
+        label: '行为流上报',
+        properties: BEHAVIOR_REPORT_CONFIG_SCHEMA,
+    },
+    proxyBindingConfig: {
+        type: 'object',
+        label: '代理绑定',
+        properties: PROXY_BINDING_CONFIG_SCHEMA,
+    },
     stakeoutSteal: {
         type: 'object',
         label: '蹲守偷菜',
@@ -654,6 +693,9 @@ module.exports = {
     TRADE_CONFIG_SCHEMA,
     STEAL_FRIEND_FILTER_SCHEMA,
     FRIEND_RISK_CONFIG_SCHEMA,
+    REDPACKET_CONFIG_SCHEMA,
+    BEHAVIOR_REPORT_CONFIG_SCHEMA,
+    PROXY_BINDING_CONFIG_SCHEMA,
     WORKFLOW_CONFIG_SCHEMA,
     BUG_REPORT_CONFIG_SCHEMA,
 };

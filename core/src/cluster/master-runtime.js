@@ -10,7 +10,10 @@ function initMasterRuntimeDispatcher({
 
     const io = typeof getIO === 'function' ? getIO() : null;
     if (!io) {
-        throw new Error('MasterDispatcher 初始化失败: Admin Socket.IO 未就绪');
+        if (logger && typeof logger.warn === 'function') {
+            logger.warn('master dispatcher skipped: Admin Socket.IO 未就绪');
+        }
+        return null;
     }
 
     const dispatcher = initDispatcher(io);

@@ -3,6 +3,8 @@ const MODULE_CACHE_KEYS = Object.freeze({
     farmRuntimeModule: require.resolve('./modules/farm-runtime-module'),
     friendRuntimeModule: require.resolve('./modules/friend-runtime-module'),
     taskRuntimeModule: require.resolve('./modules/task-runtime-module'),
+    redpacketRuntimeModule: require.resolve('./modules/redpacket-runtime-module'),
+    behaviorReportRuntimeModule: require.resolve('./modules/behavior-report-runtime-module'),
     warehouseRuntimeModule: require.resolve('./modules/warehouse-runtime-module'),
     farmService: require.resolve('../services/farm'),
     friendService: require.resolve('../services/friend'),
@@ -11,6 +13,8 @@ const MODULE_CACHE_KEYS = Object.freeze({
     friendScannerService: require.resolve('../services/friend/friend-scanner'),
     friendStateService: require.resolve('../services/friend/friend-state'),
     taskService: require.resolve('../services/task'),
+    behaviorReportService: require.resolve('../services/behavior-report-service'),
+    openServerService: require.resolve('../services/openserver'),
     warehouseService: require.resolve('../services/warehouse'),
     accountModePolicyService: require.resolve('../services/account-mode-policy'),
 });
@@ -43,6 +47,20 @@ function taskCacheKeys() {
     return [
         MODULE_CACHE_KEYS.taskRuntimeModule,
         MODULE_CACHE_KEYS.taskService,
+    ];
+}
+
+function redpacketCacheKeys() {
+    return [
+        MODULE_CACHE_KEYS.redpacketRuntimeModule,
+        MODULE_CACHE_KEYS.openServerService,
+    ];
+}
+
+function behaviorReportCacheKeys() {
+    return [
+        MODULE_CACHE_KEYS.behaviorReportRuntimeModule,
+        MODULE_CACHE_KEYS.behaviorReportService,
     ];
 }
 
@@ -88,6 +106,22 @@ function createRuntimeModuleDefinitions(context = {}) {
             },
         },
         {
+            name: 'redpacket',
+            reloadable: true,
+            cacheKeys: redpacketCacheKeys(),
+            create() {
+                return require('./modules/redpacket-runtime-module').createRedpacketRuntimeModule(context);
+            },
+        },
+        {
+            name: 'behavior-report',
+            reloadable: true,
+            cacheKeys: behaviorReportCacheKeys(),
+            create() {
+                return require('./modules/behavior-report-runtime-module').createBehaviorReportRuntimeModule(context);
+            },
+        },
+        {
             name: 'warehouse',
             reloadable: true,
             cacheKeys: warehouseCacheKeys(),
@@ -126,8 +160,12 @@ const RUNTIME_MODULE_RELOAD_PLANS = Object.freeze({
     }),
     task: Object.freeze({
         target: 'task',
-        modules: Object.freeze(['task']),
-        cacheKeys: Object.freeze(uniqueList(taskCacheKeys())),
+        modules: Object.freeze(['task', 'redpacket', 'behavior-report']),
+        cacheKeys: Object.freeze(uniqueList([
+            ...taskCacheKeys(),
+            ...redpacketCacheKeys(),
+            ...behaviorReportCacheKeys(),
+        ])),
         description: '仅重载任务模块族',
         riskLevel: 'low',
         riskSummary: '会重建任务监听、防抖器与任务类定时器，不影响当前连接。',
@@ -152,11 +190,13 @@ const RUNTIME_MODULE_RELOAD_PLANS = Object.freeze({
     }),
     business: Object.freeze({
         target: 'business',
-        modules: Object.freeze(['farm', 'friend', 'task', 'warehouse']),
+        modules: Object.freeze(['farm', 'friend', 'task', 'redpacket', 'behavior-report', 'warehouse']),
         cacheKeys: Object.freeze(uniqueList([
             ...farmCacheKeys(),
             ...friendCacheKeys(),
             ...taskCacheKeys(),
+            ...redpacketCacheKeys(),
+            ...behaviorReportCacheKeys(),
             ...warehouseCacheKeys(),
         ])),
         description: '重载全部业务模块族',

@@ -35,6 +35,119 @@ function normalizeTaskSnapshot(taskName, meta) {
     };
 }
 
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function randomBetween(min, max) {
+    const start = Math.floor(Number(min) || 0);
+    const end = Math.floor(Number(max) || 0);
+    if (end <= start) return Math.max(0, start);
+    return start + Math.floor(Math.random() * (end - start + 1));
+}
+
+function shouldHumanizeNamespace(namespace) {
+    return String(namespace || '').startsWith('runtime:');
+}
+
+function getTimingConfigSnapshot() {
+    try {
+        const store = require('../models/store');
+        if (store && typeof store.getTimingConfig === 'function') {
+            return store.getTimingConfig() || {};
+        }
+    } catch {
+        // ignore timing config read failures
+    }
+    return {};
+}
+
+function getIntensityMultiplier(intensity) {
+    const key = String(intensity || '').trim().toLowerCase();
+    if (key === 'low') return 0.65;
+    if (key === 'high') return 1.35;
+    return 1;
+}
+
+function resolveSchedulerPolicy(namespace) {
+    const timingConfig = getTimingConfigSnapshot();
+    const humanModeEnabled = shouldHumanizeNamespace(namespace) && timingConfig.humanModeEnabled !== false;
+    const intensity = String(timingConfig.humanModeIntensity || 'medium').trim().toLowerCase() || 'medium';
+    const multiplier = getIntensityMultiplier(intensity);
+    return {
+        humanModeEnabled,
+        humanModeIntensity: intensity,
+        schedulerJitterRatio: clamp(Number(timingConfig.schedulerJitterRatio) || 0.12, 0, 0.95) * multiplier,
+        interTaskDelayMinMs: Math.max(0, Math.floor((Number(timingConfig.interTaskDelayMinMs) || 250) * multiplier)),
+        interTaskDelayMaxMs: Math.max(0, Math.floor((Number(timingConfig.interTaskDelayMaxMs) || 900) * multiplier)),
+        restIntervalMinMs: Math.max(0, Math.floor((Number(timingConfig.restIntervalMinMs) || (45 * 60 * 1000)) * multiplier)),
+        restIntervalMaxMs: Math.max(0, Math.floor((Number(timingConfig.restIntervalMaxMs) || (90 * 60 * 1000)) * multiplier)),
+        restDurationMinMs: Math.max(0, Math.floor((Number(timingConfig.restDurationMinMs) || (2 * 60 * 1000)) * multiplier)),
+        restDurationMaxMs: Math.max(0, Math.floor((Number(timingConfig.restDurationMaxMs) || (8 * 60 * 1000)) * multiplier)),
+        eventTriggerDebounceMs: Math.max(0, Number(timingConfig.eventTriggerDebounceMs) || 600),
+    };
+}
+
+function applyHumanizedDelay(baseDelayMs, policy, options = {}) {
+    const delay = Math.max(1, Math.floor(Number(baseDelayMs) || 0));
+    if (!policy || !policy.humanModeEnabled) {
+        return delay;
+    }
+    const jitterRatio = clamp(Number(policy.schedulerJitterRatio) || 0, 0, 0.95);
+    const jitterAmplitude = Math.min(
+        Math.floor(delay * jitterRatio),
+        5 * 60 * 1000,
+    );
+    const jitter = jitterAmplitude > 0
+        ? randomBetween(-jitterAmplitude, jitterAmplitude)
+        : 0;
+    const extraDelay = options.includeInterTaskDelay === false
+        ? 0
+        : randomBetween(policy.interTaskDelayMinMs, policy.interTaskDelayMaxMs);
+    return Math.max(1, delay + jitter + extraDelay);
+}
+
+function ensurePolicyState(record, policy) {
+    if (!record.policyState || typeof record.policyState !== 'object') {
+        record.policyState = {};
+    }
+    if (!policy || !policy.humanModeEnabled) {
+        record.policyState.humanModeEnabled = false;
+        record.policyState.humanModeIntensity = policy && policy.humanModeIntensity ? policy.humanModeIntensity : 'medium';
+        record.policyState.nextRestAt = 0;
+        record.policyState.restingUntil = 0;
+        record.policyState.lastRestStartedAt = 0;
+        record.policyState.lastRestDurationMs = 0;
+        return record.policyState;
+    }
+    if (!record.policyState.nextRestAt) {
+        record.policyState.nextRestAt = Date.now() + randomBetween(policy.restIntervalMinMs, policy.restIntervalMaxMs);
+    }
+    record.policyState.humanModeEnabled = true;
+    record.policyState.humanModeIntensity = policy.humanModeIntensity;
+    return record.policyState;
+}
+
+function resolveRestDelay(record, policy) {
+    if (!policy || !policy.humanModeEnabled) {
+        return 0;
+    }
+    const state = ensurePolicyState(record, policy);
+    const now = Date.now();
+    if (state.restingUntil && state.restingUntil > now) {
+        return state.restingUntil - now;
+    }
+    if (state.nextRestAt && now < state.nextRestAt) {
+        return 0;
+    }
+    const restDurationMs = randomBetween(policy.restDurationMinMs, policy.restDurationMaxMs);
+    state.lastRestStartedAt = now;
+    state.lastRestDurationMs = restDurationMs;
+    state.restingUntil = now + restDurationMs;
+    state.nextRestAt = state.restingUntil + randomBetween(policy.restIntervalMinMs, policy.restIntervalMaxMs);
+    return restDurationMs;
+}
+
 function resolveEngineConfig(namespace, options = {}) {
     let timingConfig = {};
     try {
@@ -111,12 +224,14 @@ function buildDefaultSnapshot(record) {
         engineMode: record.engineMode || 'default',
         taskCount: tasks.length,
         tasks,
+        policy: record.policyState || null,
     };
 }
 
 function createDefaultScheduler(record) {
     const name = record.namespace;
     const timers = record.timers;
+    record.policyState = record.policyState || {};
 
     function clear(taskName) {
         const key = String(taskName || '');
@@ -142,16 +257,22 @@ function createDefaultScheduler(record) {
         if (typeof taskFn !== 'function') throw new Error(`timeout 任务 ${key} 缺少回调函数`);
         clear(key);
         const delay = toDelayMs(delayMs, 0);
+        const policy = resolveSchedulerPolicy(name);
+        ensurePolicyState(record, policy);
+        const effectiveDelay = applyHumanizedDelay(delay, policy, {
+            includeInterTaskDelay: true,
+        });
         const entry = {
             kind: 'timeout',
-            delayMs: delay,
+            delayMs: effectiveDelay,
             createdAt: Date.now(),
-            nextRunAt: Date.now() + delay,
+            nextRunAt: Date.now() + effectiveDelay,
             lastRunAt: 0,
             runCount: 0,
             running: false,
             preventOverlap: true,
             handle: null,
+            baseDelayMs: delay,
         };
         const handle = setTimeout(async () => {
             const current = timers.get(key);
@@ -174,7 +295,7 @@ function createDefaultScheduler(record) {
                     timers.delete(key);
                 }
             }
-        }, delay);
+        }, effectiveDelay);
         entry.handle = handle;
         timers.set(key, entry);
         return handle;
@@ -189,18 +310,23 @@ function createDefaultScheduler(record) {
         const delay = Math.max(1, toDelayMs(intervalMs, 1000));
         const preventOverlap = options.preventOverlap !== false;
         const runImmediately = !!options.runImmediately;
+        const policy = resolveSchedulerPolicy(name);
+        ensurePolicyState(record, policy);
+        const initialDelay = applyHumanizedDelay(delay, policy, {
+            includeInterTaskDelay: true,
+        });
 
         const entry = {
             kind: 'interval',
             delayMs: delay,
             createdAt: Date.now(),
-            nextRunAt: Date.now() + delay,
+            nextRunAt: Date.now() + initialDelay,
             lastRunAt: 0,
             runCount: 0,
             running: false,
             preventOverlap,
             handle: null,
-            expectedNext: Date.now() + delay,
+            expectedNext: Date.now() + initialDelay,
         };
 
         const runner = async () => {
@@ -239,6 +365,10 @@ function createDefaultScheduler(record) {
                         updated.expectedNext = now + delay;
                         nextDelay = delay;
                     }
+                    nextDelay += resolveRestDelay(record, policy);
+                    nextDelay = applyHumanizedDelay(nextDelay, policy, {
+                        includeInterTaskDelay: true,
+                    });
                     updated.nextRunAt = now + nextDelay;
                     queueNext(nextDelay);
                 }
@@ -256,7 +386,7 @@ function createDefaultScheduler(record) {
             entry.expectedNext = Date.now();
             Promise.resolve().then(runner).catch(() => null);
         } else {
-            entry.handle = setTimeout(runner, delay);
+            entry.handle = setTimeout(runner, initialDelay);
         }
 
         timers.set(key, entry);

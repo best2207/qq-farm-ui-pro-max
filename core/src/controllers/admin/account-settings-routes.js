@@ -53,6 +53,28 @@ const DEFAULT_MODE_SCOPE = {
     fallbackBehavior: 'standalone',
 };
 
+const DEFAULT_REDPACKET_CONFIG = {
+    enabled: false,
+    mode: 'daily',
+    checkIntervalSec: 3600,
+    notifyTriggeredEnabled: false,
+    claimCooldownSec: 600,
+};
+
+const DEFAULT_BEHAVIOR_REPORT_CONFIG = {
+    enabled: false,
+    startupSequenceEnabled: true,
+    playTimeReportEnabled: true,
+    flushIntervalSec: 10,
+    maxBufferSize: 10,
+};
+
+const DEFAULT_PROXY_BINDING_CONFIG = {
+    enabled: false,
+    proxyId: '',
+    fallbackToDirect: true,
+};
+
 const DEFAULT_INVENTORY_PLANTING = {
     mode: 'disabled',
     globalKeepCount: 0,
@@ -215,7 +237,20 @@ function registerAccountSettingsRoutes({
                 eventRetentionDays: 30,
             };
             const specialCareFriendIds = store.getSpecialCareFriendIds ? store.getSpecialCareFriendIds(id) : [];
-            const experimentalFeatures = store.getExperimentalFeatures ? store.getExperimentalFeatures(id) : { focusStealEnabled: false };
+            const experimentalFeatures = store.getExperimentalFeatures ? store.getExperimentalFeatures(id) : {
+                focusStealEnabled: false,
+                tlogFlowReportEnabled: false,
+                advancedRedpacketTriggerEnabled: false,
+            };
+            const redpacketConfig = store.getRedpacketConfig
+                ? store.getRedpacketConfig(id)
+                : DEFAULT_REDPACKET_CONFIG;
+            const behaviorReportConfig = store.getBehaviorReportConfig
+                ? store.getBehaviorReportConfig(id)
+                : DEFAULT_BEHAVIOR_REPORT_CONFIG;
+            const proxyBindingConfig = store.getProxyBindingConfig
+                ? store.getProxyBindingConfig(id)
+                : DEFAULT_PROXY_BINDING_CONFIG;
             const automation = mergeAutomationConfig(automationRaw, stealFilter, stealFriendFilter, skipStealRadish, forceGetAll);
             const ui = store.getUI();
             const offlineReminder = store.getOfflineReminder
@@ -257,6 +292,9 @@ function registerAccountSettingsRoutes({
                     friendRiskConfig,
                     specialCareFriendIds,
                     experimentalFeatures,
+                    redpacketConfig,
+                    behaviorReportConfig,
+                    proxyBindingConfig,
                     workflowConfig,
                     tradeConfig,
                     reportConfig,

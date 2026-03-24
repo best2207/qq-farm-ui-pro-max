@@ -78,9 +78,18 @@ function registerAdminFeatureRoutes({
     consoleRef,
     getIo,
     getDispatcher,
+    healthProbeService,
+    statsSummaryService,
+    proxyPoolService,
+    resolveServiceProfile,
     registerAuthRoutes,
+    registerOpenApiRoutes,
     registerLegacyLogoutRoute,
     registerSystemPublicRoutes,
+    registerExternalApiRoutes,
+    registerPlatformCapabilitiesRoutes,
+    registerProxyAdminRoutes,
+    registerStatsSummaryRoutes,
     registerAccountStateRoutes,
     registerAutomationRoutes,
     registerFriendOperationRoutes,
@@ -123,6 +132,20 @@ function registerAdminFeatureRoutes({
         configRef,
     });
 
+    registerOpenApiRoutes({
+        app,
+        version,
+    });
+
+    registerExternalApiRoutes({
+        app,
+        authRequired,
+        userRequired,
+        getAccountsSnapshot,
+        statsSummaryService,
+        healthProbeService,
+    });
+
     app.use('/api', farmToolsRouter);
 
     app.use('/api', createAdminApiGuard({
@@ -150,12 +173,34 @@ function registerAdminFeatureRoutes({
         adminOperationLogService,
         jwtService,
         handleApiError: routeRuntime.handleApiError,
+        healthProbeService,
+        resolveServiceProfile,
     });
 
     registerLegacyLogoutRoute({
         app,
         jwtService,
         adminLogger,
+    });
+
+    registerStatsSummaryRoutes({
+        app,
+        authRequired,
+        userRequired,
+        statsSummaryService,
+    });
+
+    registerPlatformCapabilitiesRoutes({
+        app,
+        authRequired,
+        userRequired,
+    });
+
+    registerProxyAdminRoutes({
+        app,
+        authRequired,
+        userRequired,
+        proxyPoolService,
     });
 
     registerAccountStateRoutes({

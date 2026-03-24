@@ -115,6 +115,40 @@ message ReportArkClickReply {
     // 通常为空响应
 }
 
+// ============ 行为流上报 ============
+message ClientReportFlowRequest {
+    int32 os_type = 1;
+    int32 plat_from_type = 2;
+    string open_id = 3;
+    int64 gid = 4;
+    string name = 5;
+    int64 now = 6;
+    int64 level = 7;
+    int64 flow_type = 101;
+    string flow_type_str = 102;
+    int64 param_int1 = 103;
+    int64 param_int2 = 104;
+    int64 param_int3 = 105;
+    int64 param_int4 = 106;
+    int64 param_int5 = 107;
+    string param_str6 = 108;
+    string param_str7 = 109;
+    string param_str8 = 110;
+    string param_str9 = 111;
+    string param_str10 = 112;
+}
+
+message ClientReportFlowReply {}
+
+message BatchClientReportFlowRequest {
+    repeated ClientReportFlowRequest flows = 1;
+}
+
+message BatchClientReportFlowReply {
+    int32 success_count = 1;
+    int32 fail_count = 2;
+}
+
 // ============ 服务器推送通知 ============
 
 // 基本信息变化通知 (升级/金币变化等)

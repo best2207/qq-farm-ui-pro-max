@@ -72,6 +72,132 @@ interface SessionStatusSnapshot {
   checkedAt: number
 }
 
+interface ServiceProfileSnapshot {
+  profile: string
+  defaultProfile?: string
+  webPanelEnabled: boolean
+  apiEnabled: boolean
+  runtimeEnabled: boolean
+  autoStartAccounts: boolean
+  source?: string
+  checkedAt: number
+}
+
+interface OpenApiConfigSnapshot {
+  enabled: boolean
+  title: string
+  version: string
+  serverBaseUrl: string
+  exposeExternalApiOnly: boolean
+  includeAdminReadOnlyRoutes: boolean
+}
+
+interface HealthProbeConfigSnapshot {
+  dependencyTimeoutMs: number
+  runtimeWorkerOfflineThresholdSec: number
+  warnReloginQueueCount: number
+  warnFailedAccountCount: number
+  includeAiService: boolean
+}
+
+interface ServiceProfileConfigSnapshot {
+  defaultProfile: 'full' | 'headless-api' | 'headless-runtime'
+  allowAutoStartAccountsInHeadlessApi: boolean
+}
+
+interface ProxyPoolConfigSnapshot {
+  enabled: boolean
+  healthCheckTimeoutMs: number
+  healthCheckBatchSize: number
+  defaultMaxUsersPerProxy: number
+  cooldownMs: number
+  selectionStrategy: 'round_robin' | 'least_load' | 'healthy_first'
+  autoAssignEnabled: boolean
+}
+
+interface PlatformCapabilitiesSnapshot {
+  openapiConfig: OpenApiConfigSnapshot
+  healthProbeConfig: HealthProbeConfigSnapshot
+  serviceProfileConfig: ServiceProfileConfigSnapshot
+  proxyPoolConfig: ProxyPoolConfigSnapshot
+}
+
+interface HealthDependenciesSnapshot {
+  ok: boolean
+  checkedAt: number
+  config?: Record<string, any>
+  dependencies?: Record<string, any>
+}
+
+interface HealthRuntimeSnapshot {
+  ok: boolean
+  checkedAt: number
+  accounts?: {
+    total: number
+    running: number
+    reloginRequired: number
+    banned: number
+  }
+  schedulers?: {
+    schedulerCount?: number
+  }
+  warning?: string
+}
+
+interface ExternalApiClientSnapshot {
+  id: string
+  name: string
+  status: string
+  scopes: string[]
+  allowedPaths: string[]
+  allowedAccountIds: string[]
+  expiresAt: number
+  lastUsedAt: number
+  createdAt: number
+  createdBy: string
+  updatedAt: number
+  note: string
+}
+
+interface ProxyRecordSnapshot {
+  id: string
+  maskedProxyUrl: string
+  protocol: string
+  host: string
+  port: number
+  note: string
+  status: string
+  maxUsers: number
+  successCount: number
+  failCount: number
+  avgLatencyMs: number
+  lastCheckedAt: number
+  cooldownUntil: number
+}
+
+interface StatsSummarySnapshot {
+  checkedAt: number
+  accounts?: {
+    total: number
+    reloginRequired: number
+    banned: number
+  }
+  buckets?: Record<string, {
+    label?: string
+    exp?: number
+    gold?: number
+    steal?: number
+    help?: number
+  }>
+  history?: Array<{
+    date: string
+    exp: number
+    gold: number
+    steal: number
+    help: number
+  }>
+}
+
 interface QqFriendDiagnosticsCachePreviewItem {
   gid?: number | string
   name?: string
@@ -834,6 +960,80 @@ const thirdPartyApiConfig = ref({
   aineisheKey: '',
 })
 const thirdPartyApiSaving = ref(false)
+const externalApiClients = ref<ExternalApiClientSnapshot[]>([])
+const externalApiClientsLoading = ref(false)
+const externalApiMutatingKey = ref('')
+const externalApiCreateDraft = ref({
+  name: '默认只读客户端',
+  note: '',
+  allowedAccountIdsText: '',
+  expiresAt: '',
+})
+const externalApiLastPlainToken = ref('')
+const proxyPoolRecords = ref<ProxyRecordSnapshot[]>([])
+const proxyPoolLoading = ref(false)
+const proxyPoolMutatingKey = ref('')
+const proxyPoolCreateDraft = ref({
+  proxyUrl: '',
+  maxUsers: 10,
+  note: '',
+})
+const proxyPoolImportDraft = ref({
+  text: '',
+  mode: 'append',
+})
+const redpacketModeOptions = [
+  { label: '定时巡检', value: 'daily' },
+  { label: '事件触发补查', value: 'notify' },
+  { label: '混合模式', value: 'hybrid' },
+]
+const proxyImportModeOptions = [
+  { label: '追加导入', value: 'append' },
+  { label: '跳过重复', value: 'dedupe' },
+]
+const serviceProfileDefaultOptions = [
+  { label: 'Full：面板 + API + 运行时', value: 'full' },
+  { label: 'Headless API：仅停运行时', value: 'headless-api' },
+  { label: 'Headless Runtime：仅保留运行时', value: 'headless-runtime' },
+]
+const proxySelectionStrategyOptions = [
+  { label: '优先健康节点', value: 'healthy_first' },
+  { label: '最小负载', value: 'least_load' },
+  { label: '轮询分配', value: 'round_robin' },
+]
+const defaultPlatformCapabilities: PlatformCapabilitiesSnapshot = {
+  openapiConfig: {
+    enabled: true,
+    title: 'QQ Farm Bot External API',
+    version: '1.0.0',
+    serverBaseUrl: '',
+    exposeExternalApiOnly: true,
+    includeAdminReadOnlyRoutes: true,
+  },
+  healthProbeConfig: {
+    dependencyTimeoutMs: 2500,
+    runtimeWorkerOfflineThresholdSec: 120,
+    warnReloginQueueCount: 5,
+    warnFailedAccountCount: 3,
+    includeAiService: true,
+  },
+  serviceProfileConfig: {
+    defaultProfile: 'full',
+    allowAutoStartAccountsInHeadlessApi: false,
+  },
+  proxyPoolConfig: {
+    enabled: true,
+    healthCheckTimeoutMs: 6000,
+    healthCheckBatchSize: 20,
+    defaultMaxUsersPerProxy: 10,
+    cooldownMs: 300000,
+    selectionStrategy: 'healthy_first',
+    autoAssignEnabled: false,
+  },
+}
+const platformCapabilities = ref<PlatformCapabilitiesSnapshot>(JSON.parse(JSON.stringify(defaultPlatformCapabilities)))
+const platformCapabilitiesLoading = ref(false)
+const platformCapabilitiesSaving = ref(false)
 const systemUpdateChecking = ref(false)
 const systemUpdateSaving = ref(false)
 const systemUpdateLaunching = ref(false)
@@ -843,6 +1043,12 @@ const systemUpdateCancellingKey = ref('')
 const systemHealthLoading = ref(false)
 const systemHealthError = ref('')
 const systemHealthSnapshot = ref<SystemSettingsHealthSnapshot | null>(null)
+const dependencyHealthSnapshot = ref<HealthDependenciesSnapshot | null>(null)
+const runtimeHealthSnapshot = ref<HealthRuntimeSnapshot | null>(null)
+const serviceProfileSnapshot = ref<ServiceProfileSnapshot | null>(null)
+const statsSummarySnapshot = ref<StatsSummarySnapshot | null>(null)
+const extendedHealthLoading = ref(false)
+const extendedHealthError = ref('')
 const qqFriendDiagnosticsLoading = ref(false)
 const qqFriendDiagnosticsError = ref('')
 const qqFriendDiagnosticsSnapshot = ref<QqFriendDiagnosticsSnapshot | null>(null)
@@ -893,6 +1099,9 @@ const systemUpdateStrategyOptions = [
 
 const webAssetsSnapshot = computed(() => systemHealthSnapshot.value?.webAssets ?? null)
 const systemHealthCheckedAtLabel = computed(() => formatTimestamp(systemHealthSnapshot.value?.checkedAt))
+const dependencyHealthCheckedAtLabel = computed(() => formatTimestamp(dependencyHealthSnapshot.value?.checkedAt))
+const runtimeHealthCheckedAtLabel = computed(() => formatTimestamp(runtimeHealthSnapshot.value?.checkedAt))
+const serviceProfileCheckedAtLabel = computed(() => formatTimestamp(serviceProfileSnapshot.value?.checkedAt))
 const systemHealthStatusLabel = computed(() => {
   if (!systemHealthSnapshot.value)
     return '未加载'
@@ -929,15 +1138,55 @@ const qqFriendDiagnosticsRedisSummaryLabel = computed(() => {
     return '未获取'
   return `${summary.cacheAccountCount} 个账号 / ${summary.cacheFriendCount} 个好友`
 })
+const dependencyHealthStatusLabel = computed(() => {
+  if (!dependencyHealthSnapshot.value)
+    return '未加载'
+  return dependencyHealthSnapshot.value.ok ? '依赖正常' : '存在告警'
+})
+const runtimeHealthStatusLabel = computed(() => {
+  if (!runtimeHealthSnapshot.value)
+    return '未加载'
+  return runtimeHealthSnapshot.value.ok ? '运行平稳' : (runtimeHealthSnapshot.value.warning || '存在告警')
+})
+const serviceProfileLabel = computed(() => {
+  const profile = serviceProfileSnapshot.value?.profile
+  if (!profile)
+    return '未加载'
+  if (profile === 'headless-api')
+    return 'Headless API'
+  if (profile === 'headless-runtime')
+    return 'Headless Runtime'
+  return 'Full'
+})
+const externalApiClientCount = computed(() => externalApiClients.value.length)
+const proxyPoolOptions = computed(() =>
+  proxyPoolRecords.value.map(proxy => ({
+    label: `${proxy.maskedProxyUrl} · ${proxy.status || 'unknown'}`,
+    value: proxy.id,
+  })),
+)
+const statsSummaryTodayGoldLabel = computed(() => {
+  const gold = Number(statsSummarySnapshot.value?.buckets?.today?.gold || 0)
+  return `${gold.toLocaleString('zh-CN')} 金豆`
+})
 void [
   webAssetsSnapshot,
   systemHealthCheckedAtLabel,
+  dependencyHealthCheckedAtLabel,
+  runtimeHealthCheckedAtLabel,
+  serviceProfileCheckedAtLabel,
   systemHealthStatusLabel,
   systemHealthStatusClass,
   qqFriendDiagnosticsStatusLabel,
   qqFriendDiagnosticsStatusClass,
   qqFriendDiagnosticsCheckedAtLabel,
   qqFriendDiagnosticsRedisSummaryLabel,
+  dependencyHealthStatusLabel,
+  runtimeHealthStatusLabel,
+  serviceProfileLabel,
+  externalApiClientCount,
+  proxyPoolOptions,
+  statsSummaryTodayGoldLabel,
 ]
 
 const trialCooldownOptions = [
@@ -1055,6 +1304,116 @@ async function loadThirdPartyApiConfig() {
   catch { /* 静默 */ }
 }
 
+async function loadPlatformCapabilities(showFailureAlert = false) {
+  if (!isAdmin.value)
+    return
+  platformCapabilitiesLoading.value = true
+  try {
+    const res = await api.get('/api/admin/platform-capabilities')
+    if (res.data?.ok && res.data.data) {
+      platformCapabilities.value = {
+        openapiConfig: {
+          ...defaultPlatformCapabilities.openapiConfig,
+          ...(res.data.data.openapiConfig || {}),
+        },
+        healthProbeConfig: {
+          ...defaultPlatformCapabilities.healthProbeConfig,
+          ...(res.data.data.healthProbeConfig || {}),
+        },
+        serviceProfileConfig: {
+          ...defaultPlatformCapabilities.serviceProfileConfig,
+          ...(res.data.data.serviceProfileConfig || {}),
+        },
+        proxyPoolConfig: {
+          ...defaultPlatformCapabilities.proxyPoolConfig,
+          ...(res.data.data.proxyPoolConfig || {}),
+        },
+      }
+      if (!String(proxyPoolCreateDraft.value.proxyUrl || '').trim()) {
+        proxyPoolCreateDraft.value.maxUsers = platformCapabilities.value.proxyPoolConfig.defaultMaxUsersPerProxy
+      }
+      return
+    }
+    throw new Error(res.data?.error || '系统级能力配置返回异常')
+  }
+  catch (e: any) {
+    platformCapabilities.value = JSON.parse(JSON.stringify(defaultPlatformCapabilities))
+    if (showFailureAlert)
+      showAlert(`加载系统级能力配置失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    platformCapabilitiesLoading.value = false
+  }
+}
+
+async function savePlatformCapabilities() {
+  if (!isAdmin.value)
+    return
+  platformCapabilitiesSaving.value = true
+  try {
+    const res = await api.post('/api/admin/platform-capabilities', platformCapabilities.value)
+    if (res.data?.ok && res.data.data) {
+      platformCapabilities.value = {
+        openapiConfig: {
+          ...defaultPlatformCapabilities.openapiConfig,
+          ...(res.data.data.openapiConfig || {}),
+        },
+        healthProbeConfig: {
+          ...defaultPlatformCapabilities.healthProbeConfig,
+          ...(res.data.data.healthProbeConfig || {}),
+        },
+        serviceProfileConfig: {
+          ...defaultPlatformCapabilities.serviceProfileConfig,
+          ...(res.data.data.serviceProfileConfig || {}),
+        },
+        proxyPoolConfig: {
+          ...defaultPlatformCapabilities.proxyPoolConfig,
+          ...(res.data.data.proxyPoolConfig || {}),
+        },
+      }
+      if (!String(proxyPoolCreateDraft.value.proxyUrl || '').trim()) {
+        proxyPoolCreateDraft.value.maxUsers = platformCapabilities.value.proxyPoolConfig.defaultMaxUsersPerProxy
+      }
+      showAlert('系统级能力配置已保存，服务模式类配置将在下次重启后生效')
+      return
+    }
+    throw new Error(res.data?.error || '保存失败')
+  }
+  catch (e: any) {
+    showAlert(`保存系统级能力配置失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    platformCapabilitiesSaving.value = false
+  }
+}
+
+async function loadExtendedHealthSnapshots(showFailureAlert = false) {
+  if (!isAdmin.value)
+    return
+  extendedHealthLoading.value = true
+  try {
+    const [dependenciesRes, runtimeRes, profileRes, statsRes] = await Promise.all([
+      api.get('/api/health/dependencies'),
+      api.get('/api/health/runtime'),
+      api.get('/api/system/service-profile'),
+      api.get('/api/stats/summary'),
+    ])
+    dependencyHealthSnapshot.value = dependenciesRes.data?.ok ? (dependenciesRes.data.data || null) as HealthDependenciesSnapshot | null : null
+    runtimeHealthSnapshot.value = runtimeRes.data?.ok ? (runtimeRes.data.data || null) as HealthRuntimeSnapshot | null : null
+    serviceProfileSnapshot.value = profileRes.data?.ok ? (profileRes.data.data || null) as ServiceProfileSnapshot | null : null
+    statsSummarySnapshot.value = statsRes.data?.ok ? (statsRes.data.data || null) as StatsSummarySnapshot | null : null
+    extendedHealthError.value = ''
+  }
+  catch (e: any) {
+    extendedHealthError.value = e.response?.data?.error || e.message || '扩展健康信息加载失败'
+    if (showFailureAlert)
+      showAlert(`加载扩展健康信息失败: ${extendedHealthError.value}`, 'danger')
+  }
+  finally {
+    extendedHealthLoading.value = false
+  }
+}
+
 async function saveThirdPartyApiConfig() {
   thirdPartyApiSaving.value = true
   try {
@@ -1071,6 +1430,213 @@ async function saveThirdPartyApiConfig() {
   }
   finally {
     thirdPartyApiSaving.value = false
+  }
+}
+
+async function loadExternalApiClients(showFailureAlert = false) {
+  if (!isAdmin.value)
+    return
+  externalApiClientsLoading.value = true
+  try {
+    const res = await api.get('/api/admin/external-api-clients')
+    if (res.data?.ok) {
+      externalApiClients.value = Array.isArray(res.data.data) ? res.data.data : []
+      return
+    }
+    throw new Error(res.data?.error || '外部 API 客户端列表返回异常')
+  }
+  catch (e: any) {
+    externalApiClients.value = []
+    if (showFailureAlert)
+      showAlert(`加载外部 API 客户端失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    externalApiClientsLoading.value = false
+  }
+}
+
+function buildExternalApiClientPayload() {
+  return {
+    name: String(externalApiCreateDraft.value.name || '').trim() || '默认只读客户端',
+    note: String(externalApiCreateDraft.value.note || '').trim(),
+    scopes: ['read:health', 'read:accounts', 'read:stats'],
+    allowedPaths: ['/api/external/'],
+    allowedAccountIds: String(externalApiCreateDraft.value.allowedAccountIdsText || '')
+      .split(/[,\s]+/)
+      .map(item => item.trim())
+      .filter(Boolean),
+    expiresAt: externalApiCreateDraft.value.expiresAt
+      ? new Date(externalApiCreateDraft.value.expiresAt).getTime()
+      : 0,
+  }
+}
+
+async function createExternalApiClientNow() {
+  externalApiMutatingKey.value = 'create'
+  try {
+    const res = await api.post('/api/admin/external-api-clients', buildExternalApiClientPayload())
+    if (res.data?.ok) {
+      externalApiLastPlainToken.value = String(res.data.data?.plainToken || '').trim()
+      await loadExternalApiClients()
+      showAlert('外部 API 客户端已创建，新的 Key 只会展示这一次')
+      return
+    }
+    throw new Error(res.data?.error || '创建失败')
+  }
+  catch (e: any) {
+    showAlert(`创建外部 API 客户端失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    externalApiMutatingKey.value = ''
+  }
+}
+
+async function rotateExternalApiClientNow(client: ExternalApiClientSnapshot) {
+  externalApiMutatingKey.value = `rotate:${client.id}`
+  try {
+    const res = await api.post(`/api/admin/external-api-clients/${encodeURIComponent(client.id)}/rotate`)
+    if (res.data?.ok) {
+      externalApiLastPlainToken.value = String(res.data.data?.plainToken || '').trim()
+      await loadExternalApiClients()
+      showAlert(`已轮换 ${client.name} 的外部 API Key`)
+      return
+    }
+    throw new Error(res.data?.error || '轮换失败')
+  }
+  catch (e: any) {
+    showAlert(`轮换外部 API Key 失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    externalApiMutatingKey.value = ''
+  }
+}
+
+async function revokeExternalApiClientNow(client: ExternalApiClientSnapshot) {
+  externalApiMutatingKey.value = `revoke:${client.id}`
+  try {
+    const res = await api.post(`/api/admin/external-api-clients/${encodeURIComponent(client.id)}/revoke`)
+    if (res.data?.ok) {
+      await loadExternalApiClients()
+      showAlert(`已吊销 ${client.name} 的外部 API Key`)
+      return
+    }
+    throw new Error(res.data?.error || '吊销失败')
+  }
+  catch (e: any) {
+    showAlert(`吊销外部 API Key 失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    externalApiMutatingKey.value = ''
+  }
+}
+
+async function loadProxyPoolRecords(showFailureAlert = false) {
+  if (!isAdmin.value)
+    return
+  proxyPoolLoading.value = true
+  try {
+    const res = await api.get('/api/admin/proxies')
+    if (res.data?.ok) {
+      proxyPoolRecords.value = Array.isArray(res.data.data) ? res.data.data : []
+      return
+    }
+    throw new Error(res.data?.error || '代理池列表返回异常')
+  }
+  catch (e: any) {
+    proxyPoolRecords.value = []
+    if (showFailureAlert)
+      showAlert(`加载代理池失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    proxyPoolLoading.value = false
+  }
+}
+
+async function createProxyPoolRecord() {
+  proxyPoolMutatingKey.value = 'create'
+  try {
+    const res = await api.post('/api/admin/proxies', {
+      proxyUrl: proxyPoolCreateDraft.value.proxyUrl,
+      maxUsers: proxyPoolCreateDraft.value.maxUsers,
+      note: proxyPoolCreateDraft.value.note,
+    })
+    if (res.data?.ok) {
+      proxyPoolCreateDraft.value = { proxyUrl: '', maxUsers: 10, note: '' }
+      await loadProxyPoolRecords()
+      showAlert('代理已加入代理池')
+      return
+    }
+    throw new Error(res.data?.error || '创建失败')
+  }
+  catch (e: any) {
+    showAlert(`创建代理失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    proxyPoolMutatingKey.value = ''
+  }
+}
+
+async function importProxyPoolRecords() {
+  proxyPoolMutatingKey.value = 'import'
+  try {
+    const res = await api.post('/api/admin/proxies/import', {
+      text: proxyPoolImportDraft.value.text,
+      mode: proxyPoolImportDraft.value.mode,
+    })
+    if (res.data?.ok) {
+      await loadProxyPoolRecords()
+      showAlert(`代理导入完成：新增 ${res.data.data?.added || 0} 条`)
+      return
+    }
+    throw new Error(res.data?.error || '导入失败')
+  }
+  catch (e: any) {
+    showAlert(`导入代理失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    proxyPoolMutatingKey.value = ''
+  }
+}
+
+async function runProxyHealthCheck(targetId = '') {
+  proxyPoolMutatingKey.value = targetId ? `health:${targetId}` : 'health'
+  try {
+    const res = await api.post('/api/admin/proxies/health-check', {
+      ids: targetId ? [targetId] : [],
+      timeoutMs: 6000,
+    })
+    if (res.data?.ok) {
+      proxyPoolRecords.value = Array.isArray(res.data.data?.list) ? res.data.data.list : []
+      showAlert(targetId ? '代理健康检查完成' : '全部代理健康检查完成')
+      return
+    }
+    throw new Error(res.data?.error || '健康检查失败')
+  }
+  catch (e: any) {
+    showAlert(`代理健康检查失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    proxyPoolMutatingKey.value = ''
+  }
+}
+
+async function removeProxyPoolRecord(record: ProxyRecordSnapshot) {
+  proxyPoolMutatingKey.value = `remove:${record.id}`
+  try {
+    const res = await api.delete(`/api/admin/proxies/${encodeURIComponent(record.id)}`)
+    if (res.data?.ok) {
+      await loadProxyPoolRecords()
+      clearSelectedProxyBinding(record.id)
+      showAlert('代理已移除')
+      return
+    }
+    throw new Error(res.data?.error || '删除失败')
+  }
+  catch (e: any) {
+    showAlert(`删除代理失败: ${e.response?.data?.error || e.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    proxyPoolMutatingKey.value = ''
   }
 }
 
@@ -1585,6 +2151,7 @@ async function loadQqFriendDiagnostics(showFailureAlert = false) {
 async function refreshAdminHealthPanels(showFailureAlert = false) {
   await Promise.all([
     loadSystemSettingsHealth(showFailureAlert),
+    loadExtendedHealthSnapshots(showFailureAlert),
     loadQqFriendDiagnostics(showFailureAlert),
   ])
 }
@@ -1997,6 +2564,11 @@ const currentAccountName = computed(() => {
 
 const localSettings = ref<any>({})
 
+function clearSelectedProxyBinding(proxyId: string | number) {
+  if (String(localSettings.value.proxyBindingConfig?.proxyId || '') === String(proxyId))
+    localSettings.value.proxyBindingConfig.proxyId = ''
+}
+
 function isCurrentAccountQqValue() {
   return String(currentAccountSnapshot.value?.platform || '').trim().toLowerCase() === 'qq'
 }
@@ -2262,6 +2834,34 @@ const defaultReportConfig = {
   retentionDays: 30,
 }
 
+const defaultRedpacketConfig = {
+  enabled: false,
+  mode: 'daily' as 'daily' | 'notify' | 'hybrid',
+  checkIntervalSec: 3600,
+  notifyTriggeredEnabled: false,
+  claimCooldownSec: 600,
+}
+
+const defaultBehaviorReportConfig = {
+  enabled: false,
+  startupSequenceEnabled: true,
+  playTimeReportEnabled: true,
+  flushIntervalSec: 10,
+  maxBufferSize: 10,
+}
+
+const defaultProxyBindingConfig = {
+  enabled: false,
+  proxyId: '',
+  fallbackToDirect: true,
+}
+
+const defaultExperimentalFeatures = {
+  focusStealEnabled: false,
+  tlogFlowReportEnabled: false,
+  advancedRedpacketTriggerEnabled: false,
+}
+
 const defaultBugReportConfig: BugReportConfig = {
   enabled: true,
   smtpHost: '',
@@ -2397,6 +2997,22 @@ function buildAccountSettingsStateFromSources() {
       ...defaultReportConfig,
       ...((currentSettings?.reportConfig) || {}),
     },
+    redpacketConfig: {
+      ...defaultRedpacketConfig,
+      ...((currentSettings?.redpacketConfig) || {}),
+    },
+    behaviorReportConfig: {
+      ...defaultBehaviorReportConfig,
+      ...((currentSettings?.behaviorReportConfig) || {}),
+    },
+    experimentalFeatures: {
+      ...defaultExperimentalFeatures,
+      ...((currentSettings?.experimentalFeatures) || {}),
+    },
+    proxyBindingConfig: {
+      ...defaultProxyBindingConfig,
+      ...((currentSettings?.proxyBindingConfig) || {}),
+    },
     automation: buildNormalizedAutomationConfig(currentSettings?.automation),
   }
 }
@@ -2442,6 +3058,22 @@ function buildSettingsPayloadFromState(state: any, keepFruitIdsSource?: any) {
   payload.reportConfig = {
     ...defaultReportConfig,
     ...(payload.reportConfig || {}),
+  }
+  payload.redpacketConfig = {
+    ...defaultRedpacketConfig,
+    ...(payload.redpacketConfig || {}),
+  }
+  payload.behaviorReportConfig = {
+    ...defaultBehaviorReportConfig,
+    ...(payload.behaviorReportConfig || {}),
+  }
+  payload.experimentalFeatures = {
+    ...defaultExperimentalFeatures,
+    ...(payload.experimentalFeatures || {}),
+  }
+  payload.proxyBindingConfig = {
+    ...defaultProxyBindingConfig,
+    ...(payload.proxyBindingConfig || {}),
   }
   payload.automation = buildNormalizedAutomationConfig(payload.automation)
   return payload
@@ -2519,6 +3151,10 @@ localSettings.value = {
   qqHighRiskWindow: { ...defaultQqHighRiskWindow },
   tradeConfig: createDefaultTradeConfig(),
   reportConfig: { ...defaultReportConfig },
+  redpacketConfig: { ...defaultRedpacketConfig },
+  behaviorReportConfig: { ...defaultBehaviorReportConfig },
+  experimentalFeatures: { ...defaultExperimentalFeatures },
+  proxyBindingConfig: { ...defaultProxyBindingConfig },
   automation: {
     ...defaultAutomationConfig,
     stealFilterPlantIds: [...defaultAutomationConfig.stealFilterPlantIds],
@@ -2601,6 +3237,16 @@ const localTiming = ref({
   optimizedSchedulerNamespaces: 'system-jobs,account-report-service,worker_manager',
   optimizedSchedulerTickMs: 100,
   optimizedSchedulerWheelSize: 600,
+  humanModeEnabled: true,
+  humanModeIntensity: 'medium',
+  schedulerJitterRatio: 0.12,
+  interTaskDelayMinMs: 250,
+  interTaskDelayMaxMs: 900,
+  restIntervalMinMs: 45 * 60 * 1000,
+  restIntervalMaxMs: 90 * 60 * 1000,
+  restDurationMinMs: 2 * 60 * 1000,
+  restDurationMaxMs: 8 * 60 * 1000,
+  eventTriggerDebounceMs: 600,
 })
 
 const passwordForm = ref({
@@ -2943,8 +3589,12 @@ async function loadData() {
     await loadBugReportConfig()
     loadTimingConfig()
     loadClusterConfig()
+    loadPlatformCapabilities()
+    loadExternalApiClients()
+    loadProxyPoolRecords()
     loadSystemUpdateData()
     loadSystemSettingsHealth()
+    loadExtendedHealthSnapshots()
     loadQqFriendDiagnostics()
   }
   else {
@@ -2953,6 +3603,15 @@ async function loadData() {
     systemUpdateJobs.value = []
     systemHealthSnapshot.value = null
     systemHealthError.value = ''
+    dependencyHealthSnapshot.value = null
+    runtimeHealthSnapshot.value = null
+    serviceProfileSnapshot.value = null
+    statsSummarySnapshot.value = null
+    extendedHealthError.value = ''
+    externalApiClients.value = []
+    externalApiLastPlainToken.value = ''
+    platformCapabilities.value = JSON.parse(JSON.stringify(defaultPlatformCapabilities))
+    proxyPoolRecords.value = []
     qqFriendDiagnosticsSnapshot.value = null
     qqFriendDiagnosticsError.value = ''
   }
@@ -4507,6 +5166,14 @@ async function handleSaveTiming() {
     && !Number.isNaN(t.inviteRequestDelay)
     && !Number.isNaN(t.optimizedSchedulerTickMs)
     && !Number.isNaN(t.optimizedSchedulerWheelSize)
+    && !Number.isNaN(t.schedulerJitterRatio)
+    && !Number.isNaN(t.interTaskDelayMinMs)
+    && !Number.isNaN(t.interTaskDelayMaxMs)
+    && !Number.isNaN(t.restIntervalMinMs)
+    && !Number.isNaN(t.restIntervalMaxMs)
+    && !Number.isNaN(t.restDurationMinMs)
+    && !Number.isNaN(t.restDurationMaxMs)
+    && !Number.isNaN(t.eventTriggerDebounceMs)
     && !!String(t.schedulerEngine || '').trim()
 
   if (!isValid) {
@@ -5530,6 +6197,35 @@ async function restoreTimingDefaults() {
                       <BaseSwitch v-model="localSettings.automation.month_card" label="自动月卡奖励" hint="月卡用户专属，自动领取月卡每日奖励。无月卡开启无效但不会报错。" recommend="conditional" />
                       <BaseSwitch v-model="localSettings.automation.open_server_gift" label="自动开服红包" hint="自动领取开服活动红包奖励。活动期间有效，非活动期开启无影响。" recommend="on" />
                     </div>
+                    <div v-show="localSettings.automation.open_server_gift" class="ml-7 space-y-3">
+                      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <BaseSwitch v-model="localSettings.redpacketConfig.enabled" label="启用独立红包模块" hint="将开服红包领取迁移到独立运行时模块，避免和旧 task 模块重复执行。" recommend="on" />
+                        <BaseSwitch v-model="localSettings.redpacketConfig.notifyTriggeredEnabled" label="事件触发补查" hint="作物收获等关键事件后追加一次轻量红包探测，适合活动期间提高命中率。" recommend="conditional" />
+                      </div>
+                      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <BaseSelect
+                          v-model="localSettings.redpacketConfig.mode"
+                          label="红包检查策略"
+                          :options="redpacketModeOptions"
+                        />
+                        <BaseInput
+                          v-model.number="localSettings.redpacketConfig.checkIntervalSec"
+                          label="检查间隔 (秒)"
+                          type="number"
+                          min="60"
+                        />
+                        <BaseInput
+                          v-model.number="localSettings.redpacketConfig.claimCooldownSec"
+                          label="领取冷却 (秒)"
+                          type="number"
+                          min="60"
+                        />
+                      </div>
+                      <BaseSwitch v-model="localSettings.experimentalFeatures.advancedRedpacketTriggerEnabled" label="实验性活动触发增强" hint="补充更激进的红包触发时机，仅建议在活动期临时开启观察效果。" recommend="off" />
+                      <p class="settings-automation-note text-[10px]">
+                        独立红包模块开启后，运行时会自动避开旧的 task 例行领取逻辑，避免重复请求。
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -5613,6 +6309,58 @@ async function restoreTimingDefaults() {
                         :options="fertilizerOptions"
                         title="种植后自动施肥的方式。普通肥加速生长、有机肥改善土壤（可循环施直到耗尽）、两者兼用效果最佳。推荐：普通+有机"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-automation-card rounded-2xl p-5 transition-all">
+                  <h4 class="glass-text-muted mb-4 flex items-center text-xs font-bold tracking-widest uppercase">
+                    <div class="i-carbon-network-4 mr-2" /> 实验能力与网络出口
+                    <BaseTooltip text="这里放置默认关闭的增强能力：行为流上报、重点偷取策略和账号级代理绑定。" />
+                  </h4>
+                  <div class="space-y-4">
+                    <div class="space-y-3">
+                      <BaseSwitch v-model="localSettings.behaviorReportConfig.enabled" label="启用行为流上报" hint="把登录启动序列和在线时长按批次上报到运行时模块，默认关闭，不影响主流程。" recommend="off" />
+                      <div v-show="localSettings.behaviorReportConfig.enabled" class="ml-7 space-y-3">
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <BaseSwitch v-model="localSettings.behaviorReportConfig.startupSequenceEnabled" label="启动序列上报" hint="账号上线后补齐 loading / preload / login 这类启动节点，适合拟态化场景。" recommend="on" />
+                          <BaseSwitch v-model="localSettings.behaviorReportConfig.playTimeReportEnabled" label="在线时长上报" hint="在 worker 停止前补一条在线时长记录，便于保持行为节奏闭环。" recommend="on" />
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <BaseInput
+                            v-model.number="localSettings.behaviorReportConfig.flushIntervalSec"
+                            label="批量刷新间隔 (秒)"
+                            type="number"
+                            min="5"
+                          />
+                          <BaseInput
+                            v-model.number="localSettings.behaviorReportConfig.maxBufferSize"
+                            label="单批缓存上限"
+                            type="number"
+                            min="1"
+                          />
+                        </div>
+                        <BaseSwitch v-model="localSettings.experimentalFeatures.tlogFlowReportEnabled" label="实验性流量拟态补偿" hint="在基础上报之外允许更激进的行为流补偿逻辑，建议只在观察期启用。" recommend="off" />
+                      </div>
+                    </div>
+
+                    <div class="settings-section-divider pt-2">
+                      <BaseSwitch v-model="localSettings.experimentalFeatures.focusStealEnabled" label="实验性重点偷取策略" hint="仅聚焦特别关照名单和高价值目标进行优先偷取，默认关闭，适合尝鲜观察。" recommend="off" />
+                    </div>
+
+                    <div class="settings-section-divider pt-2 space-y-3">
+                      <BaseSwitch v-model="localSettings.proxyBindingConfig.enabled" label="为当前账号绑定代理出口" hint="给当前账号指定独立代理节点。若代理失效，可按设置自动回退直连。" recommend="conditional" />
+                      <div v-show="localSettings.proxyBindingConfig.enabled" class="ml-7 space-y-3">
+                        <BaseSelect
+                          v-model="localSettings.proxyBindingConfig.proxyId"
+                          label="代理节点"
+                          :options="[{ label: '请选择代理节点', value: '' }, ...proxyPoolOptions]"
+                        />
+                        <BaseSwitch v-model="localSettings.proxyBindingConfig.fallbackToDirect" label="代理失效时自动回退直连" hint="如果节点冷却或探测失败，允许该账号继续直连运行，避免整号停摆。" recommend="on" />
+                        <p class="settings-automation-note text-[10px]">
+                          当前代理池共 {{ proxyPoolRecords.length }} 个可选节点。管理员可在下方“代理池管理”继续增删和体检。
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -7003,7 +7751,7 @@ async function restoreTimingDefaults() {
             <BaseButton
               variant="secondary"
               size="sm"
-              :loading="systemHealthLoading || qqFriendDiagnosticsLoading"
+              :loading="systemHealthLoading || extendedHealthLoading || qqFriendDiagnosticsLoading"
               @click="refreshAdminHealthPanels(true)"
             >
               <div class="i-carbon-renew mr-1" /> 刷新状态
@@ -7276,6 +8024,117 @@ async function restoreTimingDefaults() {
                 </div>
               </div>
             </div>
+
+            <div v-if="extendedHealthError" class="settings-health-alert flex items-start gap-2 rounded-xl p-4 text-sm">
+              <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
+              <div>{{ extendedHealthError }}</div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  服务模式
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ serviceProfileLabel }}
+                </div>
+                <div class="settings-health-card-note mt-2 text-xs">
+                  最近同步：{{ serviceProfileCheckedAtLabel }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  依赖健康
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ dependencyHealthStatusLabel }}
+                </div>
+                <div class="settings-health-card-note mt-2 text-xs">
+                  最近同步：{{ dependencyHealthCheckedAtLabel }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  运行时健康
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ runtimeHealthStatusLabel }}
+                </div>
+                <div class="settings-health-card-note mt-2 text-xs">
+                  最近同步：{{ runtimeHealthCheckedAtLabel }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  今日金豆汇总
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ statsSummaryTodayGoldLabel }}
+                </div>
+                <div class="settings-health-card-note mt-2 text-xs">
+                  外部 API 与分析概览共用同一统计口径
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  Web 面板
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ serviceProfileSnapshot?.webPanelEnabled ? '已启用' : '未启用' }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  自动拉号
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ serviceProfileSnapshot?.autoStartAccounts ? '已启用' : '未启用' }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  调度器数量
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ runtimeHealthSnapshot?.schedulers?.schedulerCount ?? 0 }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  运行中账号
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ runtimeHealthSnapshot?.accounts?.running ?? 0 }} / {{ runtimeHealthSnapshot?.accounts?.total ?? 0 }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  待重登账号
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ runtimeHealthSnapshot?.accounts?.reloginRequired ?? 0 }}
+                </div>
+              </div>
+
+              <div class="settings-health-card rounded-xl p-4">
+                <div class="settings-health-card-label text-xs font-semibold tracking-wide uppercase">
+                  已封禁账号
+                </div>
+                <div class="settings-health-card-value mt-2 text-sm font-medium">
+                  {{ runtimeHealthSnapshot?.accounts?.banned ?? 0 }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -7416,6 +8275,91 @@ async function restoreTimingDefaults() {
                     min="10"
                   />
                 </div>
+              </div>
+
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-user-follow mr-2" /> 人类化调度
+                </h4>
+                <BaseSwitch
+                  v-model="localTiming.humanModeEnabled"
+                  label="启用人类化调度"
+                />
+                <BaseSelect
+                  v-model="localTiming.humanModeIntensity"
+                  label="拟人强度"
+                  :options="[
+                    { label: '低强度', value: 'low' },
+                    { label: '中强度', value: 'medium' },
+                    { label: '高强度', value: 'high' },
+                  ]"
+                />
+                <BaseInput
+                  v-model.number="localTiming.schedulerJitterRatio"
+                  label="抖动比例"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  hint="建议 0.05 - 0.2，避免所有任务固定命中同一秒。"
+                />
+                <div class="grid grid-cols-2 gap-3">
+                  <BaseInput
+                    v-model.number="localTiming.interTaskDelayMinMs"
+                    label="任务间最小延迟"
+                    type="number"
+                    min="0"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.interTaskDelayMaxMs"
+                    label="任务间最大延迟"
+                    type="number"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <h4 class="glass-text-muted flex items-center text-xs font-bold tracking-widest uppercase">
+                  <div class="i-carbon-pause-future mr-2" /> 休息窗口
+                </h4>
+                <div class="grid grid-cols-2 gap-3">
+                  <BaseInput
+                    v-model.number="localTiming.restIntervalMinMs"
+                    label="最短休息间隔"
+                    type="number"
+                    min="0"
+                    hint="单位：毫秒"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.restIntervalMaxMs"
+                    label="最长休息间隔"
+                    type="number"
+                    min="0"
+                    hint="单位：毫秒"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.restDurationMinMs"
+                    label="最短休息时长"
+                    type="number"
+                    min="0"
+                    hint="单位：毫秒"
+                  />
+                  <BaseInput
+                    v-model.number="localTiming.restDurationMaxMs"
+                    label="最长休息时长"
+                    type="number"
+                    min="0"
+                    hint="单位：毫秒"
+                  />
+                </div>
+                <BaseInput
+                  v-model.number="localTiming.eventTriggerDebounceMs"
+                  label="事件触发防抖"
+                  type="number"
+                  min="0"
+                  hint="防止短时间内重复触发相同事件链路。"
+                />
               </div>
             </div>
           </div>
@@ -8238,6 +9182,451 @@ async function restoreTimingDefaults() {
                 <div class="settings-system-warning-alert mt-2 flex items-start gap-2 rounded-md p-3 text-sm">
                   <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
                   <p>更改此项配置会立即刷新扫码中转服务器参数。如果改错导致扫码无反应，请重新设置正确的值，原环境变量已不再具有覆写能力。</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="glass-text-main text-sm font-semibold">
+                  OpenAPI / Headless 能力入口
+                </div>
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      Swagger 文档
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      <a href="/swagger" target="_blank" class="underline underline-offset-4 decoration-dotted">/swagger</a>
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      OpenAPI JSON
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      <a href="/openapi.json" target="_blank" class="underline underline-offset-4 decoration-dotted">/openapi.json</a>
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      当前服务模式
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ serviceProfileLabel }}
+                    </div>
+                  </div>
+                  <div class="border border-white/10 rounded-lg bg-black/10 p-3">
+                    <div class="glass-text-muted text-[11px] tracking-widest uppercase">
+                      外部客户端数
+                    </div>
+                    <div class="glass-text-main mt-1 text-sm font-semibold">
+                      {{ externalApiClientCount }}
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-system-warning-alert flex items-start gap-2 rounded-md p-3 text-sm">
+                  <div class="i-carbon-information mt-0.5 shrink-0 text-base" />
+                  <p>外部 API Key 仅补充“程序对程序”只读接入，不替代当前后台 JWT / Cookie 认证。创建后请妥善保存，系统只会在创建或轮换成功时返回一次明文 Key。</p>
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="glass-text-main text-sm font-semibold">
+                    外部 API Key 客户端
+                  </div>
+                  <BaseButton
+                    size="sm"
+                    variant="secondary"
+                    :loading="externalApiClientsLoading"
+                    @click="loadExternalApiClients(true)"
+                  >
+                    <div class="i-carbon-renew mr-1" /> 刷新
+                  </BaseButton>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model="externalApiCreateDraft.name"
+                    label="客户端名称"
+                    type="text"
+                    placeholder="例如：Grafana 只读探针"
+                  />
+                  <BaseInput
+                    v-model="externalApiCreateDraft.allowedAccountIdsText"
+                    label="限制账号 ID"
+                    type="text"
+                    placeholder="留空表示可读全部账号，多个逗号分隔"
+                  />
+                  <BaseInput
+                    v-model="externalApiCreateDraft.expiresAt"
+                    label="过期时间"
+                    type="datetime-local"
+                  />
+                  <BaseInput
+                    v-model="externalApiCreateDraft.note"
+                    label="备注"
+                    type="text"
+                    placeholder="例如：只给监控系统读取"
+                  />
+                </div>
+
+                <div class="flex justify-end">
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="externalApiMutatingKey === 'create'"
+                    @click="createExternalApiClientNow"
+                  >
+                    创建只读客户端
+                  </BaseButton>
+                </div>
+
+                <div v-if="externalApiLastPlainToken" class="settings-health-alert rounded-xl p-4 text-sm">
+                  <div class="font-semibold">
+                    新生成的外部 API Key
+                  </div>
+                  <code class="mt-2 block break-all font-mono">{{ externalApiLastPlainToken }}</code>
+                  <div class="mt-2 text-xs opacity-80">
+                    请立即复制保存。离开页面或再次轮换后将无法重新查看明文。
+                  </div>
+                </div>
+
+                <div v-if="externalApiClients.length" class="space-y-3">
+                  <div
+                    v-for="client in externalApiClients"
+                    :key="client.id"
+                    class="border border-white/10 rounded-lg bg-black/10 p-3"
+                  >
+                    <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div class="space-y-1">
+                        <div class="glass-text-main text-sm font-semibold">
+                          {{ client.name }}
+                        </div>
+                        <div class="glass-text-muted break-all text-xs">
+                          {{ client.id }} · Scope: {{ client.scopes.join(', ') || '无' }}
+                        </div>
+                        <div class="glass-text-muted text-xs">
+                          状态：{{ client.status }} · 最近使用：{{ client.lastUsedAt ? formatTimestamp(client.lastUsedAt) : '未使用' }} · 过期：{{ client.expiresAt ? formatTimestamp(client.expiresAt) : '永不过期' }}
+                        </div>
+                        <div v-if="client.allowedAccountIds.length" class="glass-text-muted text-xs">
+                          限制账号：{{ client.allowedAccountIds.join('、') }}
+                        </div>
+                        <div v-if="client.note" class="glass-text-muted text-xs">
+                          备注：{{ client.note }}
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        <BaseButton
+                          size="sm"
+                          variant="outline"
+                          :loading="externalApiMutatingKey === `rotate:${client.id}`"
+                          @click="rotateExternalApiClientNow(client)"
+                        >
+                          轮换 Key
+                        </BaseButton>
+                        <BaseButton
+                          size="sm"
+                          variant="outline"
+                          :loading="externalApiMutatingKey === `revoke:${client.id}`"
+                          @click="revokeExternalApiClientNow(client)"
+                        >
+                          吊销
+                        </BaseButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="settings-health-card rounded-xl p-4">
+                  <div class="settings-health-card-value text-sm font-medium">
+                    暂无外部 API 客户端
+                  </div>
+                  <div class="settings-health-card-note mt-2 text-xs">
+                    创建后即可用 `x-api-key` 调用 `/api/external/*` 的只读接口，并配合 `/swagger` 查看文档。
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="glass-text-main text-sm font-semibold">
+                    系统级能力开关
+                  </div>
+                  <BaseButton
+                    size="sm"
+                    variant="secondary"
+                    :loading="platformCapabilitiesLoading"
+                    @click="loadPlatformCapabilities(true)"
+                  >
+                    <div class="i-carbon-renew mr-1" /> 刷新
+                  </BaseButton>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseSwitch v-model="platformCapabilities.openapiConfig.enabled" label="启用 OpenAPI 文档" hint="关闭后 `/swagger` 与 `/openapi.json` 将不再对外提供。" recommend="on" />
+                  <BaseSwitch v-model="platformCapabilities.openapiConfig.exposeExternalApiOnly" label="仅暴露外部接口" hint="推荐保持开启，只展示稳定的外部 API 与健康检查接口。" recommend="on" />
+                  <BaseSwitch v-model="platformCapabilities.openapiConfig.includeAdminReadOnlyRoutes" label="附带管理员只读接口" hint="文档中附加健康详情与外部 API 客户端管理等管理员只读入口。" recommend="conditional" />
+                  <BaseSwitch v-model="platformCapabilities.serviceProfileConfig.allowAutoStartAccountsInHeadlessApi" label="Headless API 默认自动拉号" hint="开启后 headless-api 模式也会尝试自动启动账号。默认建议关闭，保持纯接口节点。" recommend="off" />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model="platformCapabilities.openapiConfig.title"
+                    label="OpenAPI 标题"
+                    type="text"
+                  />
+                  <BaseInput
+                    v-model="platformCapabilities.openapiConfig.version"
+                    label="OpenAPI 版本"
+                    type="text"
+                  />
+                  <BaseInput
+                    v-model="platformCapabilities.openapiConfig.serverBaseUrl"
+                    label="文档 Server Base URL"
+                    type="text"
+                    placeholder="留空自动使用当前 Host"
+                  />
+                  <BaseSelect
+                    v-model="platformCapabilities.serviceProfileConfig.defaultProfile"
+                    label="默认服务模式"
+                    :options="serviceProfileDefaultOptions"
+                  />
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="glass-text-main text-sm font-semibold">
+                  探针与代理池阈值
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model.number="platformCapabilities.healthProbeConfig.dependencyTimeoutMs"
+                    label="依赖探针超时 (ms)"
+                    type="number"
+                    min="300"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.healthProbeConfig.runtimeWorkerOfflineThresholdSec"
+                    label="运行时告警阈值 (秒)"
+                    type="number"
+                    min="10"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.healthProbeConfig.warnReloginQueueCount"
+                    label="重登告警阈值"
+                    type="number"
+                    min="0"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.healthProbeConfig.warnFailedAccountCount"
+                    label="封禁告警阈值"
+                    type="number"
+                    min="0"
+                  />
+                  <BaseSwitch v-model="platformCapabilities.healthProbeConfig.includeAiService" label="纳入 AI 服务探针" hint="会把 AI 守护进程状态纳入依赖健康快照。" recommend="on" />
+                  <BaseSwitch v-model="platformCapabilities.proxyPoolConfig.enabled" label="启用代理池子系统" hint="关闭后仍保留已录入节点，但不建议继续做新绑定。" recommend="on" />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model.number="platformCapabilities.proxyPoolConfig.healthCheckTimeoutMs"
+                    label="代理体检超时 (ms)"
+                    type="number"
+                    min="1000"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.proxyPoolConfig.healthCheckBatchSize"
+                    label="单次体检批量数"
+                    type="number"
+                    min="1"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.proxyPoolConfig.defaultMaxUsersPerProxy"
+                    label="默认单节点账号数"
+                    type="number"
+                    min="1"
+                  />
+                  <BaseInput
+                    v-model.number="platformCapabilities.proxyPoolConfig.cooldownMs"
+                    label="失败冷却 (ms)"
+                    type="number"
+                    min="1000"
+                  />
+                  <BaseSelect
+                    v-model="platformCapabilities.proxyPoolConfig.selectionStrategy"
+                    label="节点选择策略"
+                    :options="proxySelectionStrategyOptions"
+                  />
+                  <BaseSwitch v-model="platformCapabilities.proxyPoolConfig.autoAssignEnabled" label="允许自动分配" hint="当前先只存策略，不会立刻改写现有绑定。后续扩展自动调度时会复用这个开关。" recommend="off" />
+                </div>
+
+                <div class="flex justify-end">
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="platformCapabilitiesSaving"
+                    @click="savePlatformCapabilities"
+                  >
+                    保存系统级能力配置
+                  </BaseButton>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="glass-text-main text-sm font-semibold">
+                    代理池管理
+                  </div>
+                  <BaseButton
+                    size="sm"
+                    variant="secondary"
+                    :loading="proxyPoolLoading || proxyPoolMutatingKey === 'health'"
+                    @click="runProxyHealthCheck()"
+                  >
+                    <div class="i-carbon-network-4 mr-1" /> 全量体检
+                  </BaseButton>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <BaseInput
+                    v-model="proxyPoolCreateDraft.proxyUrl"
+                    label="新增单个代理"
+                    type="text"
+                    placeholder="socks5://user:pass@127.0.0.1:1080"
+                  />
+                  <BaseInput
+                    v-model.number="proxyPoolCreateDraft.maxUsers"
+                    label="单节点最大账号数"
+                    type="number"
+                    min="1"
+                  />
+                  <BaseInput
+                    v-model="proxyPoolCreateDraft.note"
+                    label="节点备注"
+                    type="text"
+                    placeholder="例如：香港出口 / 备用"
+                  />
+                  <BaseSelect
+                    v-model="proxyPoolImportDraft.mode"
+                    label="批量导入模式"
+                    :options="proxyImportModeOptions"
+                  />
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
+                  <label class="block">
+                    <span class="glass-text-main mb-2 block text-sm font-medium">批量导入代理</span>
+                    <textarea
+                      v-model="proxyPoolImportDraft.text"
+                      rows="5"
+                      class="glass-text-main min-h-[120px] w-full border border-white/10 rounded-lg bg-black/20 px-3 py-2 text-sm outline-none transition focus:border-white/30"
+                      placeholder="每行一个 socks5 地址，例如：&#10;socks5://user:pass@1.2.3.4:1080&#10;socks5://5.6.7.8:1080"
+                    />
+                  </label>
+                  <div class="flex flex-wrap gap-2 xl:flex-col xl:items-stretch">
+                    <BaseButton
+                      variant="primary"
+                      size="sm"
+                      :loading="proxyPoolMutatingKey === 'create'"
+                      @click="createProxyPoolRecord"
+                    >
+                      新增代理
+                    </BaseButton>
+                    <BaseButton
+                      variant="secondary"
+                      size="sm"
+                      :loading="proxyPoolMutatingKey === 'import'"
+                      @click="importProxyPoolRecords"
+                    >
+                      批量导入
+                    </BaseButton>
+                  </div>
+                </div>
+
+                <div class="settings-system-warning-alert flex items-start gap-2 rounded-md p-3 text-sm">
+                  <div class="i-carbon-warning-alt mt-0.5 shrink-0 text-base" />
+                  <p>代理池当前只负责录入、体检和账号手动绑定，默认不会自动改写现有直连链路。建议先小规模绑定测试，再逐步放量。</p>
+                </div>
+              </div>
+
+              <div class="border border-white/10 rounded-lg bg-black/10 p-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="glass-text-main text-sm font-semibold">
+                    代理节点列表
+                  </div>
+                  <BaseButton
+                    size="sm"
+                    variant="secondary"
+                    :loading="proxyPoolLoading"
+                    @click="loadProxyPoolRecords(true)"
+                  >
+                    <div class="i-carbon-renew mr-1" /> 刷新
+                  </BaseButton>
+                </div>
+
+                <div v-if="proxyPoolRecords.length" class="space-y-3">
+                  <div
+                    v-for="record in proxyPoolRecords"
+                    :key="record.id"
+                    class="border border-white/10 rounded-lg bg-black/10 p-3"
+                  >
+                    <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div class="space-y-1">
+                        <div class="glass-text-main break-all text-sm font-semibold">
+                          {{ record.maskedProxyUrl }}
+                        </div>
+                        <div class="glass-text-muted text-xs">
+                          {{ record.protocol.toUpperCase() }} · 账号上限 {{ record.maxUsers }} · 平均延迟 {{ record.avgLatencyMs || 0 }}ms
+                        </div>
+                        <div class="glass-text-muted text-xs">
+                          状态：{{ record.status || 'unknown' }} · 成功 {{ record.successCount || 0 }} / 失败 {{ record.failCount || 0 }}
+                        </div>
+                        <div class="glass-text-muted text-xs">
+                          最近体检：{{ record.lastCheckedAt ? formatTimestamp(record.lastCheckedAt) : '未执行' }}
+                          <span v-if="record.cooldownUntil">
+                            · 冷却至 {{ formatTimestamp(record.cooldownUntil) }}
+                          </span>
+                        </div>
+                        <div v-if="record.note" class="glass-text-muted text-xs">
+                          备注：{{ record.note }}
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        <BaseButton
+                          size="sm"
+                          variant="outline"
+                          :loading="proxyPoolMutatingKey === `health:${record.id}`"
+                          @click="runProxyHealthCheck(record.id)"
+                        >
+                          体检
+                        </BaseButton>
+                        <BaseButton
+                          size="sm"
+                          variant="outline"
+                          :loading="proxyPoolMutatingKey === `remove:${record.id}`"
+                          @click="removeProxyPoolRecord(record)"
+                        >
+                          删除
+                        </BaseButton>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="settings-health-card rounded-xl p-4">
+                  <div class="settings-health-card-value text-sm font-medium">
+                    暂无代理节点
+                  </div>
+                  <div class="settings-health-card-note mt-2 text-xs">
+                    可先录入单个 SOCKS5 节点，或把多条地址粘贴到批量导入框。账号侧的“代理绑定”会直接复用这里的节点列表。
+                  </div>
                 </div>
               </div>
             </div>

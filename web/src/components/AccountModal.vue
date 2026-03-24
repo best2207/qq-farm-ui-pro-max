@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -16,10 +16,24 @@ const emit = defineEmits(['close', 'saved'])
 
 const activeTab = ref('qr') // qr, manual
 const loading = ref(false)
-const qrData = ref<{ image?: string, code: string, qrcode?: string, url?: string } | null>(null)
+const qrData = ref<{
+  image?: string
+  code: string
+  qrcode?: string
+  url?: string
+  expiresAt?: number
+  retryable?: boolean
+  message?: string
+  nickname?: string
+  avatar?: string
+  uin?: string
+  openId?: string
+} | null>(null)
 const qrStatus = ref('')
 const errorMessage = ref('')
 const qrCheckFailureCount = ref(0)
+const qrNow = ref(Date.now())
+let qrCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const form = reactive({
   name: '',
@@ -65,6 +79,21 @@ function stopQRCheck() {
   }
 }
 
+function stopQrCountdown() {
+  if (qrCountdownTimer) {
+    clearInterval(qrCountdownTimer)
+    qrCountdownTimer = null
+  }
+}
+
+function startQrCountdown() {
+  stopQrCountdown()
+  qrNow.value = Date.now()
+  qrCountdownTimer = setInterval(() => {
+    qrNow.value = Date.now()
+  }, 1000)
+}
+
 function startQRCheck() {
   pollStopped = false
   qrCheckFailureCount.value = 0
@@ -97,12 +126,14 @@ async function doQRCheck() {
 
     if (res.data.ok) {
       qrCheckFailureCount.value = 0
-      const status = res.data.data.status
+      const qrPayload = res.data.data || {}
+      qrData.value = qrData.value ? { ...qrData.value, ...qrPayload } : qrPayload
+      const status = qrPayload.status
       if (status === 'OK') {
         // 登录成功 —— 立即停止轮询，不再发任何请求
         stopQRCheck()
-        qrStatus.value = '登录成功'
-        const { uin, openId, code: authCode, ticket, nickname, avatar } = res.data.data
+        qrStatus.value = qrPayload.message || '登录成功'
+        const { uin, openId, code: authCode, ticket, nickname, avatar } = qrPayload
         const resolvedUin = String(uin || qrUin.value.trim() || props.editData?.uin || props.editData?.qq || '').trim()
 
         if (qrPlatform.value === 'qq' && !resolvedUin) {
@@ -133,18 +164,18 @@ async function doQRCheck() {
         return // 不再调度下一次
       }
       else if (status === 'Used') {
-        qrStatus.value = '二维码已失效'
+        qrStatus.value = qrPayload.message || '二维码已失效'
         stopQRCheck()
         return
       }
       else if (status === 'Wait') {
-        qrStatus.value = '等待扫码'
+        qrStatus.value = qrPayload.message || '等待扫码'
       }
       else if (status === 'Check') {
-        qrStatus.value = `已扫码: ${res.data.data.nickname || ''}，请在手机确认`
+        qrStatus.value = qrPayload.message || `已扫码: ${qrPayload.nickname || ''}，请在手机确认`
       }
       else {
-        qrStatus.value = `错误: ${res.data.data.error || '未知错误'}`
+        qrStatus.value = qrPayload.message || `错误: ${qrPayload.error || '未知错误'}`
         stopQRCheck()
         return
       }
@@ -185,8 +216,9 @@ async function loadQRCode() {
     const res = await api.post('/api/qr/create', { platform: qrPlatform.value, uin: qrUin.value.trim() })
     if (res.data.ok) {
       qrData.value = res.data.data
+      startQrCountdown()
       const statusHintMap: Record<string, string> = { qq: '请使用手机QQ扫码', wx: '请使用微信扫码', wx_ipad: '请使用微信扫码（iPad协议）', wx_car: '请使用微信扫码（车机协议）' }
-      qrStatus.value = statusHintMap[qrPlatform.value] || '请扫码'
+      qrStatus.value = res.data.data?.message || statusHintMap[qrPlatform.value] || '请扫码'
       startQRCheck()
     }
     else {
@@ -317,6 +349,7 @@ async function submitManual() {
 
 function close() {
   stopQRCheck()
+  stopQrCountdown()
   emit('close')
 }
 
@@ -348,11 +381,54 @@ watch(() => props.show, (newVal) => {
   else {
     // Reset when closed
     stopQRCheck()
+    stopQrCountdown()
     qrData.value = null
     qrStatus.value = ''
     qrUin.value = ''
     form.uin = ''
   }
+})
+
+onBeforeUnmount(() => {
+  stopQRCheck()
+  stopQrCountdown()
+})
+
+const qrExpiresAt = computed(() => Math.max(0, Number(qrData.value?.expiresAt || 0)))
+
+const qrRemainingSeconds = computed(() => {
+  if (!qrExpiresAt.value)
+    return 0
+  return Math.max(0, Math.ceil((qrExpiresAt.value - qrNow.value) / 1000))
+})
+
+const qrRemainingLabel = computed(() => {
+  const seconds = qrRemainingSeconds.value
+  if (!seconds)
+    return '已过期'
+  const minutes = Math.floor(seconds / 60)
+  const remainSeconds = seconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(remainSeconds).padStart(2, '0')}`
+})
+
+const qrIdentitySummary = computed(() => {
+  const payload = qrData.value
+    ? {
+        nickname: qrData.value.nickname || '',
+        uin: qrData.value.uin || '',
+        openId: qrData.value.openId || '',
+      }
+    : {
+        nickname: '',
+        uin: '',
+        openId: '',
+      }
+  const segments = [
+    payload.nickname ? `昵称：${payload.nickname}` : '',
+    payload.uin ? `UIN：${payload.uin}` : '',
+    payload.openId ? `OpenID：${payload.openId}` : '',
+  ].filter(Boolean)
+  return segments.join(' · ')
 })
 </script>
 
@@ -470,12 +546,24 @@ watch(() => props.show, (newVal) => {
           <p class="glass-text-main text-sm">
             {{ qrStatus }}
           </p>
+          <div v-if="qrData" class="account-modal-status-grid max-w-[320px] w-full space-y-2">
+            <div class="account-modal-status-meta flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs">
+              <span>二维码剩余有效期</span>
+              <strong>{{ qrRemainingLabel }}</strong>
+            </div>
+            <div
+              v-if="qrIdentitySummary"
+              class="account-modal-status-meta rounded-xl px-3 py-2 text-xs leading-5"
+            >
+              {{ qrIdentitySummary }}
+            </div>
+          </div>
           <div class="mt-2 max-w-[200px] w-full flex flex-col gap-3">
             <button
               class="account-modal-primary-btn w-full rounded-lg py-2.5 text-sm font-medium transition-all active:scale-95"
               @click="loadQRCode"
             >
-              更新二维码
+              {{ qrData?.retryable === false ? '重新生成二维码' : '更新二维码' }}
             </button>
             <button
               v-if="qrData?.url && qrPlatform === 'qq'"
@@ -674,5 +762,11 @@ watch(() => props.show, (newVal) => {
 
 .account-modal-primary-btn:hover {
   filter: brightness(0.98);
+}
+
+.account-modal-status-meta {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 82%, transparent);
+  color: var(--ui-text-2);
 }
 </style>

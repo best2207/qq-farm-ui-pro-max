@@ -12,6 +12,8 @@ const PUBLIC_API_PATHS = Object.freeze([
     '/trial-card',
     '/ui-config',
     '/ping',
+    '/health/basic',
+    '/system/service-profile',
 ]);
 
 const EXPIRED_WHITELIST = new Set([

@@ -351,6 +351,8 @@ const BUSINESS_RUNTIME_MODULES = Object.freeze([
     'farm',
     'friend',
     'task',
+    'redpacket',
+    'behavior-report',
     'warehouse',
 ]);
 const runtimeEventBus = createRuntimeEventBus();
@@ -362,6 +364,7 @@ const runtimeContext = {
     sendToMaster,
     log,
     getAutomation,
+    getConfigSnapshot: () => getConfigSnapshot(),
     getUserState,
     getWorkerScheduler,
     isLoginReady: () => loginReady,

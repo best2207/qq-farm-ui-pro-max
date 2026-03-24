@@ -190,10 +190,17 @@ async function initMysql() {
             const [friendRiskProfileTable] = await pool.execute(`SHOW TABLES LIKE 'friend_risk_profiles'`);
             const [friendRiskEventTable] = await pool.execute(`SHOW TABLES LIKE 'friend_risk_events'`);
             const [friendStealStatsTable] = await pool.execute(`SHOW TABLES LIKE 'friend_steal_stats'`);
+            const [networkProxiesTable] = await pool.execute(`SHOW TABLES LIKE 'network_proxies'`);
             if (openIdCols.length === 0 || friendRiskProfileTable.length === 0 || friendRiskEventTable.length === 0 || friendStealStatsTable.length === 0) {
                 await runMigrationFile(
                     path.join(migrationsDir, '019-account-risk-and-code-capture.sql'),
                     '检测到账号身份/风控统计表缺失，正在执行迁移 019-account-risk-and-code-capture.sql',
+                );
+            }
+            if (networkProxiesTable.length === 0) {
+                await runMigrationFile(
+                    path.join(migrationsDir, '020-proxy-pool.sql'),
+                    '检测到缺少代理池表，正在执行迁移 020-proxy-pool.sql',
                 );
             }
             const accountColumnEnsures = [

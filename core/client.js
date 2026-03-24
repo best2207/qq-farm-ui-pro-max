@@ -17,6 +17,7 @@ const { createModuleLogger } = require('./src/services/logger');
 const { initJobs } = require('./src/jobs/index');
 const { initDatabase, closeDatabase } = require('./src/services/database');
 const { inspectSystemSettingsHealth } = require('./src/services/system-settings');
+const { getServiceProfileConfig, resolveServiceProfileSnapshot } = require('./src/services/service-profile');
 
 const mainLogger = createModuleLogger('main');
 
@@ -135,6 +136,22 @@ if (isWorkerProcess) {
             process.exit(1);
         }
 
+        let serviceProfileSnapshot = resolveServiceProfileSnapshot({
+            env: process.env,
+            config: null,
+        });
+        try {
+            const serviceProfileConfig = await getServiceProfileConfig();
+            serviceProfileSnapshot = resolveServiceProfileSnapshot({
+                env: process.env,
+                config: serviceProfileConfig,
+            });
+        } catch (error) {
+            mainLogger.warn('service profile config load failed, using env fallback', {
+                error: error && error.message ? error.message : String(error),
+            });
+        }
+
         const runtimeEngine = createRuntimeEngine({
             processRef: process,
             mainEntryPath: __filename,
@@ -177,10 +194,15 @@ if (isWorkerProcess) {
 
         try {
             await runtimeEngine.start({
-                startAdminServer: true,
-                autoStartAccounts: currentRole !== 'master', // role为master时不再在这里挂起本地账号循环，而交由此处 dispatcher 管理下发
+                startAdminServer: serviceProfileSnapshot.webPanelEnabled,
+                autoStartAccounts: serviceProfileSnapshot.autoStartAccounts && currentRole !== 'master', // role为master时不再在这里挂起本地账号循环，而交由此处 dispatcher 管理下发
             });
-            mainLogger.info(`系统启动完成 (模式: ${currentRole})`);
+            mainLogger.info(`系统启动完成 (模式: ${currentRole})`, {
+                serviceProfile: serviceProfileSnapshot.profile,
+                webPanelEnabled: serviceProfileSnapshot.webPanelEnabled,
+                runtimeEnabled: serviceProfileSnapshot.runtimeEnabled,
+                autoStartAccounts: serviceProfileSnapshot.autoStartAccounts,
+            });
 
             initMasterRuntimeDispatcher({
                 currentRole,

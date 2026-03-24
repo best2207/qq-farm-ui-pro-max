@@ -116,17 +116,25 @@ class TaskRuntimeModule extends RuntimeModuleBase {
     async runDailyRoutines(force = false) {
         const isLoginReady = this.context && this.context.isLoginReady;
         const getAutomation = this.context && this.context.getAutomation;
+        const getConfigSnapshot = this.context && this.context.getConfigSnapshot;
         const log = this.context && this.context.log;
         if (typeof isLoginReady !== 'function' || typeof getAutomation !== 'function' || !isLoginReady()) {
             return;
         }
 
         const automation = getAutomation();
+        const snapshot = typeof getConfigSnapshot === 'function'
+            ? (getConfigSnapshot() || {})
+            : {};
+        const redpacketConfig = snapshot && snapshot.redpacketConfig && typeof snapshot.redpacketConfig === 'object'
+            ? snapshot.redpacketConfig
+            : {};
+        const dedicatedRedpacketEnabled = redpacketConfig.enabled === true;
         try {
             if (automation.email) await this.runEmailClaimSafely(force, 'daily_routine');
             if (automation.share_reward) await performDailyShare(force);
             if (automation.month_card) await performDailyMonthCardGift(force);
-            if (automation.open_server_gift) await performDailyOpenServerGift(force);
+            if (automation.open_server_gift && !dedicatedRedpacketEnabled) await performDailyOpenServerGift(force);
             if (automation.free_gifts) await buyFreeGifts(force);
             if (automation.vip_gift) await performDailyVipGift(force);
         } catch (error) {

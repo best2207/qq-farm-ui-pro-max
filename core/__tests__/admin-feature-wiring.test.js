@@ -167,9 +167,19 @@ function createFeatureDeps(overrides = {}) {
             clearTimeoutRef: clearTimeout,
             consoleRef: console,
             getIo: () => ({ emit: () => {} }),
+            getDispatcher: () => null,
+            healthProbeService: {},
+            statsSummaryService: {},
+            proxyPoolService: {},
+            resolveServiceProfile: () => ({}),
             registerAuthRoutes: makeRegistrar('registerAuthRoutes'),
+            registerOpenApiRoutes: makeRegistrar('registerOpenApiRoutes'),
             registerLegacyLogoutRoute: makeRegistrar('registerLegacyLogoutRoute'),
             registerSystemPublicRoutes: makeRegistrar('registerSystemPublicRoutes'),
+            registerExternalApiRoutes: makeRegistrar('registerExternalApiRoutes'),
+            registerPlatformCapabilitiesRoutes: makeRegistrar('registerPlatformCapabilitiesRoutes'),
+            registerProxyAdminRoutes: makeRegistrar('registerProxyAdminRoutes'),
+            registerStatsSummaryRoutes: makeRegistrar('registerStatsSummaryRoutes'),
             registerAccountStateRoutes: makeRegistrar('registerAccountStateRoutes'),
             registerAutomationRoutes: makeRegistrar('registerAutomationRoutes'),
             registerFriendOperationRoutes: makeRegistrar('registerFriendOperationRoutes'),
@@ -206,11 +216,16 @@ test('registerAdminFeatureRoutes keeps feature registration order and shared hel
         'createAccountRuntimeHelpers',
         'createUpdateLogParser',
         'registerAuthRoutes',
+        'registerOpenApiRoutes',
+        'registerExternalApiRoutes',
         'app.use:/api',
         'createAdminApiGuard',
         'app.use:/api',
         'registerSystemPublicRoutes',
         'registerLegacyLogoutRoute',
+        'registerStatsSummaryRoutes',
+        'registerPlatformCapabilitiesRoutes',
+        'registerProxyAdminRoutes',
         'registerAccountStateRoutes',
         'registerAutomationRoutes',
         'registerFriendOperationRoutes',
@@ -235,6 +250,11 @@ test('registerAdminFeatureRoutes keeps feature registration order and shared hel
     ]);
     assert.equal(fixture.registerSystemPublicRoutesArgs.handleApiError, routeRuntime.handleApiError);
     assert.equal(fixture.registerSystemPublicRoutesArgs.getAccId, routeRuntime.getAccId);
+    assert.equal(fixture.registerSystemPublicRoutesArgs.healthProbeService, deps.healthProbeService);
+    assert.equal(fixture.registerSystemPublicRoutesArgs.resolveServiceProfile, deps.resolveServiceProfile);
+    assert.equal(fixture.registerExternalApiRoutesArgs.statsSummaryService, deps.statsSummaryService);
+    assert.equal(fixture.registerExternalApiRoutesArgs.healthProbeService, deps.healthProbeService);
+    assert.equal(fixture.registerProxyAdminRoutesArgs.proxyPoolService, deps.proxyPoolService);
     assert.equal(fixture.registerBugReportRoutesArgs.getAccId, routeRuntime.getAccId);
     assert.equal(fixture.registerAnnouncementAdminRoutesArgs.parseUpdateLog, parseUpdateLogFn);
     assert.equal(fixture.registerNotificationsRouteArgs.parseUpdateLog, parseUpdateLogFn);
