@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.33',
+    date: '2026-03-25',
+    title: '帮助中心快捷筛选与空状态补强',
+    summary: '新增“全部 / 收藏 / 未读 / 已读”快捷筛选与空状态提示，帮助中心继续向可操作文档中心收口。',
+  },
+  {
     version: 'v4.5.32',
     date: '2026-03-25',
     title: '帮助中心阅读进度与近期 Release 可见性补强',

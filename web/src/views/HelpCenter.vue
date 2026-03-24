@@ -23,6 +23,7 @@ import {
 import { useAppStore } from '@/stores/app'
 
 type HelpAudienceFilter = 'all' | 'recommended' | 'all-users' | 'operator' | 'admin'
+type HelpQuickFilter = 'all' | 'pinned' | 'unread' | 'visited'
 
 const appStore = useAppStore()
 const route = useRoute()
@@ -41,6 +42,7 @@ const searchQuery = ref('')
 const selectedArticleId = ref(helpArticles[0]?.id || '')
 const expandedCategory = ref(helpCategories[0]?.name || '')
 const selectedAudienceFilter = ref<HelpAudienceFilter>('recommended')
+const selectedQuickFilter = ref<HelpQuickFilter>('all')
 const selectedSectionId = ref('')
 const currentUserRole = ref<'admin' | 'user'>('user')
 const currentArticleContent = ref<ResolvedHelpArticle | null>(null)
@@ -289,6 +291,16 @@ function togglePinnedArticle(articleId: string = selectedArticleId.value) {
   writePinnedArticleIds(nextIds)
 }
 
+function matchesQuickFilter(article: HelpArticle, filter: HelpQuickFilter) {
+  if (filter === 'all')
+    return true
+  if (filter === 'pinned')
+    return hasPinnedArticle(article.id)
+  if (filter === 'visited')
+    return hasVisitedArticle(article.id)
+  return !hasVisitedArticle(article.id)
+}
+
 function getIndexedArticle(article: HelpArticle | null) {
   if (!article)
     return null
@@ -313,8 +325,30 @@ const publishedArticles = computed(() => {
   return helpArticles.filter(article => article.reviewStatus === 'published')
 })
 
-const filteredArticles = computed(() => {
+const audienceFilteredArticles = computed(() => {
   return publishedArticles.value.filter(article => matchesAudienceFilter(article, selectedAudienceFilter.value))
+})
+
+const quickFilters = computed(() => {
+  const items: Array<{ value: HelpQuickFilter, label: string }> = [
+    { value: 'all', label: '全部' },
+    { value: 'pinned', label: '收藏' },
+    { value: 'unread', label: '未读' },
+    { value: 'visited', label: '已读' },
+  ]
+
+  return items.map(item => ({
+    ...item,
+    count: audienceFilteredArticles.value.filter(article => matchesQuickFilter(article, item.value)).length,
+  }))
+})
+
+const activeQuickFilter = computed(() => {
+  return quickFilters.value.find(item => item.value === selectedQuickFilter.value) || quickFilters.value[0]
+})
+
+const filteredArticles = computed(() => {
+  return audienceFilteredArticles.value.filter(article => matchesQuickFilter(article, selectedQuickFilter.value))
 })
 
 const audienceFilters = computed(() => {
@@ -1087,6 +1121,20 @@ onBeforeUnmount(() => {
               <span>同步 {{ developmentProgress.lastUpdated }}</span>
             </div>
 
+            <div class="help-sidebar-quick-filters">
+              <button
+                v-for="filter in quickFilters"
+                :key="filter.value"
+                type="button"
+                class="help-sidebar-quick-filter"
+                :class="{ 'help-sidebar-quick-filter--active': selectedQuickFilter === filter.value }"
+                @click="selectedQuickFilter = filter.value"
+              >
+                <span>{{ filter.label }}</span>
+                <span class="help-sidebar-quick-filter__count">{{ filter.count }}</span>
+              </button>
+            </div>
+
             <div class="help-sidebar-summary" :class="{ 'help-sidebar-summary--expanded': isSidebarSummaryExpanded }">
               <span class="help-sidebar-summary__chip">{{ filteredArticles.length }} 篇文档</span>
               <span class="help-sidebar-summary__chip">覆盖 {{ developmentProgress.version }}</span>
@@ -1248,7 +1296,12 @@ onBeforeUnmount(() => {
             <div class="help-nav-viewport">
               <div v-if="navOverflowTop" class="help-nav-fade help-nav-fade--top" />
 
-              <nav ref="navRef" class="help-nav min-h-0 flex-1 overflow-y-auto pr-1" @scroll="updateNavOverflow">
+              <nav
+                v-if="filteredArticles.length"
+                ref="navRef"
+                class="help-nav min-h-0 flex-1 overflow-y-auto pr-1"
+                @scroll="updateNavOverflow"
+              >
                 <div
                   v-for="category in categoryCards"
                   :key="category.name"
@@ -1322,6 +1375,15 @@ onBeforeUnmount(() => {
                   </transition>
                 </div>
               </nav>
+              <div v-else class="help-nav-empty">
+                <div class="i-carbon-folder-off help-nav-empty__icon" />
+                <p class="help-nav-empty__title">
+                  当前筛选下没有文档
+                </p>
+                <p class="help-nav-empty__copy">
+                  可以切回“{{ activeQuickFilter?.value === 'pinned' ? '全部' : '收藏 / 全部' }}”或继续浏览其他阅读视角。
+                </p>
+              </div>
 
               <div v-if="navOverflowBottom" class="help-nav-fade help-nav-fade--bottom" />
 
@@ -1985,6 +2047,55 @@ onBeforeUnmount(() => {
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.help-sidebar-quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  padding: 0.06rem 0 0.02rem;
+}
+
+.help-sidebar-quick-filter {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 92%, transparent);
+  border-radius: 999px;
+  min-height: 1.86rem;
+  padding: 0.26rem 0.6rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 90%, transparent);
+  color: var(--ui-text-2);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease;
+}
+
+.help-sidebar-quick-filter:hover,
+.help-sidebar-quick-filter--active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle) 72%);
+  background: color-mix(in srgb, var(--ui-brand-soft-12) 74%, var(--ui-bg-surface) 26%);
+  color: var(--ui-text-1);
+}
+
+.help-sidebar-quick-filter__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 92%, transparent);
+  font-size: 0.66rem;
+  font-weight: 900;
 }
 
 .help-sidebar-summary {
@@ -2933,6 +3044,33 @@ onBeforeUnmount(() => {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--ui-brand-500) 38%, transparent) transparent;
+}
+
+.help-nav-empty {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  padding: 1.2rem 1rem;
+  text-align: center;
+}
+
+.help-nav-empty__icon {
+  font-size: 2rem;
+  color: color-mix(in srgb, var(--ui-brand-500) 56%, var(--ui-text-2) 44%);
+}
+
+.help-nav-empty__title {
+  margin: 0.75rem 0 0.18rem;
+  color: var(--ui-text-1);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.help-nav-empty__copy {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .help-nav::-webkit-scrollbar {
