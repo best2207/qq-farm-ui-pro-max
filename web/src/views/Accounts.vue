@@ -691,6 +691,27 @@ const ownershipTransferOptions = computed(() => {
   return options
 })
 const visibleTableColumns = computed(() => tableColumnVisibility.value)
+const tableColumnStyles = computed<Array<Record<string, string>>>(() => {
+  const columns: Array<Record<string, string>> = [
+    { width: '3.5rem' },
+    { width: '18rem' },
+  ]
+
+  if (visibleTableColumns.value.owner)
+    columns.push({ width: '10rem' })
+  if (visibleTableColumns.value.platform)
+    columns.push({ width: '9rem' })
+  if (visibleTableColumns.value.activity)
+    columns.push({ width: '13rem' })
+  if (visibleTableColumns.value.mode)
+    columns.push({ width: '14.5rem' })
+  if (visibleTableColumns.value.state)
+    columns.push({ width: '14rem' })
+  if (visibleTableColumns.value.actions)
+    columns.push({ width: '11.5rem' })
+
+  return columns
+})
 const latestActionHistory = computed(() => actionHistory.value[0] || null)
 const recentActionHistory = computed(() => actionHistory.value.slice(1, 5))
 const actionHistoryCount = computed(() => actionHistory.value.length)
@@ -3205,7 +3226,14 @@ useIntervalFn(() => {
         </div>
       </template>
 
-      <BaseDataTable class="hidden overflow-x-auto overflow-y-visible md:block" table-class="min-w-[1260px] w-full text-sm">
+      <BaseDataTable class="hidden overflow-x-auto overflow-y-visible md:block" table-class="accounts-table-layout text-sm">
+        <colgroup>
+          <col
+            v-for="(columnStyle, index) in tableColumnStyles"
+            :key="`accounts-table-col-${index}`"
+            :style="columnStyle"
+          >
+        </colgroup>
         <BaseDataTableHead class="accounts-table-head accounts-meta-label sticky top-0 z-10 text-left backdrop-blur-md">
           <tr>
             <th class="px-4 py-3 font-medium">
@@ -3279,7 +3307,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td class="px-4 py-4 align-top">
-              <div class="min-w-[220px] flex items-start gap-3">
+              <div class="min-w-0 flex items-start gap-3">
                 <div class="accounts-avatar-shell h-11 w-11 flex shrink-0 items-center justify-center overflow-hidden rounded-xl">
                   <img v-if="getAccountRecordHero(acc).avatarUrl" :src="getAccountRecordHero(acc).avatarUrl" class="h-full w-full object-cover" @error="(e) => markFailed((e.target as HTMLImageElement).src)" />
                   <div v-else class="i-carbon-user glass-text-muted text-2xl" />
@@ -3298,7 +3326,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.owner" class="px-4 py-4 align-top">
-              <div class="min-w-[180px]">
+              <div class="min-w-0">
                 <BaseBadge :class="getAccountDisplayFields(acc).owner.badges?.[0]?.class">
                   {{ getAccountDisplayFields(acc).owner.badges?.[0]?.text }}
                 </BaseBadge>
@@ -3308,7 +3336,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.platform" class="px-4 py-4 align-top">
-              <div class="min-w-[140px]">
+              <div class="min-w-0">
                 <div class="text-sm font-semibold">
                   {{ getAccountDisplayFields(acc).platform.value }}
                 </div>
@@ -3318,7 +3346,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.activity" class="px-4 py-4 align-top">
-              <div class="min-w-[168px]">
+              <div class="min-w-0">
                 <div class="text-sm font-semibold leading-6">
                   {{ getAccountDisplayFields(acc).activity.value }}
                 </div>
@@ -3328,7 +3356,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.mode" class="px-4 py-4 align-top">
-              <div class="min-w-[188px]">
+              <div class="min-w-0">
                 <BaseBadge :class="getAccountDisplayFields(acc).mode.badges?.[0]?.class">
                   {{ getAccountDisplayFields(acc).mode.badges?.[0]?.text }}
                 </BaseBadge>
@@ -3350,7 +3378,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.state" class="px-4 py-4 align-top">
-              <div class="min-w-[170px]">
+              <div class="min-w-0">
                 <BaseBadge :class="getAccountDisplayFields(acc).state.badges?.[0]?.class">
                   {{ getAccountDisplayFields(acc).state.badges?.[0]?.text }}
                 </BaseBadge>
@@ -3360,7 +3388,7 @@ useIntervalFn(() => {
               </div>
             </td>
             <td v-if="visibleTableColumns.actions" class="px-4 py-4 align-top">
-              <div class="min-w-[218px] space-y-3" @click.stop>
+              <div class="min-w-0 space-y-3" @click.stop>
                 <div class="flex flex-wrap items-center gap-2">
                   <BaseActionButtons :actions="getAccountOperationSets(acc).tablePrimary" />
                 </div>
@@ -4286,6 +4314,11 @@ useIntervalFn(() => {
 
 .accounts-table-row {
   border-color: var(--ui-border-subtle) !important;
+}
+
+.accounts-table-layout {
+  width: max-content;
+  table-layout: fixed;
 }
 
 .accounts-table-row:hover {
