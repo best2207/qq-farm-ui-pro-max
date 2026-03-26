@@ -134,9 +134,13 @@ function registerSettingsReportRoutes({
         }
     });
 
-    app.post('/api/settings/theme', async (req, res) => {
+    app.post('/api/settings/theme', authRequired, async (req, res) => {
         try {
-            if (req.currentUser && req.currentUser.role !== 'admin') {
+            if (!req.currentUser) {
+                return res.status(401).json({ ok: false, error: 'Unauthorized' });
+            }
+
+            if (req.currentUser.role !== 'admin') {
                 const globalUi = store.getUI();
                 const currentUserUi = await getUserUiConfig(req.currentUser.username, globalUi);
                 const effectiveUi = mergeUiConfig(globalUi, currentUserUi);
@@ -188,9 +192,12 @@ function registerSettingsReportRoutes({
         }
     });
 
-    app.post('/api/settings/ui-background/upload', async (req, res) => {
+    app.post('/api/settings/ui-background/upload', authRequired, async (req, res) => {
         try {
-            if (req.currentUser && req.currentUser.role !== 'admin') {
+            if (!req.currentUser) {
+                return res.status(401).json({ ok: false, error: 'Unauthorized' });
+            }
+            if (req.currentUser.role !== 'admin') {
                 return res.status(403).json({ ok: false, error: '仅管理员可上传登录页背景' });
             }
 
@@ -232,9 +239,12 @@ function registerSettingsReportRoutes({
         }
     });
 
-    app.post('/api/settings/offline-reminder', async (req, res) => {
+    app.post('/api/settings/offline-reminder', authRequired, async (req, res) => {
         try {
-            if (req.currentUser && req.currentUser.role !== 'admin') {
+            if (!req.currentUser) {
+                return res.status(401).json({ ok: false, error: 'Unauthorized' });
+            }
+            if (req.currentUser.role !== 'admin') {
                 return res.status(403).json({ ok: false, error: '仅管理员可修改下线提醒设置' });
             }
             const body = (req.body && typeof req.body === 'object') ? req.body : {};

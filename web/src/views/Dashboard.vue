@@ -5,7 +5,7 @@ import type { MetaBadgeTone } from '@/utils/ui-badge'
 import type { DashboardViewState } from '@/utils/view-preferences'
 import { useIntervalFn, useStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -13,13 +13,14 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import UserInfoCard from '@/components/UserInfoCard.vue'
+import { useViewPreferenceSync } from '@/composables/use-view-preference-sync'
 import { useAccountStore } from '@/stores/account'
 import { useBagStore } from '@/stores/bag'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
 import { localizeRuntimeText } from '@/utils/runtime-text'
-import { DEFAULT_DASHBOARD_VIEW_STATE, fetchViewPreferences, normalizeDashboardViewState, saveViewPreferences } from '@/utils/view-preferences'
+import { DEFAULT_DASHBOARD_VIEW_STATE, normalizeDashboardViewState } from '@/utils/view-preferences'
 
 const statusStore = useStatusStore()
 const accountStore = useAccountStore()
@@ -79,14 +80,10 @@ const filter = useStorage<DashboardViewState>('dashboard_log_filter', {
   ...DEFAULT_DASHBOARD_VIEW_STATE,
 })
 const DASHBOARD_BROWSER_PREF_NOTE = '日志筛选条件会跟随当前登录用户同步到服务器；本机缓存只作首屏兜底。日志内容本身仍然实时来自当前账号。'
-let dashboardViewSyncTimer: ReturnType<typeof setTimeout> | null = null
-let dashboardViewHydrating = false
-let dashboardViewSyncEnabled = false
 
 const hasActiveLogFilter = computed(() =>
   !!(filter.value.module || filter.value.event || filter.value.keyword || filter.value.isWarn),
 )
-const dashboardViewSignature = computed(() => JSON.stringify(buildDashboardViewState()))
 
 const modules = [
   { label: '所有模块', value: '' },
@@ -1670,53 +1667,22 @@ function buildDashboardViewState() {
   return normalizeDashboardViewState(filter.value, DEFAULT_DASHBOARD_VIEW_STATE)
 }
 
+const {
+  hydrating: dashboardViewHydrating,
+  hydrate: hydrateDashboardViewState,
+  enableSync: enableDashboardViewSync,
+} = useViewPreferenceSync({
+  key: 'dashboardViewState',
+  label: '仪表盘视图偏好',
+  buildState: buildDashboardViewState,
+  applyState: applyDashboardViewState,
+  defaultState: DEFAULT_DASHBOARD_VIEW_STATE,
+})
+
 function applyDashboardViewState(state: Partial<typeof DEFAULT_DASHBOARD_VIEW_STATE> | null | undefined) {
-  dashboardViewHydrating = true
+  dashboardViewHydrating.value = true
   filter.value = { ...buildDashboardViewState(), ...normalizeDashboardViewState(state, DEFAULT_DASHBOARD_VIEW_STATE) }
-  dashboardViewHydrating = false
-}
-
-function clearDashboardViewSyncTimer() {
-  if (dashboardViewSyncTimer) {
-    clearTimeout(dashboardViewSyncTimer)
-    dashboardViewSyncTimer = null
-  }
-}
-
-function scheduleDashboardViewSync() {
-  clearDashboardViewSyncTimer()
-  const payload = buildDashboardViewState()
-  dashboardViewSyncTimer = setTimeout(async () => {
-    try {
-      await saveViewPreferences({
-        dashboardViewState: payload,
-      })
-    }
-    catch (error) {
-      console.warn('保存仪表盘视图偏好失败', error)
-    }
-  }, 240)
-}
-
-async function hydrateDashboardViewState() {
-  const localFallback = buildDashboardViewState()
-  try {
-    const payload = await fetchViewPreferences()
-    if (payload?.dashboardViewState) {
-      applyDashboardViewState(payload.dashboardViewState)
-      return
-    }
-    applyDashboardViewState(localFallback)
-    if (JSON.stringify(localFallback) !== JSON.stringify(DEFAULT_DASHBOARD_VIEW_STATE)) {
-      await saveViewPreferences({
-        dashboardViewState: localFallback,
-      })
-    }
-  }
-  catch (error) {
-    console.warn('读取仪表盘视图偏好失败', error)
-    applyDashboardViewState(localFallback)
-  }
+  dashboardViewHydrating.value = false
 }
 
 // 【修复闪烁】监听 accountId 字符串值而非 currentAccount 对象引用
@@ -1746,16 +1712,10 @@ watch(() => JSON.stringify(status.value?.operations || {}), (next, prev) => {
 })
 
 watch(hasActiveLogFilter, (enabled) => {
-  if (dashboardViewHydrating)
+  if (dashboardViewHydrating.value)
     return
   statusStore.setRealtimeLogsEnabled(!enabled)
   refresh()
-})
-
-watch(dashboardViewSignature, () => {
-  if (!dashboardViewSyncEnabled || dashboardViewHydrating)
-    return
-  scheduleDashboardViewSync()
 })
 
 function onLogScroll(e: Event) {
@@ -1783,11 +1743,7 @@ onMounted(async () => {
   statusStore.setRealtimeLogsEnabled(!hasActiveLogFilter.value)
   await refresh()
   settingStore.fetchTrialCardConfig()
-  dashboardViewSyncEnabled = true
-})
-
-onBeforeUnmount(() => {
-  clearDashboardViewSyncTimer()
+  enableDashboardViewSync()
 })
 
 // Auto refresh fallback every 10s (WS 断开或筛选条件启用时会回退 HTTP)

@@ -27,6 +27,7 @@ import BaseStatCardGrid from '@/components/ui/BaseStatCardGrid.vue'
 import BaseTableSectionCard from '@/components/ui/BaseTableSectionCard.vue'
 import BaseTableToolbar from '@/components/ui/BaseTableToolbar.vue'
 import { useCopyInteraction } from '@/composables/use-copy-interaction'
+import { useAccountStore } from '@/stores/account'
 import { useToastStore } from '@/stores/toast'
 import { createActionButton, createActionButtons, createButtonField, createChip, createChips, createFilterFields, createHistoryHighlight, createHistoryMetric, createHistoryMetrics, createHistoryPanel, createHistoryRecentItem, createHistoryRecentItems, createInputField, createPageHeaderText, createSelectField, createStatCard, createStatCards } from '@/utils/management-schema'
 import { localizeRuntimeText } from '@/utils/runtime-text'
@@ -89,6 +90,7 @@ const boundAccounts = ref<BoundAccountItem[]>([])
 const loading = ref(false)
 const toast = useToastStore()
 const router = useRouter()
+const accountStore = useAccountStore()
 const currentUsername = ref('')
 const selectedUsers = ref<string[]>([])
 const searchKeyword = ref('')
@@ -585,15 +587,7 @@ function exportTextFile(content: string, filename: string, successMessage: strin
 
 async function openAccountFromDrawer(account: BoundAccountItem) {
   const nextAccountId = String(account.id || '').trim()
-  localStorage.setItem('current_account_id', nextAccountId)
-  try {
-    await api.post('/api/account-selection', {
-      currentAccountId: nextAccountId,
-    })
-  }
-  catch {
-    // 切页后由账号页继续用本地缓存兜底
-  }
+  await accountStore.selectAccount(nextAccountId)
   router.push('/accounts')
 }
 

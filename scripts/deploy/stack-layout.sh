@@ -26,6 +26,14 @@ stack_legacy_current_link_path() {
     printf '%s/%s-bot-current\n' "${base_dir%/}" "$(normalize_stack_name "${stack_name}")"
 }
 
+stack_legacy_current_link_for_current_link() {
+    local current_link="${1:-/opt/qq-farm-current}"
+    local stack_name="${2:-qq-farm}"
+    local current_parent
+    current_parent="$(dirname "${current_link}")"
+    printf '%s/%s-bot-current\n' "${current_parent%/}" "$(normalize_stack_name "${stack_name}")"
+}
+
 stack_container_name() {
     local stack_name="${1:-qq-farm}"
     local role="${2:-bot}"

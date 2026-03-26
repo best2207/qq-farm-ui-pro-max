@@ -2,12 +2,13 @@
 import type { AnalyticsViewState } from '@/utils/view-preferences'
 import { useStorage } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import { useViewPreferenceSync } from '@/composables/use-view-preference-sync'
 import { useAccountStore } from '@/stores/account'
 import { useStatusStore } from '@/stores/status'
-import { DEFAULT_ANALYTICS_VIEW_STATE, fetchViewPreferences, normalizeAnalyticsViewState, saveViewPreferences } from '@/utils/view-preferences'
+import { DEFAULT_ANALYTICS_VIEW_STATE, normalizeAnalyticsViewState } from '@/utils/view-preferences'
 
 interface AnalyticsCrop {
   seedId?: number | string
@@ -120,11 +121,6 @@ const strategyLevel = ref(0)
 const strategyLevelMode = ref<'account' | 'manual'>('account')
 const liveAccountLevel = ref<number | null>(null)
 const ANALYTICS_BROWSER_PREF_NOTE = '排序方式和推荐面板状态会跟随当前登录用户同步到服务器；顶部推荐按农场工具默认口径自动计算，底部始终展示完整作物图鉴。'
-let analyticsViewSyncTimer: ReturnType<typeof setTimeout> | null = null
-let analyticsViewHydrating = false
-let analyticsViewSyncEnabled = false
-
-const analyticsViewSignature = computed(() => JSON.stringify(buildAnalyticsViewState()))
 
 const sortOptions = [
   { value: 'exp', label: '经验/小时' },
@@ -684,55 +680,24 @@ function buildAnalyticsViewState() {
   }, DEFAULT_ANALYTICS_VIEW_STATE)
 }
 
+const {
+  hydrating: analyticsViewHydrating,
+  hydrate: hydrateAnalyticsViewState,
+  enableSync: enableAnalyticsViewSync,
+} = useViewPreferenceSync({
+  key: 'analyticsViewState',
+  label: '图鉴页视图偏好',
+  buildState: buildAnalyticsViewState,
+  applyState: applyAnalyticsViewState,
+  defaultState: DEFAULT_ANALYTICS_VIEW_STATE,
+})
+
 function applyAnalyticsViewState(state: Partial<typeof DEFAULT_ANALYTICS_VIEW_STATE> | null | undefined) {
   const normalized = normalizeAnalyticsViewState(state, DEFAULT_ANALYTICS_VIEW_STATE)
-  analyticsViewHydrating = true
+  analyticsViewHydrating.value = true
   sortKey.value = normalized.sortKey
   strategyPanelCollapsed.value = normalized.strategyPanelCollapsed
-  analyticsViewHydrating = false
-}
-
-function clearAnalyticsViewSyncTimer() {
-  if (analyticsViewSyncTimer) {
-    clearTimeout(analyticsViewSyncTimer)
-    analyticsViewSyncTimer = null
-  }
-}
-
-function scheduleAnalyticsViewSync() {
-  clearAnalyticsViewSyncTimer()
-  const payload = buildAnalyticsViewState()
-  analyticsViewSyncTimer = setTimeout(async () => {
-    try {
-      await saveViewPreferences({
-        analyticsViewState: payload,
-      })
-    }
-    catch (error) {
-      console.warn('保存图鉴页视图偏好失败', error)
-    }
-  }, 240)
-}
-
-async function hydrateAnalyticsViewState() {
-  const localFallback = buildAnalyticsViewState()
-  try {
-    const payload = await fetchViewPreferences()
-    if (payload?.analyticsViewState) {
-      applyAnalyticsViewState(payload.analyticsViewState)
-      return
-    }
-    applyAnalyticsViewState(localFallback)
-    if (JSON.stringify(localFallback) !== JSON.stringify(DEFAULT_ANALYTICS_VIEW_STATE)) {
-      await saveViewPreferences({
-        analyticsViewState: localFallback,
-      })
-    }
-  }
-  catch (error) {
-    console.warn('读取图鉴页视图偏好失败', error)
-    applyAnalyticsViewState(localFallback)
-  }
+  analyticsViewHydrating.value = false
 }
 
 onMounted(async () => {
@@ -741,7 +706,7 @@ onMounted(async () => {
   await loadAnalytics()
   if (recommendationLevel.value <= 0)
     await loadRecommendations()
-  analyticsViewSyncEnabled = true
+  enableAnalyticsViewSync()
 })
 
 watch(() => currentAccountId.value, async () => {
@@ -758,25 +723,15 @@ watch(() => currentAccountLevel.value, () => {
 })
 
 watch(() => recommendationLevel.value, () => {
-  if (analyticsViewHydrating)
+  if (analyticsViewHydrating.value)
     return
   loadRecommendations()
 })
 
 watch(() => sortKey.value, () => {
-  if (analyticsViewHydrating)
+  if (analyticsViewHydrating.value)
     return
   loadAnalytics()
-})
-
-watch(analyticsViewSignature, () => {
-  if (!analyticsViewSyncEnabled || analyticsViewHydrating)
-    return
-  scheduleAnalyticsViewSync()
-})
-
-onBeforeUnmount(() => {
-  clearAnalyticsViewSyncTimer()
 })
 </script>
 

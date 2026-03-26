@@ -137,7 +137,7 @@ test('theme route saves per-user ui without touching global config path', async 
 
     registerSettingsReportRoutes(deps);
     const { middleware, handler } = getRouteParts(routes, 'post', '/api/settings/theme');
-    assert.equal(middleware, null);
+    assert.equal(middleware, deps.authRequired);
 
     const res = createResponse();
     await handler(
@@ -158,6 +158,36 @@ test('theme route saves per-user ui without touching global config path', async 
         ok: true,
         data: { theme: 'light', siteTitle: '新个人标题', colorTheme: 'emerald' },
     });
+});
+
+test('ui background upload route keeps auth middleware and rejects unauthenticated requests', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createDeps({ app });
+
+    registerSettingsReportRoutes(deps);
+    const { middleware, handler } = getRouteParts(routes, 'post', '/api/settings/ui-background/upload');
+    assert.equal(middleware, deps.authRequired);
+
+    const res = createResponse();
+    await handler({ body: {} }, res);
+
+    assert.equal(res.statusCode, 401);
+    assert.deepEqual(res.body, { ok: false, error: 'Unauthorized' });
+});
+
+test('offline reminder route keeps auth middleware and blocks non-admin users', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createDeps({ app });
+
+    registerSettingsReportRoutes(deps);
+    const { middleware, handler } = getRouteParts(routes, 'post', '/api/settings/offline-reminder');
+    assert.equal(middleware, deps.authRequired);
+
+    const res = createResponse();
+    await handler({ currentUser: { username: 'tester', role: 'user' }, body: {} }, res);
+
+    assert.equal(res.statusCode, 403);
+    assert.deepEqual(res.body, { ok: false, error: '仅管理员可修改下线提醒设置' });
 });
 
 test('account selection route keeps auth middleware and persists owned account selection', async () => {

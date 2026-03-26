@@ -83,8 +83,10 @@ refresh_stack_layout() {
     fi
     if [ "${CURRENT_LINK_EXPLICIT}" != "1" ]; then
         CURRENT_LINK="$(stack_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+    else
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_for_current_link "${CURRENT_LINK}" "${STACK_NAME}")"
     fi
-    LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
 }
 
 handle_error() {

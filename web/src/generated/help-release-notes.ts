@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.39',
+    date: '2026-03-26',
+    title: '视图偏好脏状态同步与账号选择一致性修复',
+    summary: '敏感设置接口统一补鉴权，视图偏好改为本地脏状态优先同步，当前账号选择与字符串偏好同步逻辑收口成统一稳态模型。',
+  },
+  {
     version: 'v4.5.38',
     date: '2026-03-25',
     title: '远程更新 smoke 无 Node 兜底与默认地址修复',

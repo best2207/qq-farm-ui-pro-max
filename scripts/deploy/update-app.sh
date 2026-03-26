@@ -86,8 +86,10 @@ refresh_stack_layout() {
     fi
     if [ "${CURRENT_LINK_EXPLICIT}" != "1" ]; then
         CURRENT_LINK="$(stack_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+    else
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_for_current_link "${CURRENT_LINK}" "${STACK_NAME}")"
     fi
-    LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
 }
 
 mask_secret() {
@@ -129,7 +131,11 @@ app_container_exec() {
         esac
     done
 
-    "${DOCKER[@]}" exec -i "${env_args[@]}" "${APP_CONTAINER_NAME}" "$@"
+    if [ "${#env_args[@]}" -gt 0 ]; then
+        "${DOCKER[@]}" exec -i "${env_args[@]}" "${APP_CONTAINER_NAME}" "$@"
+    else
+        "${DOCKER[@]}" exec -i "${APP_CONTAINER_NAME}" "$@"
+    fi
 }
 
 run_update_bridge() {
@@ -1204,7 +1210,7 @@ NODE
 }
 
 compose_pull_with_retry() {
-    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.38}"
+    local requested_image="${APP_IMAGE:-${OFFICIAL_DOCKERHUB_APP_IMAGE}:4.5.39}"
 
     if is_truthy "${SKIP_DOCKER_PULL}"; then
         print_info "检测到 SKIP_DOCKER_PULL=${SKIP_DOCKER_PULL}，跳过主程序镜像拉取，直接使用本地镜像。"

@@ -1,4 +1,8 @@
 import api from '@/api'
+import {
+  hydrateSyncableStringPreference,
+  persistSyncableStringPreference,
+} from './server-backed-string-preference-sync'
 
 export interface CardsViewState {
   keyword: string
@@ -83,6 +87,7 @@ export interface ViewPreferencesPayload {
 }
 
 export type ServerBackedStringPreferenceKey = 'announcementDismissedId' | 'notificationLastReadDate' | 'appSeenVersion'
+type StringPreferenceStorage = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>
 
 const CARD_PAGE_SIZE_OPTIONS = new Set([10, 20, 50, 100])
 const SYSTEM_LOG_PAGE_SIZE_OPTIONS = new Set([10, 20, 50, 100])
@@ -99,6 +104,7 @@ const REPORT_PAGE_SIZE_OPTIONS = new Set([3])
 const ACTION_HISTORY_STATUS_OPTIONS = new Set(['success', 'warning', 'error'])
 const ACTION_HISTORY_LIMIT = 8
 const ACTION_HISTORY_NAME_LIMIT = 6
+const SERVER_BACKED_STRING_PREFERENCE_SYNC_STATE_KEY = 'qq-farm.view-preferences.string-sync-state.v1'
 
 function normalizeBoolean(value: unknown, fallback: boolean) {
   if (typeof value === 'boolean')
@@ -375,53 +381,29 @@ export async function saveViewPreferences(payload: ViewPreferencesPayload): Prom
   return res.data?.ok ? (res.data.data || null) as ViewPreferencesPayload | null : null
 }
 
-function readLocalStringPreference(localKey: string) {
-  if (typeof window === 'undefined')
-    return ''
-  try {
-    return String(window.localStorage.getItem(localKey) || '')
-  }
-  catch {
-    return ''
-  }
-}
-
-function writeLocalStringPreference(localKey: string, value: string) {
-  if (typeof window === 'undefined')
-    return
-  try {
-    if (value)
-      window.localStorage.setItem(localKey, value)
-    else
-      window.localStorage.removeItem(localKey)
-  }
-  catch {
-    // ignore browser storage failures
-  }
-}
-
 export async function hydrateServerBackedStringPreference(options: {
   payloadKey: ServerBackedStringPreferenceKey
   localKey: string
   normalize: (value: unknown, fallback?: string) => string
+  storage?: StringPreferenceStorage | null
+  fetchPreferences?: () => Promise<ViewPreferencesPayload | null>
+  savePreferences?: (payload: ViewPreferencesPayload) => Promise<ViewPreferencesPayload | null>
 }): Promise<string> {
-  const localValue = options.normalize(readLocalStringPreference(options.localKey), '')
-  try {
-    const payload = await fetchViewPreferences()
-    const remoteValue = options.normalize(payload?.[options.payloadKey], '')
-    if (remoteValue) {
-      if (remoteValue !== localValue)
-        writeLocalStringPreference(options.localKey, remoteValue)
-      return remoteValue
-    }
-    if (localValue) {
-      await saveViewPreferences({ [options.payloadKey]: localValue } as ViewPreferencesPayload)
-    }
-    return localValue
-  }
-  catch {
-    return localValue
-  }
+  return await hydrateSyncableStringPreference({
+    syncId: `${options.payloadKey}:${options.localKey}`,
+    storageKey: SERVER_BACKED_STRING_PREFERENCE_SYNC_STATE_KEY,
+    localKey: options.localKey,
+    normalize: options.normalize,
+    storage: options.storage,
+    fetchRemote: options.fetchPreferences ?? fetchViewPreferences,
+    saveRemote: async nextValue => await (options.savePreferences ?? saveViewPreferences)({
+      [options.payloadKey]: nextValue,
+    } as ViewPreferencesPayload),
+    readRemoteValue: payload => payload?.[options.payloadKey],
+    onError: (phase, error) => {
+      console.warn(`${phase === 'hydrate' ? '读取' : '保存'}${options.payloadKey}失败`, error)
+    },
+  })
 }
 
 export async function persistServerBackedStringPreference(options: {
@@ -429,14 +411,21 @@ export async function persistServerBackedStringPreference(options: {
   localKey: string
   value: unknown
   normalize: (value: unknown, fallback?: string) => string
+  storage?: StringPreferenceStorage | null
+  savePreferences?: (payload: ViewPreferencesPayload) => Promise<ViewPreferencesPayload | null>
 }): Promise<string> {
-  const nextValue = options.normalize(options.value, '')
-  writeLocalStringPreference(options.localKey, nextValue)
-  try {
-    await saveViewPreferences({ [options.payloadKey]: nextValue } as ViewPreferencesPayload)
-  }
-  catch {
-    // ignore remote persistence errors and keep local fallback
-  }
-  return nextValue
+  return await persistSyncableStringPreference({
+    syncId: `${options.payloadKey}:${options.localKey}`,
+    storageKey: SERVER_BACKED_STRING_PREFERENCE_SYNC_STATE_KEY,
+    localKey: options.localKey,
+    normalize: options.normalize,
+    storage: options.storage,
+    saveRemote: async nextValue => await (options.savePreferences ?? saveViewPreferences)({
+      [options.payloadKey]: nextValue,
+    } as ViewPreferencesPayload),
+    readRemoteValue: payload => payload?.[options.payloadKey],
+    onError: (_phase, error) => {
+      console.warn(`保存${options.payloadKey}失败`, error)
+    },
+  }, options.value)
 }

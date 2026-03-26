@@ -54,8 +54,10 @@ refresh_stack_layout() {
     STACK_DIR_NAME="$(stack_dir_name "${STACK_NAME}")"
     if [ "${CURRENT_LINK_EXPLICIT}" != "1" ]; then
         CURRENT_LINK="$(stack_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
+    else
+        LEGACY_CURRENT_LINK="$(stack_legacy_current_link_for_current_link "${CURRENT_LINK}" "${STACK_NAME}")"
     fi
-    LEGACY_CURRENT_LINK="$(stack_legacy_current_link_path "${DEPLOY_BASE_DIR}" "${STACK_NAME}")"
 }
 
 trap 'print_error "部署包修复失败，请检查上方日志。"' ERR

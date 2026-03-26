@@ -5,6 +5,7 @@ import api from '@/api'
 import { getThemeAppearanceConfig, getWorkspaceAppearanceConfig } from '@/constants/ui-appearance'
 import { applyThemeTokens } from '@/theme/apply-theme'
 import { currentAccountId } from '@/utils/auth'
+import { reconcileCurrentAccountSelection } from '@/utils/current-account-selection-sync'
 
 const THEME_KEY = 'ui_theme'
 const DEFAULT_LOGIN_BACKGROUND_OVERLAY_OPACITY = 30
@@ -298,10 +299,12 @@ export const useAppStore = defineStore('app', () => {
           copyrightText.value = normalizeCopyrightText(nextCopyrightText)
         }
         if (nextCurrentAccountId !== undefined) {
-          const normalizedCurrentAccountId = String(nextCurrentAccountId || '').trim()
-          if (normalizedCurrentAccountId) {
-            currentAccountId.value = normalizedCurrentAccountId
-          }
+          currentAccountId.value = await reconcileCurrentAccountSelection(nextCurrentAccountId, {
+            localValue: currentAccountId.value,
+            onError: (_phase, error) => {
+              console.warn('同步当前账号选择失败，继续保留本地值', error)
+            },
+          })
         }
       }
     }

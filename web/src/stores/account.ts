@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import api from '@/api'
 import { currentAccountId } from '@/utils/auth'
+import { normalizeCurrentAccountSelectionId, persistCurrentAccountSelection } from '@/utils/current-account-selection-sync'
 import { localizeRuntimeText } from '@/utils/runtime-text'
 
 export interface Account {
@@ -59,22 +60,15 @@ export const useAccountStore = defineStore('account', () => {
   const loading = ref(false)
   const logs = ref<AccountLog[]>([])
 
-  async function syncCurrentAccountSelection(id: string) {
-    try {
-      await api.post('/api/account-selection', {
-        currentAccountId: String(id || '').trim(),
-      })
-    }
-    catch (e) {
-      console.warn('同步当前账号选择失败', e)
-    }
-  }
-
   async function applyCurrentAccountSelection(id: string, options: { syncServer?: boolean } = {}) {
-    const normalizedId = String(id || '').trim()
+    const normalizedId = normalizeCurrentAccountSelectionId(id)
     currentAccountId.value = normalizedId
     if (options.syncServer !== false) {
-      await syncCurrentAccountSelection(normalizedId)
+      currentAccountId.value = await persistCurrentAccountSelection(normalizedId, {
+        onError: (_phase, error) => {
+          console.warn('同步当前账号选择失败', error)
+        },
+      })
     }
   }
 

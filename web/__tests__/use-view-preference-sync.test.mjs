@@ -8,15 +8,32 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function createMemoryStorage() {
+  const store = new Map()
+  return {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null
+    },
+    setItem(key, value) {
+      store.set(key, String(value))
+    },
+    removeItem(key) {
+      store.delete(key)
+    },
+  }
+}
+
 function createAnalyticsSyncHarness(overrides = {}) {
   const state = reactive({
     sortKey: 'exp',
     strategyPanelCollapsed: false,
   })
+  const storage = overrides.storage ?? createMemoryStorage()
 
   const calls = {
     fetchCount: 0,
     saves: [],
+    storage,
   }
 
   const scope = effectScope()
@@ -44,6 +61,7 @@ function createAnalyticsSyncHarness(overrides = {}) {
     }),
     shouldSyncFallback: next => next.sortKey !== 'exp' || next.strategyPanelCollapsed !== false,
     debounceMs: 5,
+    storage,
     fetchPreferences: async () => {
       calls.fetchCount += 1
       return null
@@ -157,7 +175,7 @@ test('useViewPreferenceSync prefers fetched remote payload and does not backfill
   harness.dispose()
 })
 
-test('useViewPreferenceSync debounces rapid changes and cancels pending sync on dispose', async () => {
+test('useViewPreferenceSync debounces rapid changes and flushes pending sync on dispose', async () => {
   const harness = createAnalyticsSyncHarness({
     fetchPreferences: async () => {
       harness.calls.fetchCount += 1
@@ -194,5 +212,106 @@ test('useViewPreferenceSync debounces rapid changes and cancels pending sync on 
   harness.dispose()
   await delay(25)
 
-  assert.equal(harness.calls.saves.length, 1)
+  assert.equal(harness.calls.saves.length, 2)
+  assert.deepEqual(harness.calls.saves.at(-1), {
+    analyticsViewState: {
+      sortKey: 'fert',
+      strategyPanelCollapsed: true,
+    },
+  })
+})
+
+test('useViewPreferenceSync disableSync clears pending debounce without flushing', async () => {
+  const harness = createAnalyticsSyncHarness({
+    fetchPreferences: async () => ({
+      analyticsViewState: {
+        sortKey: 'exp',
+        strategyPanelCollapsed: false,
+      },
+    }),
+  })
+
+  await harness.sync.hydrate()
+  harness.sync.enableSync()
+
+  harness.state.sortKey = 'coins'
+  await nextTick()
+  harness.sync.disableSync()
+  await delay(25)
+
+  assert.deepEqual(harness.calls.saves, [])
+
+  harness.dispose()
+})
+
+test('useViewPreferenceSync keeps dirty local state ahead of stale remote payload after a failed save', async () => {
+  let saveAttempt = 0
+  const harness = createAnalyticsSyncHarness({
+    readLocalFallback: () => ({
+      sortKey: harness.state.sortKey,
+      strategyPanelCollapsed: harness.state.strategyPanelCollapsed,
+    }),
+    fetchPreferences: async () => {
+      harness.calls.fetchCount += 1
+      return {
+        analyticsViewState: {
+          sortKey: 'exp',
+          strategyPanelCollapsed: false,
+        },
+      }
+    },
+    savePreferences: async (payload) => {
+      harness.calls.saves.push(payload)
+      saveAttempt += 1
+      if (saveAttempt === 1)
+        throw new Error('network down')
+      return payload
+    },
+  })
+
+  await harness.sync.hydrate()
+  harness.sync.enableSync()
+
+  harness.state.sortKey = 'coins'
+  harness.state.strategyPanelCollapsed = true
+  await nextTick()
+  await delay(25)
+
+  assert.deepEqual(harness.calls.saves, [{
+    analyticsViewState: {
+      sortKey: 'coins',
+      strategyPanelCollapsed: true,
+    },
+  }])
+
+  await harness.sync.hydrate({
+    analyticsViewState: {
+      sortKey: 'exp',
+      strategyPanelCollapsed: false,
+    },
+  })
+
+  assert.deepEqual({
+    sortKey: harness.state.sortKey,
+    strategyPanelCollapsed: harness.state.strategyPanelCollapsed,
+  }, {
+    sortKey: 'coins',
+    strategyPanelCollapsed: true,
+  })
+  assert.deepEqual(harness.calls.saves, [
+    {
+      analyticsViewState: {
+        sortKey: 'coins',
+        strategyPanelCollapsed: true,
+      },
+    },
+    {
+      analyticsViewState: {
+        sortKey: 'coins',
+        strategyPanelCollapsed: true,
+      },
+    },
+  ])
+
+  harness.dispose()
 })
