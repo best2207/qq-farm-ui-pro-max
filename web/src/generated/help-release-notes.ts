@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.43',
+    date: '2026-03-27',
+    title: '一键安装单文件 bootstrap 修复',
+    summary: '`install-or-update.sh` 在单文件执行场景下会自动补齐缺失的 sibling 脚本，不再把 `bash <(curl -fsSL ...)` 入口误导到 `/dev/fd/*.sh`。',
+  },
+  {
     version: 'v4.5.42',
     date: '2026-03-27',
     title: '好友缓存按身份隔离与清理重建闭环',

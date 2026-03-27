@@ -56,11 +56,13 @@ print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_BUNDLE_DIR="${SCRIPT_DIR}"
 STACK_LAYOUT_PATH="${SCRIPT_DIR}/stack-layout.sh"
 if [ ! -f "${STACK_LAYOUT_PATH}" ]; then
     BOOTSTRAP_DIR="${TMPDIR:-/tmp}/qq-farm-deploy-bootstrap/${REPO_SLUG//\//_}/${REPO_REF}"
     mkdir -p "${BOOTSTRAP_DIR}"
     STACK_LAYOUT_PATH="${BOOTSTRAP_DIR}/stack-layout.sh"
+    SCRIPT_BUNDLE_DIR="${BOOTSTRAP_DIR}"
     if [ ! -f "${STACK_LAYOUT_PATH}" ]; then
         command -v curl >/dev/null 2>&1 || {
             echo "[ERROR] 缺少 stack-layout.sh 且系统未安装 curl，无法继续执行。" >&2
@@ -71,6 +73,31 @@ if [ ! -f "${STACK_LAYOUT_PATH}" ]; then
 fi
 # shellcheck source=stack-layout.sh
 . "${STACK_LAYOUT_PATH}"
+
+ensure_bootstrap_script() {
+    local name="$1"
+    local target_path=""
+
+    if [ -f "${SCRIPT_DIR}/${name}" ]; then
+        printf '%s\n' "${SCRIPT_DIR}/${name}"
+        return 0
+    fi
+
+    BOOTSTRAP_DIR="${BOOTSTRAP_DIR:-${TMPDIR:-/tmp}/qq-farm-deploy-bootstrap/${REPO_SLUG//\//_}/${REPO_REF}}"
+    mkdir -p "${BOOTSTRAP_DIR}"
+    target_path="${BOOTSTRAP_DIR}/${name}"
+    if [ ! -f "${target_path}" ]; then
+        command -v curl >/dev/null 2>&1 || {
+            print_error "缺少 ${name} 且系统未安装 curl，无法继续执行。"
+            exit 1
+        }
+        curl -fsSL "${RAW_BASE_URL}/scripts/deploy/${name}" -o "${target_path}"
+        chmod +x "${target_path}"
+    fi
+
+    SCRIPT_BUNDLE_DIR="${BOOTSTRAP_DIR}"
+    printf '%s\n' "${target_path}"
+}
 
 refresh_stack_layout() {
     STACK_NAME="$(normalize_stack_name "${STACK_NAME:-qq-farm}")"
@@ -284,6 +311,7 @@ create_backup_if_needed() {
 offer_manual_repair() {
     local deploy_dir="$1"
     local reason="$2"
+    local manual_wizard_path=""
 
     if [ ! -f "${deploy_dir}/.env" ]; then
         print_warning "${reason}，但当前部署目录还没有可修复的 .env。"
@@ -305,17 +333,20 @@ offer_manual_repair() {
             ;;
     esac
 
-    STACK_NAME="${STACK_NAME}" bash "${SCRIPT_DIR}/manual-config-wizard.sh" --deploy-dir "${deploy_dir}"
+    manual_wizard_path="$(ensure_bootstrap_script "manual-config-wizard.sh")"
+    STACK_NAME="${STACK_NAME}" bash "${manual_wizard_path}" --deploy-dir "${deploy_dir}"
 }
 
 run_verify() {
     local deploy_dir="$1"
+    local verify_stack_path=""
     if [ "${SKIP_VERIFY}" = "1" ] || [ "${SKIP_VERIFY}" = "true" ]; then
         print_warning "已跳过安装后核验。"
         return 0
     fi
 
-    if STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" bash "${SCRIPT_DIR}/verify-stack.sh" --deploy-dir "${deploy_dir}"; then
+    verify_stack_path="$(ensure_bootstrap_script "verify-stack.sh")"
+    if STACK_NAME="${STACK_NAME}" CURRENT_LINK="${CURRENT_LINK}" bash "${verify_stack_path}" --deploy-dir "${deploy_dir}"; then
         return 0
     fi
 
@@ -324,7 +355,9 @@ run_verify() {
 
 run_install_flow() {
     local target_dir="${DEPLOY_DIR}"
-    local cmd=(bash "${SCRIPT_DIR}/fresh-install.sh" "--deploy-dir" "${target_dir}")
+    local fresh_install_path=""
+    fresh_install_path="$(ensure_bootstrap_script "fresh-install.sh")"
+    local cmd=(bash "${fresh_install_path}" "--deploy-dir" "${target_dir}")
 
     if [ "${NON_INTERACTIVE}" = "1" ]; then
         cmd+=("--non-interactive")
@@ -354,7 +387,9 @@ run_install_flow() {
 
 run_update_flow() {
     local existing_dir="$1"
-    local cmd=(bash "${SCRIPT_DIR}/update-app.sh" "--deploy-dir" "${existing_dir}")
+    local update_app_path=""
+    update_app_path="$(ensure_bootstrap_script "update-app.sh")"
+    local cmd=(bash "${update_app_path}" "--deploy-dir" "${existing_dir}")
 
     choose_update_mode
     create_backup_if_needed "${existing_dir}"

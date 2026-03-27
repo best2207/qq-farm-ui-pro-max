@@ -2,6 +2,7 @@
 
 ## 快速索引（精简版）
 
+- `v4.5.43 (2026-03-27)` 一键安装单文件 bootstrap 修复：`install-or-update.sh` 在单文件执行场景下会自动补齐缺失的 sibling 脚本，不再把 `bash <(curl -fsSL ...)` 入口误导到 `/dev/fd/*.sh`。
 - `v4.5.42 (2026-03-27)` 好友缓存按身份隔离与清理重建闭环：好友缓存改为按当前登录身份隔离并支持清理重建；好友页新增来源标识与清理按钮；访客补缓存与当前账号选择保存链路继续收口。
 - `v4.5.41 (2026-03-27)` 二维码状态保活与设置快捷卡片布局优化：二维码轮询会保留原始 `code` 与剩余有效期，并把 Ipad860 的临时交互 key 缺失视为等待扫码；设置页快捷设置改成响应式网格；更新公告弹窗点击展开时不再自己跳位。
 - `v4.5.40 (2026-03-26)` 无 rg 环境一键自测兼容与发版复核：`self-test-install.sh` 在缺少 `rg` 的服务器上会自动回退到 `grep -E`，真实服务器隔离自测再次完整通过且清理干净。
@@ -37,6 +38,15 @@
 - `v4.1.0 (2026-03-04)` 账号分级模式：主号/小号/风险规避模式上线，策略与控制面板能力补齐。
 
 > 说明：该索引用于快速浏览；详细变更说明、背景和技术细节请以下文各版本章节为准。
+
+## [v4.5.43] - 一键安装单文件 bootstrap 修复 (2026-03-27)
+### 🚀 单文件安装入口修复
+- **单文件执行会自动补齐缺失脚本**: `install-or-update.sh` 现在新增 `ensure_bootstrap_script()`，当脚本来自 `bash <(curl -fsSL ...)` 或其他没有本地 sibling 文件的场景时，会自动从远端补齐 `fresh-install.sh`、`update-app.sh`、`verify-stack.sh` 与 `manual-config-wizard.sh`，不再试图访问不存在的 `/dev/fd/*.sh`。
+- **安装、更新、核验和手动修复入口重新打通**: 全新安装、更新流程、安装后核验以及失败后的手动修复向导现在都会优先使用已落地的 bootstrap 副本路径，避免单文件入口只补了 `stack-layout.sh`、其它关键脚本仍然缺位的半修状态。
+
+### 🧪 热修复回归
+- **部署脚本语法与整仓回归再次通过**: `bash -n` 已覆盖 `install-or-update.sh / fresh-install.sh / update-app.sh / self-test-install.sh / update-agent.sh / docker-build-multiarch.sh / build-release-assets.sh / export-offline-packages.sh`；最新完整 HTML 报告 `reports/full-test-20260327-231626/report.html` 为 `140/140` 按文件通过、`4/4` 命令级验证通过。
+- **程序版本已抬升到 `v4.5.43`**: `core/package.json`、`web/package.json`、README、部署模板、默认镜像标签、帮助中心 Release Notes 与系统更新相关单测 / E2E mock 已统一切到 `v4.5.43`。
 
 ## [v4.5.42] - 好友缓存按身份隔离与清理重建闭环 (2026-03-27)
 ### 👥 好友缓存按当前登录身份隔离

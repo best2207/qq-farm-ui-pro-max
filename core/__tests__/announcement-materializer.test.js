@@ -15,7 +15,7 @@ test('announcement runtime falls back to changelog quick index when update log i
                     '',
                     '## 快速索引（精简版）',
                     '',
-                    '- `v4.5.42 (2026-03-27)` 好友缓存按身份隔离与清理重建闭环：好友缓存改为按当前登录身份隔离并支持清理重建。',
+                    '- `v4.5.43 (2026-03-27)` 一键安装单文件 bootstrap 修复：install-or-update 单文件执行时会自动补齐缺失脚本。',
                     '- `v4.5.39 (2026-03-25)` 旧版本说明：补齐最近一轮功能摘要。',
                     '',
                     '> 说明：demo',
@@ -29,11 +29,11 @@ test('announcement runtime falls back to changelog quick index when update log i
 
     assert.deepEqual(entries, [
         {
-            title: '好友缓存按身份隔离与清理重建闭环',
-            version: 'v4.5.42',
+            title: '一键安装单文件 bootstrap 修复',
+            version: 'v4.5.43',
             publishDate: '2026-03-27',
-            content: '好友缓存改为按当前登录身份隔离并支持清理重建。',
-            summary: '好友缓存改为按当前登录身份隔离并支持清理重建。',
+            content: 'install-or-update 单文件执行时会自动补齐缺失脚本。',
+            summary: 'install-or-update 单文件执行时会自动补齐缺失脚本。',
             sourceType: 'embedded',
             sourceKey: entries[0].sourceKey,
             releaseUrl: '',
@@ -65,7 +65,7 @@ test('announcement materializer updates legacy announcement rows by version/date
         getAnnouncementsRef: async () => [{
             id: 7,
             title: '旧公告标题',
-            version: 'v4.5.42',
+            version: 'v4.5.43',
             publish_date: '2026-03-27',
             content: 'old',
             summary: '',
@@ -81,11 +81,11 @@ test('announcement materializer updates legacy announcement rows by version/date
         },
         getSystemUpdateReleaseCacheRef: async () => ({
             releases: [{
-                versionTag: 'v4.5.42',
-                title: '好友缓存按身份隔离与清理重建闭环',
+                versionTag: 'v4.5.43',
+                title: '一键安装单文件 bootstrap 修复',
                 publishedAt: '2026-03-27T08:00:00.000Z',
                 notes: 'new notes',
-                url: 'https://example.com/releases/v4.5.42',
+                url: 'https://example.com/releases/v4.5.43',
                 assets: [{ name: 'bundle.tar.gz', url: 'https://example.com/bundle.tar.gz', size: 123 }],
             }],
         }),
@@ -101,12 +101,12 @@ test('announcement materializer updates legacy announcement rows by version/date
     assert.equal(result.skipped, 0);
     assert.equal(saveCalls.length, 1);
     assert.equal(saveCalls[0].id, 7);
-    assert.equal(saveCalls[0].title, '好友缓存按身份隔离与清理重建闭环');
-    assert.equal(saveCalls[0].version, 'v4.5.42');
+    assert.equal(saveCalls[0].title, '一键安装单文件 bootstrap 修复');
+    assert.equal(saveCalls[0].version, 'v4.5.43');
     assert.equal(saveCalls[0].publish_date, '2026-03-27');
     assert.equal(saveCalls[0].summary, 'new notes');
     assert.equal(saveCalls[0].sourceType, 'release_cache');
-    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.42');
+    assert.equal(saveCalls[0].releaseUrl, 'https://example.com/releases/v4.5.43');
     assert.deepEqual(saveCalls[0].assets, [{
         name: 'bundle.tar.gz',
         url: 'https://example.com/bundle.tar.gz',
