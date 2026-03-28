@@ -1256,6 +1256,7 @@ async function loadGlobalConfigFromDB() {
         globalConfig.bugReportConfig = normalizeBugReportConfig(globalConfig.bugReportConfig);
         globalConfig.timingConfig = normalizeTimingConfig(globalConfig.timingConfig, DEFAULT_TIMING_CONFIG);
         globalConfig.trialCardConfig = normalizeTrialCardConfig(globalConfig.trialCardConfig, DEFAULT_TRIAL_CARD_CONFIG);
+        globalConfig.cardFeatureConfig = normalizeCardFeatureConfig(globalConfig.cardFeatureConfig, DEFAULT_CARD_FEATURE_CONFIG);
         globalConfig.clusterConfig = normalizeClusterConfig(globalConfig.clusterConfig, DEFAULT_CLUSTER_CONFIG);
         globalConfig.thirdPartyApi = (globalConfig.thirdPartyApi && typeof globalConfig.thirdPartyApi === 'object')
             ? { ...globalConfig.thirdPartyApi }
@@ -1413,6 +1414,7 @@ function applyLoadedGlobalConfig(stored = {}, options = {}) {
         : ((globalConfig.thirdPartyApi && typeof globalConfig.thirdPartyApi === 'object') ? { ...globalConfig.thirdPartyApi } : {});
     globalConfig.timingConfig = normalizeTimingConfig(source.timingConfig, globalConfig.timingConfig || DEFAULT_TIMING_CONFIG);
     globalConfig.trialCardConfig = normalizeTrialCardConfig(source.trialCardConfig, globalConfig.trialCardConfig || DEFAULT_TRIAL_CARD_CONFIG);
+    globalConfig.cardFeatureConfig = normalizeCardFeatureConfig(source.cardFeatureConfig, globalConfig.cardFeatureConfig || DEFAULT_CARD_FEATURE_CONFIG);
     globalConfig.clusterConfig = normalizeClusterConfig(source.clusterConfig, globalConfig.clusterConfig || DEFAULT_CLUSTER_CONFIG);
     globalConfig.suspendUntilMap = (source.suspendUntilMap && typeof source.suspendUntilMap === 'object')
         ? { ...source.suspendUntilMap }
@@ -1431,6 +1433,7 @@ function buildSystemGlobalConfigSnapshot() {
         thirdPartyApi: { ...(globalConfig.thirdPartyApi || {}) },
         timingConfig: getTimingConfig(),
         trialCardConfig: getTrialCardConfig(),
+        cardFeatureConfig: getCardFeatureConfig(),
         clusterConfig: normalizeClusterConfig(globalConfig.clusterConfig, DEFAULT_CLUSTER_CONFIG),
         suspendUntilMap: { ...(globalConfig.suspendUntilMap || {}) },
     };
@@ -1522,6 +1525,7 @@ function sanitizeGlobalConfigBeforeSave() {
     globalConfig.adminPasswordHash = String(globalConfig.adminPasswordHash || '');
     globalConfig.timingConfig = normalizeTimingConfig(globalConfig.timingConfig, DEFAULT_TIMING_CONFIG);
     globalConfig.trialCardConfig = normalizeTrialCardConfig(globalConfig.trialCardConfig, DEFAULT_TRIAL_CARD_CONFIG);
+    globalConfig.cardFeatureConfig = normalizeCardFeatureConfig(globalConfig.cardFeatureConfig, DEFAULT_CARD_FEATURE_CONFIG);
     globalConfig.clusterConfig = normalizeClusterConfig(globalConfig.clusterConfig, DEFAULT_CLUSTER_CONFIG);
     globalConfig.thirdPartyApi = (globalConfig.thirdPartyApi && typeof globalConfig.thirdPartyApi === 'object')
         ? { ...globalConfig.thirdPartyApi }
@@ -3191,6 +3195,16 @@ const DEFAULT_TRIAL_CARD_CONFIG = {
     userRenewEnabled: false, // 用户是否可以自助续费该类型
 };
 
+const DEFAULT_CARD_FEATURE_CONFIG = {
+    enabled: true,
+    registerEnabled: true,
+    renewEnabled: true,
+    trialEnabled: true,
+    adminIssueEnabled: true,
+    updatedAt: 0,
+    updatedBy: '',
+};
+
 function normalizeTrialCardConfig(cfg, fallback = DEFAULT_TRIAL_CARD_CONFIG) {
     const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_TRIAL_CARD_CONFIG;
     const input = (cfg && typeof cfg === 'object') ? cfg : {};
@@ -3210,6 +3224,22 @@ function normalizeTrialCardConfig(cfg, fallback = DEFAULT_TRIAL_CARD_CONFIG) {
     }
 
     return next;
+}
+
+function normalizeCardFeatureConfig(cfg, fallback = DEFAULT_CARD_FEATURE_CONFIG) {
+    const current = (fallback && typeof fallback === 'object') ? fallback : DEFAULT_CARD_FEATURE_CONFIG;
+    const input = (cfg && typeof cfg === 'object') ? cfg : {};
+    const enabled = input.enabled !== undefined ? !!input.enabled : !!current.enabled;
+
+    return {
+        enabled,
+        registerEnabled: input.registerEnabled !== undefined ? !!input.registerEnabled : enabled,
+        renewEnabled: input.renewEnabled !== undefined ? !!input.renewEnabled : enabled,
+        trialEnabled: input.trialEnabled !== undefined ? !!input.trialEnabled : enabled,
+        adminIssueEnabled: input.adminIssueEnabled !== undefined ? !!input.adminIssueEnabled : enabled,
+        updatedAt: Number(input.updatedAt) || Number(current.updatedAt) || 0,
+        updatedBy: String(input.updatedBy || current.updatedBy || '').trim(),
+    };
 }
 
 function normalizeClusterConfig(cfg, fallback = DEFAULT_CLUSTER_CONFIG) {
@@ -3260,6 +3290,37 @@ function setTrialCardConfig(cfg) {
     globalConfig.trialCardConfig = normalizeTrialCardConfig(cfg, current);
     saveGlobalConfig();
     return getTrialCardConfig();
+}
+
+function getCardFeatureConfig() {
+    ensureStoreFallbackLoaded();
+    return normalizeCardFeatureConfig(globalConfig.cardFeatureConfig, DEFAULT_CARD_FEATURE_CONFIG);
+}
+
+function setCardFeatureConfig(cfg, meta = {}) {
+    const current = getCardFeatureConfig();
+    const payload = {
+        ...current,
+        ...(cfg && typeof cfg === 'object' ? cfg : {}),
+    };
+
+    if (payload.enabled === false) {
+        payload.registerEnabled = false;
+        payload.renewEnabled = false;
+        payload.trialEnabled = false;
+        payload.adminIssueEnabled = false;
+    } else if (cfg && Object.prototype.hasOwnProperty.call(cfg, 'enabled') && payload.enabled === true) {
+        payload.registerEnabled = true;
+        payload.renewEnabled = true;
+        payload.trialEnabled = true;
+        payload.adminIssueEnabled = true;
+    }
+
+    payload.updatedAt = Date.now();
+    payload.updatedBy = String(meta.updatedBy || payload.updatedBy || '').trim();
+    globalConfig.cardFeatureConfig = normalizeCardFeatureConfig(payload, current);
+    saveGlobalConfig();
+    return getCardFeatureConfig();
 }
 
 // ============ 风控休眠持久化 ============
@@ -3378,6 +3439,8 @@ module.exports = {
     setThirdPartyApiConfig,
     getTrialCardConfig,
     setTrialCardConfig,
+    getCardFeatureConfig,
+    setCardFeatureConfig,
 
     getClusterConfig: () => {
         ensureStoreFallbackLoaded();

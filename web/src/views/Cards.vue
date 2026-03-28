@@ -110,6 +110,11 @@ interface CardsSummary {
   batches: number
 }
 
+interface CardFeatureConfig {
+  enabled?: boolean
+  adminIssueEnabled?: boolean
+}
+
 interface FilterOptions {
   sources: string[]
   creators: string[]
@@ -202,6 +207,7 @@ const filterOptions = ref<FilterOptions>({
   batches: [],
 })
 const loading = ref(false)
+const cardFeatureLoading = ref(false)
 const detailLoading = ref(false)
 const actionLoading = ref(false)
 const batchActionLoading = ref(false)
@@ -232,6 +238,10 @@ const generatedCards = ref<Card[]>([])
 const actionConfirmMessage = ref('')
 const actionConfirmLoading = ref(false)
 const actionConfirmHandler = ref<null | (() => Promise<void>)>(null)
+const cardFeatureConfig = ref<CardFeatureConfig>({
+  enabled: true,
+  adminIssueEnabled: true,
+})
 
 const newCard = ref({
   description: '',
@@ -477,6 +487,7 @@ const pageHeaderActions = computed(() => createActionButtons([
     label: '生成卡密',
     variant: 'primary',
     size: 'sm',
+    disabled: cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.adminIssueEnabled === false,
     onClick: () => {
       openGenerateModal()
     },
@@ -569,10 +580,26 @@ function applyCardsViewState(state: Partial<typeof DEFAULT_CARDS_VIEW_STATE> | n
 onMounted(async () => {
   await Promise.all([
     loadCards(),
+    loadCardFeatureConfig(),
     hydrateCardsViewState(),
   ])
   enableCardsViewSync()
 })
+
+async function loadCardFeatureConfig() {
+  cardFeatureLoading.value = true
+  try {
+    const res = await api.get('/api/card-feature-config')
+    if (res.data?.ok && res.data?.data)
+      cardFeatureConfig.value = { ...cardFeatureConfig.value, ...res.data.data }
+  }
+  catch {
+    cardFeatureConfig.value = { enabled: true, adminIssueEnabled: true }
+  }
+  finally {
+    cardFeatureLoading.value = false
+  }
+}
 
 async function loadCards() {
   loading.value = true
@@ -621,6 +648,10 @@ function toggleSelectAllVisible() {
 }
 
 function openGenerateModal() {
+  if (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.adminIssueEnabled === false) {
+    toast.warning('当前系统已关闭卡密发码功能')
+    return
+  }
   newCard.value = {
     description: '',
     type: 'M',
@@ -946,6 +977,12 @@ function toneClass(tone: string) {
     </template>
 
     <template #filters>
+      <div
+        v-if="cardFeatureConfig.enabled === false || cardFeatureConfig.adminIssueEnabled === false"
+        class="mb-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+      >
+        当前卡密发放总控已关闭，系统暂停新的注册、续费与发码流程；你仍可查看历史卡密与操作记录。
+      </div>
       <div class="glass-panel ui-filter-panel">
         <BaseFilterFields class="md:grid-cols-2 xl:grid-cols-6" :fields="filterFields" />
 

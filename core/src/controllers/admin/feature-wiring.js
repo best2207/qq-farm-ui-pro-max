@@ -395,6 +395,7 @@ function registerAdminFeatureRoutes({
         validatePassword,
         validateCardCode,
         jwtService,
+        store,
     });
 
     registerAdminOperationLogRoutes({

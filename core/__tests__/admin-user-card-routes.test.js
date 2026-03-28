@@ -92,6 +92,15 @@ function createUserCardDeps(overrides = {}) {
             storeRefreshToken: async () => {},
             setTokenCookies: () => {},
         },
+        store: {
+            getCardFeatureConfig: () => ({
+                enabled: true,
+                registerEnabled: true,
+                renewEnabled: true,
+                trialEnabled: true,
+                adminIssueEnabled: true,
+            }),
+        },
         ...overrides,
     };
 }
@@ -113,6 +122,14 @@ function createTrialDeps(overrides = {}) {
         store: {
             getTrialCardConfig: () => ({ userRenewEnabled: true, days: 3, adminOnly: true }),
             setTrialCardConfig: (body) => body,
+            getCardFeatureConfig: () => ({
+                enabled: true,
+                registerEnabled: true,
+                renewEnabled: true,
+                trialEnabled: true,
+                adminIssueEnabled: true,
+            }),
+            setCardFeatureConfig: (body) => body,
             flushGlobalConfigSave: async () => {},
         },
         ...overrides,
@@ -250,6 +267,58 @@ test('auth renew route validates card code and writes renewed card back to curre
     assert.deepEqual(res.body, { ok: true, data: { card: { code: 'CARD-9', expiresAt: '2099-09-09' } } });
 });
 
+test('card feature control blocks register, renew and admin card issue when disabled', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createUserCardDeps({
+        app,
+        store: {
+            getCardFeatureConfig: () => ({
+                enabled: false,
+                registerEnabled: false,
+                renewEnabled: false,
+                trialEnabled: false,
+                adminIssueEnabled: false,
+            }),
+        },
+        userStore: {
+            registerUser: async () => {
+                throw new Error('should not reach registerUser');
+            },
+            renewUser: async () => {
+                throw new Error('should not reach renewUser');
+            },
+        },
+        cardsController: {
+            getAllCards: () => {},
+            getCardDetail: () => {},
+            createCard: () => {
+                throw new Error('should not reach createCard');
+            },
+            updateCard: () => {},
+            deleteCard: () => {},
+            batchDeleteCards: () => {},
+            batchUpdateCards: () => {},
+        },
+    });
+
+    registerUserCardRoutes(deps);
+
+    const registerRes = createResponse();
+    await getRouteParts(routes, 'post', '/api/auth/register').handler({ body: { username: 'alice', password: 'abc123', cardCode: 'CARD-1' } }, registerRes);
+    assert.equal(registerRes.statusCode, 400);
+    assert.deepEqual(registerRes.body, { ok: false, error: '当前系统已暂停卡密注册，请联系管理员' });
+
+    const renewRes = createResponse();
+    await getRouteParts(routes, 'post', '/api/auth/renew').handler({ currentUser: { username: 'alice' }, body: { cardCode: 'CARD-2' } }, renewRes);
+    assert.equal(renewRes.statusCode, 400);
+    assert.deepEqual(renewRes.body, { ok: false, error: '当前系统已暂停卡密续费' });
+
+    const createRes = createResponse();
+    await getRouteParts(routes, 'post', '/api/cards').handler({ currentUser: { role: 'admin' }, body: {} }, createRes);
+    assert.equal(createRes.statusCode, 400);
+    assert.deepEqual(createRes.body, { ok: false, error: '当前系统已关闭卡密发码功能' });
+});
+
 test('change password route keeps authRequired and delegates controller directly', async () => {
     const { app, routes } = createFakeApp();
     const calls = [];
@@ -330,6 +399,31 @@ test('trial card config read hides admin-only fields from normal users and shows
     assert.deepEqual(adminRes.body, { ok: true, data: config });
 });
 
+test('public card feature config read exposes register and trial availability without auth', async () => {
+    const { app, routes } = createFakeApp();
+    const deps = createTrialDeps({
+        app,
+        store: {
+            getTrialCardConfig: () => ({ userRenewEnabled: true, days: 7 }),
+            setTrialCardConfig: () => ({}),
+            getCardFeatureConfig: () => ({ enabled: false, registerEnabled: false, trialEnabled: false, renewEnabled: false, adminIssueEnabled: false }),
+            setCardFeatureConfig: () => ({}),
+            flushGlobalConfigSave: async () => {},
+        },
+    });
+
+    registerTrialCardRoutes(deps);
+    const { middlewares, handler } = getRouteParts(routes, 'get', '/api/public-card-feature-config');
+    assert.deepEqual(middlewares, []);
+
+    const res = createResponse();
+    await handler({}, res);
+    assert.deepEqual(res.body, {
+        ok: true,
+        data: { enabled: false, registerEnabled: false, trialEnabled: false },
+    });
+});
+
 test('trial card config save flushes global config and trial renew routes preserve admin vs user flow', async () => {
     const { app, routes } = createFakeApp();
     const calls = [];
@@ -382,5 +476,53 @@ test('trial card config save flushes global config and trial renew routes preser
         ['flushGlobalConfigSave'],
         ['renewTrialUser', 'bob', 'admin'],
         ['renewTrialUser', 'alice', 'user'],
+    ]);
+});
+
+test('card feature config save flushes global config for admins and trial issue is blocked when disabled', async () => {
+    const { app, routes } = createFakeApp();
+    const calls = [];
+    const deps = createTrialDeps({
+        app,
+        userStore: {
+            createTrialCard: async () => {
+                throw new Error('should not reach createTrialCard');
+            },
+            renewTrialUser: async () => ({ ok: true, card: { code: 'TRY-1' } }),
+        },
+        store: {
+            getTrialCardConfig: () => ({ userRenewEnabled: true, days: 3 }),
+            setTrialCardConfig: (body) => body,
+            getCardFeatureConfig: () => ({ enabled: false, registerEnabled: false, renewEnabled: false, trialEnabled: false, adminIssueEnabled: false }),
+            setCardFeatureConfig: (body, meta) => {
+                calls.push(['setCardFeatureConfig', body, meta]);
+                return { enabled: false, registerEnabled: false, renewEnabled: false, trialEnabled: false, adminIssueEnabled: false, updatedBy: meta.updatedBy };
+            },
+            flushGlobalConfigSave: async () => {
+                calls.push(['flushGlobalConfigSave']);
+            },
+        },
+    });
+
+    registerTrialCardRoutes(deps);
+
+    const createRes = createResponse();
+    await getRouteParts(routes, 'post', '/api/trial-card').handler({}, createRes);
+    assert.equal(createRes.statusCode, 400);
+    assert.deepEqual(createRes.body, { ok: false, error: '当前系统已暂停体验卡发放' });
+
+    const saveRoute = getRouteParts(routes, 'post', '/api/card-feature-config');
+    assert.deepEqual(saveRoute.middlewares, [deps.authRequired, deps.userRequired]);
+    const saveRes = createResponse();
+    await saveRoute.handler({ currentUser: { role: 'admin', username: 'admin' }, body: { enabled: false } }, saveRes);
+    assert.equal(saveRes.statusCode, 200);
+    assert.deepEqual(saveRes.body, {
+        ok: true,
+        data: { enabled: false, registerEnabled: false, renewEnabled: false, trialEnabled: false, adminIssueEnabled: false, updatedBy: 'admin' },
+    });
+
+    assert.deepEqual(calls, [
+        ['setCardFeatureConfig', { enabled: false }, { updatedBy: 'admin' }],
+        ['flushGlobalConfigSave'],
     ]);
 });

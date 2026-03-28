@@ -74,6 +74,14 @@ interface ActionHistoryItem {
   pendingSync?: boolean
 }
 
+interface CardFeatureConfig {
+  enabled?: boolean
+  registerEnabled?: boolean
+  renewEnabled?: boolean
+  trialEnabled?: boolean
+  adminIssueEnabled?: boolean
+}
+
 const ACTION_HISTORY_STORAGE_KEY = 'users_action_history_v1'
 const ACTION_HISTORY_LIMIT = 24
 const ACTION_HISTORY_SCOPE = 'users'
@@ -138,6 +146,13 @@ const { copiedHistoryId, copiedControlKey, copyText: copyWithFeedback } = useCop
 const historyKeyword = ref('')
 const historyStatusFilter = ref<HistoryStatusFilter>('all')
 const historyTypeFilter = ref<HistoryTypeFilter>('all')
+const cardFeatureConfig = ref<CardFeatureConfig>({
+  enabled: true,
+  registerEnabled: true,
+  renewEnabled: true,
+  trialEnabled: true,
+  adminIssueEnabled: true,
+})
 
 const roleOptions = [
   { label: '全部角色', value: 'all' },
@@ -207,6 +222,23 @@ async function loadUsers() {
   }
   finally {
     loading.value = false
+  }
+}
+
+async function loadCardFeatureConfig() {
+  try {
+    const res = await api.get('/api/card-feature-config')
+    if (res.data?.ok && res.data?.data)
+      cardFeatureConfig.value = { ...cardFeatureConfig.value, ...res.data.data }
+  }
+  catch {
+    cardFeatureConfig.value = {
+      enabled: true,
+      registerEnabled: true,
+      renewEnabled: true,
+      trialEnabled: true,
+      adminIssueEnabled: true,
+    }
   }
 }
 
@@ -391,11 +423,19 @@ function resetCreateForm() {
 }
 
 function openCreateModal() {
+  if (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.registerEnabled === false) {
+    toast.warning('当前系统已暂停卡密注册，请先在设置中开启卡密发放总控')
+    return
+  }
   resetCreateForm()
   showCreateModal.value = true
 }
 
 async function createUser() {
+  if (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.registerEnabled === false) {
+    createError.value = '当前系统已暂停卡密注册，请先在设置中开启卡密发放总控'
+    return
+  }
   createLoading.value = true
   createError.value = ''
   try {
@@ -467,6 +507,11 @@ async function saveEdit() {
     const nextUsername = editUsername.value.trim() || editingUser.value.username
     const nextCardCode = editCardCode.value.trim()
     const passwordChanged = !!editPassword.value.trim()
+
+    if (nextCardCode && (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.renewEnabled === false)) {
+      actionError.value = '当前系统已暂停卡密续费，暂不支持补绑或更换卡密'
+      return
+    }
 
     if (!nextCardCode && !isPermanent.value && !newExpiryDate.value) {
       actionError.value = '请选择到期日期'
@@ -546,6 +591,10 @@ async function confirmDeleteUser() {
 }
 
 async function handleTrialRenew(username: string) {
+  if (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.trialEnabled === false) {
+    toast.warning('当前系统已暂停体验卡发放，无法继续续费体验卡')
+    return
+  }
   activeUserActionMenu.value = ''
   const originalUser = users.value.find(user => user.username === username)
   await api.post(`/api/users/${username}/trial-renew`)
@@ -1323,6 +1372,7 @@ const pageHeaderActions = computed(() => createActionButtons([
     iconClass: 'i-carbon-add mr-1 text-base',
     variant: 'primary',
     size: 'sm',
+    disabled: cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.registerEnabled === false,
     onClick: () => {
       openCreateModal()
     },
@@ -1392,7 +1442,7 @@ const primaryToolbarActions = computed(() => createActionButtons([
     label: '批量续费体验卡',
     variant: 'outline',
     size: 'sm',
-    disabled: !canBatchTrialRenew.value,
+    disabled: !canBatchTrialRenew.value || cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.trialEnabled === false,
     onClick: () => {
       openBatchConfirm('trial-renew')
     },
@@ -1425,6 +1475,10 @@ function resetFilters() {
 function openBatchConfirm(action: BatchAction) {
   if (!selectedUsers.value.length)
     return
+  if (action === 'trial-renew' && (cardFeatureConfig.value.enabled === false || cardFeatureConfig.value.trialEnabled === false)) {
+    toast.warning('当前系统已暂停体验卡发放，无法批量续费体验卡')
+    return
+  }
 
   batchAction.value = action
   batchActionLabel.value = action === 'enable'
@@ -1505,6 +1559,7 @@ async function submitBatchAction() {
 
 onMounted(() => {
   loadUsers()
+  loadCardFeatureConfig()
   loadActionHistory()
   document.addEventListener('click', handleDocumentClick)
 })
@@ -1520,6 +1575,12 @@ onBeforeUnmount(() => {
     :header-text="pageHeaderText"
     :header-actions="pageHeaderActions"
   >
+    <div
+      v-if="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false || cardFeatureConfig.renewEnabled === false || cardFeatureConfig.trialEnabled === false"
+      class="mb-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+    >
+      当前卡密发放总控已关闭或部分停用。新增用户、补绑换绑卡密与体验卡续费会按系统总控限制执行。
+    </div>
     <template #summary>
       <BaseStatCardGrid class="md:grid-cols-2 xl:grid-cols-5">
         <BaseStatCard
@@ -1685,6 +1746,7 @@ onBeforeUnmount(() => {
                   v-if="user.card?.type === 'T'"
                   variant="outline"
                   size="sm"
+                  :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false"
                   @click.stop="handleTrialRenew(user.username)"
                 >
                   续费体验卡
@@ -1827,6 +1889,7 @@ onBeforeUnmount(() => {
                     <button
                       v-if="user.card?.type === 'T'"
                       class="user-action-menu__item"
+                      :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.trialEnabled === false"
                       @click="handleTrialRenew(user.username)"
                     >
                       <span class="i-carbon-renew text-base text-amber-500" />
@@ -1885,11 +1948,13 @@ onBeforeUnmount(() => {
     @cancel="showCreateModal = false"
   >
     <div class="text-left space-y-4">
-      <BaseInput v-model="newUsername" label="用户名" placeholder="4-20 位字母、数字或下划线" />
-      <BaseInput v-model="newPassword" label="登录密码" type="password" placeholder="至少 6 位，需包含字母和数字" />
-      <BaseInput v-model="newCardCode" label="卡密" placeholder="输入可用卡密以完成创建" />
+      <BaseInput v-model="newUsername" label="用户名" placeholder="4-20 位字母、数字或下划线" :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false" />
+      <BaseInput v-model="newPassword" label="登录密码" type="password" placeholder="至少 6 位，需包含字母和数字" :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false" />
+      <BaseInput v-model="newCardCode" label="卡密" placeholder="输入可用卡密以完成创建" :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false" />
       <p class="glass-text-muted text-xs leading-5">
-        创建用户直接复用现有注册校验链路，确保卡密、到期时间和角色数据一致。
+        {{ cardFeatureConfig.enabled === false || cardFeatureConfig.registerEnabled === false
+          ? '当前系统已暂停卡密注册，请先在设置中开启卡密发放总控。'
+          : '创建用户直接复用现有注册校验链路，确保卡密、到期时间和角色数据一致。' }}
       </p>
       <p v-if="createError" class="text-sm text-[var(--ui-status-danger)] font-medium">
         {{ createError }}
@@ -1976,7 +2041,10 @@ onBeforeUnmount(() => {
         v-model="editCardCode"
         label="补绑 / 更换卡密"
         placeholder="留空表示不修改卡密"
-        hint="填写后将按卡密规则覆盖现有卡型、有效期与绑定额度。"
+        :disabled="cardFeatureConfig.enabled === false || cardFeatureConfig.renewEnabled === false"
+        :hint="cardFeatureConfig.enabled === false || cardFeatureConfig.renewEnabled === false
+          ? '当前系统已暂停卡密续费，暂不支持补绑或更换卡密。'
+          : '填写后将按卡密规则覆盖现有卡型、有效期与绑定额度。'"
       />
 
       <p v-if="editCardCode" class="glass-text-muted border border-[var(--ui-border-subtle)] rounded-2xl px-4 py-3 text-xs leading-5">

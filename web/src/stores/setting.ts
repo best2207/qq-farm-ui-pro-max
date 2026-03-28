@@ -250,6 +250,16 @@ export interface TrialCardConfig {
   cooldownMs?: number
 }
 
+export interface CardFeatureConfig {
+  enabled?: boolean
+  registerEnabled?: boolean
+  renewEnabled?: boolean
+  trialEnabled?: boolean
+  adminIssueEnabled?: boolean
+  updatedAt?: number
+  updatedBy?: string
+}
+
 export interface ThirdPartyApiConfig {
   wxApiKey?: string
   wxApiUrl?: string
@@ -664,6 +674,7 @@ export interface SettingsState {
   ui: UIConfig
   offlineReminder: OfflineConfig
   trialConfig: TrialCardConfig
+  cardFeatureConfig: CardFeatureConfig
   thirdPartyApi: ThirdPartyApiConfig
   workflowConfig: WorkflowConfig
   timingConfig: TimingConfig
@@ -796,6 +807,15 @@ export const useSettingStore = defineStore('setting', () => {
       maxAccounts: 1,
       dailyLimit: 50,
       cooldownMs: 4 * 60 * 60 * 1000,
+    },
+    cardFeatureConfig: {
+      enabled: true,
+      registerEnabled: true,
+      renewEnabled: true,
+      trialEnabled: true,
+      adminIssueEnabled: true,
+      updatedAt: 0,
+      updatedBy: '',
     },
     thirdPartyApi: {
       wxApiKey: '',
@@ -1345,6 +1365,33 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
+  async function fetchCardFeatureConfig() {
+    try {
+      const { data } = await api.get('/api/card-feature-config')
+      if (data && data.ok && data.data) {
+        settings.value.cardFeatureConfig = data.data
+      }
+      return data?.data
+    }
+    catch (e) {
+      console.error('获取卡密总控配置失败:', e)
+    }
+  }
+
+  async function saveCardFeatureConfig(config: CardFeatureConfig) {
+    try {
+      const { data } = await api.post('/api/card-feature-config', config)
+      if (data && data.ok && data.data) {
+        settings.value.cardFeatureConfig = data.data
+      }
+      return data
+    }
+    catch (e: any) {
+      const backendError = e.response?.data?.error
+      return { ok: false, error: resolveLocalizedError(backendError, e.message, '保存卡密总控失败') }
+    }
+  }
+
   async function fetchThirdPartyApiConfig() {
     try {
       const { data } = await api.get('/api/admin/third-party-api')
@@ -1688,5 +1735,5 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
-  return { settings, loading, timingLoading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs, fetchSettings, fetchReportLogs, fetchReportLogStats, clearReportLogs, deleteReportLogsByIds, exportReportLogs, saveSettings, saveOfflineConfig, fetchBugReportConfig, saveBugReportConfig, sendBugReportTest, sendReportTest, sendReport, changePassword, fetchTrialCardConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig, fetchClusterConfig, saveClusterConfig, fetchSystemUpdateOverview, checkSystemUpdate, syncSystemUpdateAnnouncements, runSystemUpdatePreflight, saveSystemUpdateConfig, fetchSystemUpdateJobs, fetchSystemUpdateJobDetail, createSystemUpdateJob, retrySystemUpdateJob, rollbackSystemUpdateJob, retrySystemUpdateBatch, cancelSystemUpdateJob, cancelSystemUpdateBatch, setSystemUpdateNodeDrain }
+  return { settings, loading, timingLoading, reportLogs, reportLogPagination, reportLogStats, systemUpdateOverview, systemUpdateJobs, fetchSettings, fetchReportLogs, fetchReportLogStats, clearReportLogs, deleteReportLogsByIds, exportReportLogs, saveSettings, saveOfflineConfig, fetchBugReportConfig, saveBugReportConfig, sendBugReportTest, sendReportTest, sendReport, changePassword, fetchTrialCardConfig, fetchCardFeatureConfig, saveCardFeatureConfig, fetchThirdPartyApiConfig, saveThirdPartyApiConfig, fetchTimingConfig, saveTimingConfig, fetchClusterConfig, saveClusterConfig, fetchSystemUpdateOverview, checkSystemUpdate, syncSystemUpdateAnnouncements, runSystemUpdatePreflight, saveSystemUpdateConfig, fetchSystemUpdateJobs, fetchSystemUpdateJobDetail, createSystemUpdateJob, retrySystemUpdateJob, rollbackSystemUpdateJob, retrySystemUpdateBatch, cancelSystemUpdateJob, cancelSystemUpdateBatch, setSystemUpdateNodeDrain }
 })

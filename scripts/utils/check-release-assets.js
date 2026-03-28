@@ -11,6 +11,7 @@ const DEFAULT_TAGS = [
   'v4.5.47',
   'v4.5.48',
   'v4.5.50',
+  'v4.5.51',
 ];
 
 function print(level, scope, message) {

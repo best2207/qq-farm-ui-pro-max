@@ -352,6 +352,7 @@ const offlineSaving = ref(false)
 const bugReportSaving = ref(false)
 const bugReportTesting = ref(false)
 const trialSaving = ref(false)
+const cardFeatureSaving = ref(false)
 const timingSaving = ref(false)
 const reportTesting = ref(false)
 const reportSendingMode = ref<'hourly' | 'daily' | ''>('')
@@ -980,6 +981,15 @@ const trialConfig = ref({
   userRenewEnabled: false,
   maxAccounts: 1,
 })
+const cardFeatureConfig = ref({
+  enabled: true,
+  registerEnabled: true,
+  renewEnabled: true,
+  trialEnabled: true,
+  adminIssueEnabled: true,
+  updatedAt: 0,
+  updatedBy: '',
+})
 
 const clusterConfig = ref({
   dispatcherStrategy: 'round_robin',
@@ -1256,6 +1266,51 @@ const trialCooldownOptions = [
   { label: '4 小时', value: 14400000 },
   { label: '8 小时', value: 28800000 },
 ]
+function formatDateTime(value?: number | null) {
+  if (!value)
+    return '未记录'
+  return new Date(value).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+const cardFeatureStatusLabel = computed(() => cardFeatureConfig.value.enabled ? '已开启' : '已关闭')
+const cardFeatureUpdatedAtLabel = computed(() => {
+  if (!cardFeatureConfig.value.updatedAt)
+    return '未记录'
+  return formatDateTime(cardFeatureConfig.value.updatedAt)
+})
+const cardFeatureStatusCards = computed(() => ([
+  {
+    key: 'register',
+    label: '注册',
+    value: cardFeatureConfig.value.registerEnabled ? '已开启' : '已关闭',
+    hint: '允许新用户使用卡密注册',
+  },
+  {
+    key: 'renew',
+    label: '续费',
+    value: cardFeatureConfig.value.renewEnabled ? '已开启' : '已关闭',
+    hint: '允许已登录用户使用卡密续费',
+  },
+  {
+    key: 'trial',
+    label: '体验卡',
+    value: cardFeatureConfig.value.trialEnabled ? '已开启' : '已关闭',
+    hint: '允许登录页公开领取体验卡',
+  },
+  {
+    key: 'issue',
+    label: '后台发码',
+    value: cardFeatureConfig.value.adminIssueEnabled ? '已开启' : '已关闭',
+    hint: '允许管理员生成新卡密库存',
+  },
+]))
 const trialDurationLabel = computed(() => {
   return trialDaysOptions.find(item => item.value === trialConfig.value.days)?.label
     || `${trialConfig.value.days} 天`
@@ -1304,6 +1359,39 @@ async function loadTrialConfig() {
     }
   }
   catch { /* 静默 */ }
+}
+
+async function loadCardFeatureConfig() {
+  if (!isAdmin.value)
+    return
+  const data = await settingStore.fetchCardFeatureConfig()
+  if (data)
+    cardFeatureConfig.value = { ...cardFeatureConfig.value, ...data }
+}
+
+async function saveCardFeatureConfig(enabled: boolean) {
+  if (!enabled && typeof window !== 'undefined') {
+    const confirmed = window.confirm('关闭后，新用户将无法使用卡密注册，已有用户将无法使用卡密续费，体验卡领取入口也会同步暂停。已生效账号不会失去当前权益。确认继续吗？')
+    if (!confirmed)
+      return
+  }
+  cardFeatureSaving.value = true
+  try {
+    const res = await settingStore.saveCardFeatureConfig({ enabled })
+    if (res.ok && res.data) {
+      cardFeatureConfig.value = { ...cardFeatureConfig.value, ...res.data }
+      showAlert(`卡密发放功能已${enabled ? '开启' : '关闭'}`)
+    }
+    else {
+      showAlert(`保存失败: ${res.error}`, 'danger')
+    }
+  }
+  catch (e: any) {
+    showAlert(`保存失败: ${e.message}`, 'danger')
+  }
+  finally {
+    cardFeatureSaving.value = false
+  }
 }
 
 async function saveTrialConfig() {
@@ -4139,6 +4227,7 @@ async function loadData() {
   }
   // 管理员加载体验卡配置
   loadTrialConfig()
+  loadCardFeatureConfig()
   loadThirdPartyApiConfig()
   if (isAdmin.value) {
     await loadBugReportConfig()
@@ -7187,6 +7276,76 @@ async function restoreTimingDefaults() {
               </BaseButton>
             </div>
           </form>
+
+          <div v-if="isAdmin && !isNoticeSettingsCategory" class="px-4 pb-4">
+            <div class="border border-white/10 rounded-2xl bg-black/10 p-4 space-y-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h4 class="glass-text-main flex items-center gap-2 text-sm font-semibold">
+                    <span class="i-carbon-id-management" />
+                    卡密发放总控
+                    <span class="settings-mode-badge ui-meta-chip--brand text-[11px] font-normal">
+                      {{ cardFeatureStatusLabel }}
+                    </span>
+                  </h4>
+                  <p class="glass-text-muted mt-1 text-xs leading-5">
+                    统一控制卡密注册、续费、体验卡与后台发码。关闭后不会影响已有已生效账号的当前权益。
+                  </p>
+                </div>
+                <div class="glass-text-muted text-[11px] text-right">
+                  <div>最后更新：{{ cardFeatureUpdatedAtLabel }}</div>
+                  <div v-if="cardFeatureConfig.updatedBy">操作人：{{ cardFeatureConfig.updatedBy }}</div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div
+                  v-for="item in cardFeatureStatusCards"
+                  :key="item.key"
+                  class="settings-report-stat-card rounded-xl px-3 py-3"
+                  :class="cardFeatureConfig.enabled ? 'settings-stat-brand' : 'settings-stat-neutral'"
+                >
+                  <div class="text-[11px] font-medium tracking-[0.18em] uppercase opacity-80">
+                    {{ item.label }}
+                  </div>
+                  <div class="mt-2 text-lg font-semibold leading-none">
+                    {{ item.value }}
+                  </div>
+                  <div class="mt-2 text-xs opacity-80">
+                    {{ item.hint }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <p class="glass-text-muted text-xs leading-5">
+                  {{ cardFeatureConfig.enabled
+                    ? '当前允许通过卡密完成注册、续费、体验卡领取与后台发码。'
+                    : '当前已暂停新的卡密业务流，管理员仍可查看历史卡密与操作记录。' }}
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <BaseButton
+                    variant="outline"
+                    size="sm"
+                    :loading="cardFeatureSaving"
+                    :disabled="cardFeatureSaving || cardFeatureConfig.enabled"
+                    @click="saveCardFeatureConfig(true)"
+                  >
+                    一键开启
+                  </BaseButton>
+                  <BaseButton
+                    variant="danger"
+                    size="sm"
+                    :loading="cardFeatureSaving"
+                    :disabled="cardFeatureSaving || !cardFeatureConfig.enabled"
+                    @click="saveCardFeatureConfig(false)"
+                  >
+                    一键关闭
+                  </BaseButton>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div v-show="showNoticeQuickPanel" class="settings-notice-quick px-4 py-4">
             <div class="settings-notice-quick-head flex flex-wrap items-center justify-between gap-2">

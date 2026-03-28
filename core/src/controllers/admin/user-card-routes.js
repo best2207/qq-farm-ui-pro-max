@@ -17,6 +17,28 @@ function rejectUnlessAdmin(req, res) {
     return false;
 }
 
+function getCardFeatureConfigSafe(store) {
+    if (!store || typeof store.getCardFeatureConfig !== 'function') {
+        return {
+            enabled: true,
+            registerEnabled: true,
+            renewEnabled: true,
+            trialEnabled: true,
+            adminIssueEnabled: true,
+        };
+    }
+    return store.getCardFeatureConfig();
+}
+
+function rejectWhenCardFeatureDisabled(res, store, featureKey, error) {
+    const config = getCardFeatureConfigSafe(store);
+    if (config.enabled === false || config[featureKey] === false) {
+        res.status(400).json({ ok: false, error });
+        return true;
+    }
+    return false;
+}
+
 function registerUserCardRoutes({
     app,
     authRequired,
@@ -28,9 +50,13 @@ function registerUserCardRoutes({
     validatePassword,
     validateCardCode,
     jwtService,
+    store,
 }) {
     app.post('/api/auth/register', async (req, res) => {
         try {
+            if (rejectWhenCardFeatureDisabled(res, store, 'registerEnabled', '当前系统已暂停卡密注册，请联系管理员')) {
+                return;
+            }
             const { username, password, cardCode } = req.body || {};
 
             if (!username || !password || !cardCode) {
@@ -79,6 +105,9 @@ function registerUserCardRoutes({
 
     app.post('/api/auth/renew', authRequired, async (req, res) => {
         try {
+            if (rejectWhenCardFeatureDisabled(res, store, 'renewEnabled', '当前系统已暂停卡密续费')) {
+                return;
+            }
             const { cardCode } = req.body || {};
             if (!cardCode) {
                 return res.status(400).json({ ok: false, error: '缺少卡密' });
@@ -127,6 +156,9 @@ function registerUserCardRoutes({
         if (rejectUnlessAdmin(req, res)) {
             return;
         }
+        if (rejectWhenCardFeatureDisabled(res, store, 'renewEnabled', '当前系统已暂停卡密续费')) {
+            return;
+        }
         usersController.renewUserCard(req, res);
     });
 
@@ -157,6 +189,9 @@ function registerUserCardRoutes({
 
     app.post('/api/cards', authRequired, userRequired, async (req, res) => {
         if (rejectUnlessAdmin(req, res)) {
+            return;
+        }
+        if (rejectWhenCardFeatureDisabled(res, store, 'adminIssueEnabled', '当前系统已关闭卡密发码功能')) {
             return;
         }
         cardsController.createCard(req, res);
@@ -202,6 +237,9 @@ function registerTrialCardRoutes({
 }) {
     app.post('/api/trial-card', trialRateLimiter, async (req, res) => {
         try {
+            if (rejectWhenCardFeatureDisabled(res, store, 'trialEnabled', '当前系统已暂停体验卡发放')) {
+                return;
+            }
             const clientIP = getClientIP(req);
             const result = await userStore.createTrialCard(clientIP);
             if (!result.ok) {
@@ -225,6 +263,22 @@ function registerTrialCardRoutes({
         }
     });
 
+    app.get('/api/public-card-feature-config', async (_req, res) => {
+        try {
+            const config = getCardFeatureConfigSafe(store);
+            res.json({
+                ok: true,
+                data: {
+                    enabled: config.enabled,
+                    registerEnabled: config.registerEnabled,
+                    trialEnabled: config.trialEnabled,
+                },
+            });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
     app.post('/api/trial-card-config', authRequired, userRequired, async (req, res) => {
         if (rejectUnlessAdmin(req, res)) {
             return;
@@ -232,6 +286,35 @@ function registerTrialCardRoutes({
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
             const data = store.setTrialCardConfig(body);
+            if (typeof store.flushGlobalConfigSave === 'function') {
+                await store.flushGlobalConfigSave();
+            }
+            res.json({ ok: true, data });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    app.get('/api/card-feature-config', authRequired, userRequired, async (req, res) => {
+        if (rejectUnlessAdmin(req, res)) {
+            return;
+        }
+        try {
+            res.json({ ok: true, data: getCardFeatureConfigSafe(store) });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    app.post('/api/card-feature-config', authRequired, userRequired, async (req, res) => {
+        if (rejectUnlessAdmin(req, res)) {
+            return;
+        }
+        try {
+            const body = (req.body && typeof req.body === 'object') ? req.body : {};
+            const data = typeof store.setCardFeatureConfig === 'function'
+                ? store.setCardFeatureConfig(body, { updatedBy: req.currentUser?.username || 'admin' })
+                : { ...body };
             if (typeof store.flushGlobalConfigSave === 'function') {
                 await store.flushGlobalConfigSave();
             }
