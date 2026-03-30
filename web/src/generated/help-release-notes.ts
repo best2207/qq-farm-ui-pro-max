@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.56',
+    date: '2026-03-30',
+    title: '设置总控工作台收口与发布链路续发版',
+    summary: '把管理员总控工作台从概览页收口到设置总控区，统一当前版本口径到 `v4.5.56`，并继续承接 GitHub Release、Docker Hub 与更新公告发布。',
+  },
+  {
     version: 'v4.5.55',
     date: '2026-03-29',
     title: '近期优化补录、Docker 发布脚本与双机实装版',

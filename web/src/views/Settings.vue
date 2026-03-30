@@ -265,6 +265,25 @@ interface QqFriendDiagnosticsSnapshot {
   }>
 }
 
+interface AdminWorkbenchOverview {
+  users: number | null
+  cards: number | null
+  trialEnabled: boolean | null
+  announcements: number | null
+  latestAnnouncementVersion: string
+  openFeedback: number | null
+  systemUpdateLatestVersion: string
+  systemUpdateHasUpdate: boolean | null
+  recentAdminOperations: Array<{
+    id: string
+    scope: string
+    actionLabel: string
+    status: string
+    timestamp: number
+    affectedNames: string[]
+  }>
+}
+
 interface SystemUpdateRemoteReadinessItem {
   key: string
   label: string
@@ -290,7 +309,7 @@ const SYSTEM_UPDATE_SMOKE_COMMAND = [
   'cd /opt/qq-farm-current',
   'bash smoke-system-update-center.sh \\',
   '  --username admin \\',
-  "  --password '你的管理员密码' \\",
+  '  --password \'你的管理员密码\' \\',
   '  --deploy-dir /opt/qq-farm-current',
 ].join('\n')
 
@@ -335,6 +354,27 @@ const friendStore = useFriendStore()
 const toast = useToastStore()
 const route = useRoute()
 const router = useRouter()
+const adminWorkbenchActions = [
+  { key: 'users', label: '用户管理', desc: '查看用户、续费与权限状态', to: { name: 'users' }, icon: 'i-carbon-user-multiple' },
+  { key: 'cards', label: '卡密管理', desc: '发码、试用卡与总控开关', to: { name: 'cards' }, icon: 'i-carbon-id-management' },
+  { key: 'announcement', label: '公告管理', desc: '维护公告并同步用户可见版本', to: { name: 'announcements' }, icon: 'i-carbon-notification' },
+  { key: 'feedback', label: '帮助反馈', desc: '处理文档过期、跳转异常和缺失步骤', to: { name: 'help-center-feedback' }, icon: 'i-carbon-chat' },
+  {
+    key: 'settings',
+    label: '系统更新',
+    desc: '检查版本、预检与远程更新任务',
+    to: {
+      name: 'Settings',
+      query: {
+        [SETTINGS_CATEGORY_QUERY_KEY]: 'advanced',
+        [ADVANCED_SECTION_QUERY_KEY]: 'update',
+        [UPDATE_TAB_QUERY_KEY]: 'overview',
+      },
+      hash: '#settings-update-overview',
+    },
+    icon: 'i-carbon-rocket',
+  },
+]
 const { copiedControlKey, copyText: copyWithFeedback } = useCopyInteraction({
   successTitle: '运维命令已复制',
   failureMessage: '复制失败，请手动复制命令',
@@ -990,6 +1030,8 @@ const cardFeatureConfig = ref({
   updatedAt: 0,
   updatedBy: '',
 })
+const adminWorkbenchLoading = ref(false)
+const adminWorkbenchOverview = ref<AdminWorkbenchOverview | null>(null)
 
 const clusterConfig = ref({
   dispatcherStrategy: 'round_robin',
@@ -1311,6 +1353,67 @@ const cardFeatureStatusCards = computed(() => ([
     hint: '允许管理员生成新卡密库存',
   },
 ]))
+const adminWorkbenchSyncLabel = computed(() => {
+  if (adminWorkbenchLoading.value)
+    return '状态同步中…'
+  return adminWorkbenchOverview.value ? '状态已同步' : '状态未同步'
+})
+const adminWorkbenchSummaryCards = computed(() => {
+  const data = adminWorkbenchOverview.value
+  if (!data)
+    return []
+  return [
+    {
+      key: 'users',
+      label: '用户数',
+      value: data.users === null ? '未同步' : `${data.users}`,
+      desc: data.users === null ? '当前未能拉取用户统计' : '当前可管理账号用户',
+      tone: data.users === null ? 'warning' : 'info',
+    },
+    {
+      key: 'cards',
+      label: '卡密库存',
+      value: data.cards === null ? '未同步' : `${data.cards}`,
+      desc: data.cards === null ? '当前未能拉取卡密统计' : '后台可审计卡密条目',
+      tone: data.cards === null ? 'warning' : 'brand',
+    },
+    {
+      key: 'trial',
+      label: '体验卡',
+      value: data.trialEnabled === null ? '未同步' : (data.trialEnabled ? '已开启' : '已暂停'),
+      desc: data.trialEnabled === null ? '当前未能拉取体验卡配置' : '前台体验卡入口状态',
+      tone: data.trialEnabled === null ? 'warning' : (data.trialEnabled ? 'success' : 'warning'),
+    },
+    {
+      key: 'announcement',
+      label: '公告状态',
+      value: data.announcements === null ? '未同步' : `${data.announcements} 条`,
+      desc: data.announcements === null
+        ? '当前未能拉取公告列表'
+        : (data.latestAnnouncementVersion ? `最新公告 ${data.latestAnnouncementVersion}` : '已接通公告管理入口'),
+      tone: data.announcements === null ? 'warning' : 'info',
+    },
+    {
+      key: 'feedback',
+      label: '帮助反馈',
+      value: data.openFeedback === null ? '未同步' : `${data.openFeedback} 条待处理`,
+      desc: data.openFeedback === null ? '当前未能拉取帮助反馈状态' : '优先处理文档过期、跳转异常和步骤缺失',
+      tone: data.openFeedback === null ? 'warning' : (data.openFeedback > 0 ? 'warning' : 'success'),
+    },
+    {
+      key: 'update',
+      label: '系统更新',
+      value: data.systemUpdateLatestVersion || '未获取',
+      desc: data.systemUpdateHasUpdate === null
+        ? '当前未能拉取更新中心状态'
+        : (data.systemUpdateHasUpdate ? '检测到可更新版本' : '当前版本链路稳定'),
+      tone: data.systemUpdateHasUpdate === null ? 'warning' : (data.systemUpdateHasUpdate ? 'warning' : 'success'),
+    },
+  ]
+})
+const adminWorkbenchRecentOperations = computed(() => {
+  return (adminWorkbenchOverview.value?.recentAdminOperations || []).slice(0, 4)
+})
 const trialDurationLabel = computed(() => {
   return trialDaysOptions.find(item => item.value === trialConfig.value.days)?.label
     || `${trialConfig.value.days} 天`
@@ -1369,9 +1472,75 @@ async function loadCardFeatureConfig() {
     cardFeatureConfig.value = { ...cardFeatureConfig.value, ...data }
 }
 
+async function loadAdminWorkbenchOverview() {
+  if (!isAdmin.value) {
+    adminWorkbenchOverview.value = null
+    adminWorkbenchLoading.value = false
+    return
+  }
+  adminWorkbenchLoading.value = true
+  try {
+    const [usersRes, cardsRes, trialRes, announcementsRes, feedbackRes, adminLogsRes, updateRes] = await Promise.allSettled([
+      api.get('/api/users'),
+      api.get('/api/cards'),
+      api.get('/api/public-card-feature-config'),
+      api.get('/api/announcement'),
+      api.get('/api/help-center/feedback', { params: { status: 'open', limit: 50 } }),
+      api.get('/api/admin-operation-logs', { params: { limit: 5 } }),
+      api.get('/api/admin/system-update/overview'),
+    ])
+    const announcements = announcementsRes.status === 'fulfilled' && announcementsRes.value.data?.ok && Array.isArray(announcementsRes.value.data.data)
+      ? announcementsRes.value.data.data
+      : null
+    const feedbackItems = feedbackRes.status === 'fulfilled' && feedbackRes.value.data?.ok && Array.isArray(feedbackRes.value.data.data?.items)
+      ? feedbackRes.value.data.data.items
+      : null
+    adminWorkbenchOverview.value = {
+      users: usersRes.status === 'fulfilled' && usersRes.value.data?.ok
+        ? (Array.isArray(usersRes.value.data.data) ? usersRes.value.data.data.length : null)
+        : null,
+      cards: cardsRes.status === 'fulfilled' && cardsRes.value.data?.ok
+        ? (Array.isArray(cardsRes.value.data.data) ? cardsRes.value.data.data.length : null)
+        : null,
+      trialEnabled: trialRes.status === 'fulfilled' && trialRes.value.data?.ok
+        ? !!trialRes.value.data.data?.trialEnabled
+        : null,
+      announcements: announcements ? announcements.length : null,
+      latestAnnouncementVersion: announcements && announcements.length > 0
+        ? String(announcements[0]?.version || '').trim()
+        : '',
+      openFeedback: feedbackItems ? feedbackItems.filter((item: any) => String(item?.status || '').trim() === 'open').length : null,
+      systemUpdateLatestVersion: updateRes.status === 'fulfilled' && updateRes.value.data?.ok
+        ? String(updateRes.value.data.latestRelease?.versionTag || '').trim()
+        : '',
+      systemUpdateHasUpdate: updateRes.status === 'fulfilled' && updateRes.value.data?.ok
+        ? !!updateRes.value.data.hasUpdate
+        : null,
+      recentAdminOperations: adminLogsRes.status === 'fulfilled' && Array.isArray(adminLogsRes.value.data?.data?.items)
+        ? adminLogsRes.value.data.data.items
+            .map((item: any) => ({
+              id: String(item?.id || '').trim(),
+              scope: String(item?.scope || '').trim(),
+              actionLabel: String(item?.actionLabel || '').trim() || '未命名操作',
+              status: String(item?.status || '').trim() || 'success',
+              timestamp: Number(item?.timestamp || 0),
+              affectedNames: Array.isArray(item?.affectedNames) ? item.affectedNames.map((value: any) => String(value || '').trim()).filter(Boolean) : [],
+            }))
+            .filter((item: any) => item.id || item.actionLabel)
+        : [],
+    }
+  }
+  catch {
+    adminWorkbenchOverview.value = null
+  }
+  finally {
+    adminWorkbenchLoading.value = false
+  }
+}
+
 async function saveCardFeatureConfig(enabled: boolean) {
   if (!enabled && typeof window !== 'undefined') {
-    const confirmed = window.confirm('关闭后，新用户注册将切换为免卡模式；已有用户将无法继续使用卡密续费，体验卡领取与后台发码也会同步暂停。已生效账号不会失去当前权益。确认继续吗？')
+    const confirmed = window.window.confirm('关闭后，新用户注册将切换为免卡模式；已有用户将无法继续使用卡密续费，体验卡领取与后台发码也会同步暂停。已生效账号不会失去当前权益。确认继续吗？')
     if (!confirmed)
       return
   }
@@ -1380,6 +1549,7 @@ async function saveCardFeatureConfig(enabled: boolean) {
     const res = await settingStore.saveCardFeatureConfig({ enabled })
     if (res.ok && res.data) {
       cardFeatureConfig.value = { ...cardFeatureConfig.value, ...res.data }
+      await loadAdminWorkbenchOverview()
       showAlert(`卡密发放功能已${enabled ? '开启' : '关闭'}`)
     }
     else {
@@ -1392,6 +1562,52 @@ async function saveCardFeatureConfig(enabled: boolean) {
   finally {
     cardFeatureSaving.value = false
   }
+}
+
+function getAdminWorkbenchScopeLabel(scope: string) {
+  if (scope === 'users')
+    return '用户'
+  if (scope === 'runtime')
+    return '运行时'
+  if (scope === 'help_center')
+    return '帮助中心'
+  if (scope === 'account_ownership')
+    return '账号归属'
+  return '系统'
+}
+
+function getAdminWorkbenchOperationStatusClass(status: string) {
+  if (status === 'error')
+    return 'settings-admin-operation__status settings-admin-operation__status--error'
+  if (status === 'warning')
+    return 'settings-admin-operation__status settings-admin-operation__status--warning'
+  return 'settings-admin-operation__status settings-admin-operation__status--success'
+}
+
+function formatAdminWorkbenchOperationTime(timestamp: number) {
+  if (!timestamp)
+    return '刚刚'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(timestamp)
+}
+
+function getAdminWorkbenchCardClass(tone: string) {
+  if (tone === 'success')
+    return 'settings-admin-card settings-admin-card--success'
+  if (tone === 'warning')
+    return 'settings-admin-card settings-admin-card--warning'
+  if (tone === 'brand')
+    return 'settings-admin-card settings-admin-card--brand'
+  return 'settings-admin-card settings-admin-card--info'
+}
+
+function openAdminWorkbenchRoute(target: { name: string, query?: Record<string, string>, hash?: string }) {
+  void router.push(target)
 }
 
 async function saveTrialConfig() {
@@ -2074,8 +2290,8 @@ const systemUpdateRemoteReadinessItems = computed<SystemUpdateRemoteReadinessIte
         : '正式创建任务前，建议至少跑一次独立预检。',
       detail: preflightChecked
         ? (preflight?.blockers?.[0]?.message
-            || preflight?.warnings?.[0]?.message
-            || `检查时间：${formatTimestamp(preflight?.checkedAt)}`)
+          || preflight?.warnings?.[0]?.message
+          || `检查时间：${formatTimestamp(preflight?.checkedAt)}`)
         : '它不会创建任务，只会提前发现版本、磁盘、依赖和代理在线性问题。',
     },
   ]
@@ -4230,7 +4446,10 @@ async function loadData() {
   loadCardFeatureConfig()
   loadThirdPartyApiConfig()
   if (isAdmin.value) {
-    await loadBugReportConfig()
+    await Promise.allSettled([
+      loadBugReportConfig(),
+      loadAdminWorkbenchOverview(),
+    ])
     loadTimingConfig()
     loadClusterConfig()
     loadPlatformCapabilities()
@@ -4242,6 +4461,8 @@ async function loadData() {
     loadQqFriendDiagnostics()
   }
   else {
+    adminWorkbenchOverview.value = null
+    adminWorkbenchLoading.value = false
     localBugReport.value = { ...defaultBugReportConfig }
     systemUpdateOverview.value = null
     systemUpdateJobs.value = []
@@ -5893,12 +6114,12 @@ async function restoreTimingDefaults() {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 text-sm lg:grid-cols-2">
+      <div class="settings-primary-panels grid grid-cols-1 gap-4 text-sm lg:grid-cols-2">
         <!-- Card 1: Strategy & Automation -->
         <div
           v-if="currentAccountId"
           v-show="isSettingsCategoryVisible(['common', 'plant', 'auto', 'security'])"
-          class="card glass-panel h-full flex flex-col rounded-lg shadow"
+          class="settings-primary-panel card glass-panel flex flex-col rounded-lg shadow"
           :class="strategyPanelFullWidth ? 'lg:col-span-2' : ''"
         >
           <!-- Strategy Header -->
@@ -7188,7 +7409,7 @@ async function restoreTimingDefaults() {
         <!-- Card 2: System Settings (Password & Offline) -->
         <div
           v-show="isSettingsCategoryVisible(['common', 'notice', 'security'])"
-          class="card glass-panel h-full flex flex-col rounded-lg shadow"
+          class="settings-primary-panel card glass-panel flex flex-col rounded-lg shadow"
           :class="accountPanelFullWidth ? 'lg:col-span-2' : ''"
         >
           <!-- Password Header -->
@@ -7277,7 +7498,107 @@ async function restoreTimingDefaults() {
             </div>
           </form>
 
-          <div v-if="isAdmin && !isNoticeSettingsCategory" class="px-4 pb-4">
+          <div v-if="isAdmin && isSecuritySettingsCategory" class="px-4 pb-4">
+            <section class="settings-admin-workbench rounded-2xl p-4">
+              <div class="settings-admin-workbench__header">
+                <div>
+                  <h4 class="glass-text-main flex items-center gap-2 text-sm font-semibold">
+                    <span class="i-carbon-dashboard" />
+                    管理员总控工作台
+                  </h4>
+                  <p class="settings-admin-workbench__desc">
+                    把用户、卡密、公告和系统更新的高频状态收口到“账号与安全”里，方便集中处理。
+                  </p>
+                </div>
+                <span class="settings-admin-workbench__meta">
+                  {{ adminWorkbenchSyncLabel }}
+                </span>
+              </div>
+
+              <div v-if="adminWorkbenchSummaryCards.length" class="settings-admin-workbench__grid">
+                <div
+                  v-for="item in adminWorkbenchSummaryCards"
+                  :key="item.key"
+                  :class="getAdminWorkbenchCardClass(item.tone)"
+                >
+                  <div class="settings-admin-card__label">
+                    {{ item.label }}
+                  </div>
+                  <div class="settings-admin-card__value">
+                    {{ item.value }}
+                  </div>
+                  <div class="settings-admin-card__desc">
+                    {{ item.desc }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="settings-admin-workbench__empty">
+                当前还未拉取到管理员工作台状态，可稍后重新进入本页再试。
+              </div>
+
+              <div class="settings-admin-workbench__actions">
+                <button
+                  v-for="item in adminWorkbenchActions"
+                  :key="item.key"
+                  class="settings-admin-action"
+                  type="button"
+                  @click="openAdminWorkbenchRoute(item.to)"
+                >
+                  <div class="settings-admin-action__icon" :class="item.icon" />
+                  <div class="settings-admin-action__body">
+                    <div class="settings-admin-action__label">
+                      {{ item.label }}
+                    </div>
+                    <div class="settings-admin-action__desc">
+                      {{ item.desc }}
+                    </div>
+                  </div>
+                  <div class="settings-admin-action__arrow i-carbon-arrow-right" />
+                </button>
+              </div>
+
+              <div class="settings-admin-workbench__timeline">
+                <div class="settings-admin-workbench__timeline-header">
+                  <div class="settings-admin-workbench__timeline-title">
+                    最近操作摘要
+                  </div>
+                  <div class="settings-admin-workbench__timeline-meta">
+                    帮助你快速判断刚刚改过什么
+                  </div>
+                </div>
+                <div v-if="adminWorkbenchRecentOperations.length" class="settings-admin-workbench__timeline-list">
+                  <div
+                    v-for="item in adminWorkbenchRecentOperations"
+                    :key="item.id"
+                    class="settings-admin-operation"
+                  >
+                    <div class="settings-admin-operation__main">
+                      <div class="settings-admin-operation__topline">
+                        <span class="settings-admin-operation__scope">{{ getAdminWorkbenchScopeLabel(item.scope) }}</span>
+                        <span :class="getAdminWorkbenchOperationStatusClass(item.status)">
+                          {{ item.status === 'error' ? '失败' : item.status === 'warning' ? '部分失败' : '成功' }}
+                        </span>
+                      </div>
+                      <div class="settings-admin-operation__label">
+                        {{ item.actionLabel }}
+                      </div>
+                      <div class="settings-admin-operation__meta">
+                        {{ formatAdminWorkbenchOperationTime(item.timestamp) }}
+                        <span v-if="item.affectedNames.length">
+                          · {{ item.affectedNames.slice(0, 2).join('、') }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="settings-admin-workbench__timeline-empty">
+                  暂无最近操作日志，后续用户治理、公告同步和热重载动作会在这里汇总展示。
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div v-if="isAdmin && isSecuritySettingsCategory" class="px-4 pb-4">
             <div class="border border-white/10 rounded-2xl bg-black/10 p-4 space-y-4">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -7292,9 +7613,13 @@ async function restoreTimingDefaults() {
                     统一控制注册是否必须卡密、卡密续费、体验卡与后台发码。关闭后注册会切换为免卡模式，不会影响已有已生效账号的当前权益。
                   </p>
                 </div>
-                <div class="glass-text-muted text-[11px] text-right">
-                  <div>最后更新：{{ cardFeatureUpdatedAtLabel }}</div>
-                  <div v-if="cardFeatureConfig.updatedBy">操作人：{{ cardFeatureConfig.updatedBy }}</div>
+                <div class="glass-text-muted text-right text-[11px]">
+                  <div>
+                    最后更新：{{ cardFeatureUpdatedAtLabel }}
+                  </div>
+                  <div v-if="cardFeatureConfig.updatedBy">
+                    操作人：{{ cardFeatureConfig.updatedBy }}
+                  </div>
                 </div>
               </div>
 
@@ -9221,7 +9546,7 @@ async function restoreTimingDefaults() {
                       <div>
                         1. 本地改动先完成 <code class="font-mono">git push</code>、tag 或镜像发布，否则“检查更新”不会看到新版本。
                       </div>
-                      <div class="rounded-md border border-white/8 bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono whitespace-pre-wrap break-all">
+                      <div class="whitespace-pre-wrap break-all border border-white/8 rounded-md bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono">
                         {{ SYSTEM_UPDATE_REPAIR_DEPLOY_COMMAND }}
                       </div>
                       <BaseButton
@@ -9235,7 +9560,7 @@ async function restoreTimingDefaults() {
                     </div>
                     <div class="border border-white/8 rounded-lg bg-black/10 p-2 space-y-2">
                       2. 服务器第一次启用前，先执行 <code class="font-mono">repair-deploy.sh --backup</code> 和 <code class="font-mono">install-update-agent-service.sh</code>。
-                      <div class="rounded-md border border-white/8 bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono whitespace-pre-wrap break-all">
+                      <div class="whitespace-pre-wrap break-all border border-white/8 rounded-md bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono">
                         {{ SYSTEM_UPDATE_INSTALL_AGENT_COMMAND }}
                       </div>
                       <BaseButton
@@ -9249,7 +9574,7 @@ async function restoreTimingDefaults() {
                     </div>
                     <div class="border border-white/8 rounded-lg bg-black/10 p-2 space-y-2">
                       3. 正式创建任务前，建议先跑 <code class="font-mono">smoke-system-update-center.sh</code>，再执行预检和远程更新。
-                      <div class="rounded-md border border-white/8 bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono whitespace-pre-wrap break-all">
+                      <div class="whitespace-pre-wrap break-all border border-white/8 rounded-md bg-black/15 px-2 py-1 text-[11px] leading-5 font-mono">
                         {{ SYSTEM_UPDATE_SMOKE_COMMAND }}
                       </div>
                       <BaseButton
@@ -9314,10 +9639,10 @@ async function restoreTimingDefaults() {
                           {{ item.stateLabel }}
                         </BaseBadge>
                       </div>
-                      <div class="glass-text-main mt-1 text-[12px] leading-5 break-all">
+                      <div class="glass-text-main mt-1 break-all text-[12px] leading-5">
                         {{ item.summary }}
                       </div>
-                      <div class="glass-text-muted mt-1 text-[11px] leading-5 break-all">
+                      <div class="glass-text-muted mt-1 break-all text-[11px] leading-5">
                         {{ item.detail }}
                       </div>
                     </div>
@@ -9372,10 +9697,10 @@ async function restoreTimingDefaults() {
                       <div class="glass-text-muted text-[11px] leading-5">
                         目标 {{ systemUpdateLatestSmokeSummary.targetVersion || '未解析版本' }} · {{ systemUpdateLatestSmokeSummary.targetScope || '-' }} / {{ systemUpdateLatestSmokeSummary.targetStrategy || '-' }}
                       </div>
-                      <div v-if="systemUpdateLatestSmokeSummary.targetAgents && systemUpdateLatestSmokeSummary.targetAgents !== '未指定'" class="glass-text-muted text-[11px] leading-5 break-all">
+                      <div v-if="systemUpdateLatestSmokeSummary.targetAgents && systemUpdateLatestSmokeSummary.targetAgents !== '未指定'" class="glass-text-muted break-all text-[11px] leading-5">
                         目标代理：{{ systemUpdateLatestSmokeSummary.targetAgents }}
                       </div>
-                      <div class="glass-text-muted text-[11px] leading-5 break-all">
+                      <div class="glass-text-muted break-all text-[11px] leading-5">
                         基础地址：{{ systemUpdateLatestSmokeSummary.baseUrl || '-' }}
                       </div>
                     </div>
@@ -9399,13 +9724,13 @@ async function restoreTimingDefaults() {
                       <div v-if="systemUpdateSmokeSummaryStale" class="glass-text-muted text-[11px] leading-5">
                         当前报告已经超过 3 天，建议在正式创建更新任务前重新跑一次。
                       </div>
-                      <div class="glass-text-muted text-[11px] leading-5 break-all">
+                      <div class="glass-text-muted break-all text-[11px] leading-5">
                         宿主机核验：{{ systemUpdateLatestSmokeSummary.verifyTarget || '未记录' }}
                       </div>
                     </div>
                   </div>
 
-                  <div v-if="systemUpdateLatestSmokeSummary?.summaryPath" class="glass-text-muted text-[11px] leading-5 break-all">
+                  <div v-if="systemUpdateLatestSmokeSummary?.summaryPath" class="glass-text-muted break-all text-[11px] leading-5">
                     报告文件：{{ systemUpdateLatestSmokeSummary.summaryPath }}
                   </div>
                 </div>
@@ -9438,7 +9763,7 @@ async function restoreTimingDefaults() {
                       执行“检查更新”后，这里会显示最新版本的说明摘要和资产信息。
                     </p>
                   </div>
-                  <div v-if="systemUpdateLatestReleaseNotes" class="glass-text-muted rounded-lg border border-white/8 bg-black/10 p-3 text-[12px] leading-6 whitespace-pre-wrap">
+                  <div v-if="systemUpdateLatestReleaseNotes" class="glass-text-muted whitespace-pre-wrap border border-white/8 rounded-lg bg-black/10 p-3 text-[12px] leading-6">
                     {{ systemUpdateLatestReleaseNotes }}
                   </div>
                   <div v-if="systemUpdateLatestReleaseAssets.length" class="space-y-2">
@@ -9450,7 +9775,7 @@ async function restoreTimingDefaults() {
                       :key="`${asset.name}:${asset.url}`"
                       class="border border-white/8 rounded-lg bg-black/10 p-2"
                     >
-                      <div class="glass-text-main text-xs font-semibold break-all">
+                      <div class="glass-text-main break-all text-xs font-semibold">
                         {{ asset.name || '未命名资产' }}
                       </div>
                       <div class="glass-text-muted mt-1 text-[11px]">
@@ -9473,7 +9798,7 @@ async function restoreTimingDefaults() {
                         {{ systemUpdateSyncRecommendation?.reason || '执行“检查更新”后，会在这里显示版本说明可物化成多少条公告。' }}
                       </div>
                     </div>
-                    <div class="shrink-0 flex items-center gap-2">
+                    <div class="flex shrink-0 items-center gap-2">
                       <BaseBadge :tone="systemUpdateSyncRecommendation?.suggested ? 'info' : 'success'">
                         {{ systemUpdateSyncRecommendation ? (systemUpdateSyncRecommendation.suggested ? '建议同步' : '已同步') : '待检查' }}
                       </BaseBadge>
@@ -9496,7 +9821,7 @@ async function restoreTimingDefaults() {
                       :key="`${entry.version}:${entry.publishDate}:${entry.title}`"
                       class="border border-white/8 rounded-lg bg-black/10 p-2"
                     >
-                      <div class="flex items-center gap-2 flex-wrap">
+                      <div class="flex flex-wrap items-center gap-2">
                         <span class="glass-text-main text-xs font-semibold">{{ entry.title }}</span>
                         <BaseBadge v-if="entry.version" tone="info">
                           {{ entry.version }}
@@ -9670,7 +9995,7 @@ async function restoreTimingDefaults() {
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                       <BaseSwitch v-model="systemUpdateConfig.promptRollbackOnFailure" label="失败后提示回滚" />
-                      <div class="glass-text-muted text-[11px] leading-5 flex items-center">
+                      <div class="glass-text-muted flex items-center text-[11px] leading-5">
                         这些策略会直接影响新任务默认值与失败后的推荐动作。
                       </div>
                     </div>
@@ -11740,6 +12065,21 @@ async function restoreTimingDefaults() {
   position: relative;
 }
 
+.settings-primary-panels {
+  align-items: start;
+}
+
+.settings-primary-panel {
+  align-self: start;
+  min-height: 0;
+}
+
+@media (min-width: 1024px) {
+  .settings-primary-panels {
+    grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
+  }
+}
+
 .settings-primary-category {
   position: sticky;
   top: 0.75rem;
@@ -13213,6 +13553,251 @@ async function restoreTimingDefaults() {
 
 .settings-report-detail-chip {
   white-space: nowrap;
+}
+
+.settings-admin-workbench {
+  border: 1px solid var(--ui-border-subtle);
+  background: color-mix(in srgb, var(--ui-bg-surface) 82%, transparent);
+}
+
+.settings-admin-workbench__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.settings-admin-workbench__desc {
+  color: var(--ui-text-2);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin-top: 0.3rem;
+}
+
+.settings-admin-workbench__meta {
+  color: var(--ui-text-3);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.settings-admin-workbench__grid,
+.settings-admin-workbench__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.settings-admin-workbench__empty,
+.settings-admin-workbench__timeline-empty,
+.settings-admin-workbench__timeline-meta {
+  color: var(--ui-text-2);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.settings-admin-workbench__empty {
+  margin-bottom: 1rem;
+}
+
+.settings-admin-card {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 76%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 10px 24px color-mix(in srgb, black 8%, transparent);
+}
+
+.settings-admin-card--success {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-success) 18%, transparent);
+}
+
+.settings-admin-card--warning {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-warning) 18%, transparent);
+}
+
+.settings-admin-card--brand {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-brand-500) 18%, transparent);
+}
+
+.settings-admin-card--info {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-status-info) 18%, transparent);
+}
+
+.settings-admin-card__label {
+  color: var(--ui-text-3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-admin-card__value {
+  color: var(--ui-text-1);
+  font-size: 1.06rem;
+  font-weight: 800;
+  margin-top: 0.35rem;
+}
+
+.settings-admin-card__desc {
+  color: var(--ui-text-2);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+
+.settings-admin-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 76%, transparent);
+  text-align: left;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.settings-admin-action:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--ui-brand-500) 28%, var(--ui-border-subtle));
+  background: color-mix(in srgb, var(--ui-brand-500) 7%, var(--ui-bg-surface-raised) 93%);
+}
+
+.settings-admin-action__icon,
+.settings-admin-action__arrow {
+  color: var(--ui-text-3);
+  flex-shrink: 0;
+}
+
+.settings-admin-action__icon {
+  font-size: 1.15rem;
+}
+
+.settings-admin-action__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-admin-action__label {
+  color: var(--ui-text-1);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.settings-admin-action__desc {
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+.settings-admin-workbench__timeline {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--ui-bg-surface-raised) 76%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.settings-admin-workbench__timeline-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-admin-workbench__timeline-title {
+  color: var(--ui-text-1);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.settings-admin-workbench__timeline-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.settings-admin-operation {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border-subtle) 88%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.8rem;
+  background: color-mix(in srgb, var(--ui-bg-surface) 64%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.settings-admin-operation__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-admin-operation__topline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.settings-admin-operation__scope {
+  color: var(--ui-text-3);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-admin-operation__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.settings-admin-operation__status--success {
+  background: var(--ui-status-success-soft);
+  color: var(--ui-status-success);
+}
+
+.settings-admin-operation__status--warning {
+  background: var(--ui-status-warning-soft);
+  color: var(--ui-status-warning);
+}
+
+.settings-admin-operation__status--error {
+  background: var(--ui-status-danger-soft);
+  color: var(--ui-status-danger);
+}
+
+.settings-admin-operation__label {
+  color: var(--ui-text-1);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.settings-admin-operation__meta {
+  color: var(--ui-text-2);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin-top: 0.18rem;
 }
 
 .settings-route-anchor {
