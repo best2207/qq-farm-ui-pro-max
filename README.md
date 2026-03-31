@@ -1052,7 +1052,7 @@ qq-farm-bot-ui/
 - 扫码登录：[lkeme/QRLib](https://github.com/lkeme/QRLib)
 - 推送通知：[imaegoo/pushoo](https://github.com/imaegoo/pushoo)
 - 主体框架：[Penty-d/qq-farm-bot-ui](https://github.com/Penty-d/qq-farm-bot-ui)
-
+- 田园web：[ayimeng/qq-farm-bot](https://github.com/ayimeng/qq-farm-bot)
 ---
 
 ## 常见问题
