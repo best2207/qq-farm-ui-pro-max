@@ -290,7 +290,7 @@ docker compose --help
 **文档资源：**
 - [RELEASE-NOTES.md](../archive/RELEASE-NOTES.md) - 版本说明
 - [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md) - 完整指南
-- [DOCKER-UPDATE-SUMMARY.md](archive/DOCKER-UPDATE-SUMMARY.md) - 历史更新说明
+- [FINAL_DOCKER_SETUP_COMPLETE.md](../archive/FINAL_DOCKER_SETUP_COMPLETE.md) - 历史更新说明
 
 **技术支持：**
 - GitHub: https://github.com/smdk000/qq-farm-ui-pro-max/issues

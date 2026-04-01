@@ -64,6 +64,8 @@ services/ipad860/clientsdk/ccdata/wechatdll
 
 # Archive (旧脚本/镜像归档，不进入版本控制)
 archive/
+!docs/deployment/archive/
+!docs/deployment/archive/README.md
 tmp/
 
 # 图鉴（root权限静态资源，不进入版本控制）

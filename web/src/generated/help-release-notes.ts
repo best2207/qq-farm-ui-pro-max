@@ -3,6 +3,12 @@
 
 export const helpReleaseNotes = [
   {
+    version: 'v4.5.60',
+    date: '2026-04-01',
+    title: '正式 Release 对齐与远端发布加固版',
+    summary: '不改写既有 `v4.5.59` 历史，改用新的 `v4.5.60` 对齐干净源码正式发布；批量滚动脚本补齐 `expect / mktemp / 远端 bootstrap` 实战修复，并统一默认版本口径到 `v4.5.60`。',
+  },
+  {
     version: 'v4.5.59',
     date: '2026-04-01',
     title: 'Docker 发布续航、默认镜像对齐与双机批量滚动升级版',

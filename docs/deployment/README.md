@@ -20,8 +20,8 @@
 
 ## 历史归档
 
-- [archive/README.md](./archive/README.md)
-  - 历史版本指南、完成报告、阶段总结、演练记录
+- [../archive/RELEASE-NOTES.md](../archive/RELEASE-NOTES.md)
+  - 历史版本说明与发布记录
 
 ## 当前标准口径
 
